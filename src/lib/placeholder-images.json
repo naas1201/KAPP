@@ -1,3 +1,70 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-clinic",
+      "description": "A bright and modern clinic interior.",
+      "imageUrl": "https://images.unsplash.com/photo-1665231795856-769fb08a90bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxjbGluaWMlMjBpbnRlcmlvcnxlbnwwfHx8fDE3NjE5NjQzOTR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "clinic interior"
+    },
+    {
+      "id": "doctor-portrait",
+      "description": "Portrait of Dr. Katheryne Castillo.",
+      "imageUrl": "https://images.unsplash.com/photo-1673865641073-4479f93a7776?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxkb2N0b3IlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjE4NDQxMDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "doctor portrait"
+    },
+    {
+      "id": "aesthetic-before-1",
+      "description": "Before an aesthetic treatment.",
+      "imageUrl": "https://images.unsplash.com/photo-1616002411355-49593fd89721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHx3b21hbiUyMGZhY2V8ZW58MHx8fHwxNzYxOTA5OTE2fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman face"
+    },
+    {
+      "id": "aesthetic-after-1",
+      "description": "After an aesthetic treatment.",
+      "imageUrl": "https://images.unsplash.com/photo-1711645169736-53327e726205?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21hbiUyMHNtaWxpbmd8ZW58MHx8fHwxNzYxODg1MDQyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman smiling"
+    },
+    {
+      "id": "aesthetic-before-2",
+      "description": "Before a skin treatment.",
+      "imageUrl": "https://images.unsplash.com/photo-1601661849334-cfe3ce5e038a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxza2luJTIwdGV4dHVyZXxlbnwwfHx8fDE3NjE5NjQzOTR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "skin texture"
+    },
+    {
+      "id": "aesthetic-after-2",
+      "description": "After a skin treatment.",
+      "imageUrl": "https://images.unsplash.com/photo-1694147185194-f91cd8a50680?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxnbG93aW5nJTIwc2tpbnxlbnwwfHx8fDE3NjE4OTgwMTd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "glowing skin"
+    },
+    {
+      "id": "general-med-service",
+      "description": "Iconic image for general medicine.",
+      "imageUrl": "https://images.unsplash.com/photo-1700832082152-0416a3ee5e60?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxzdGV0aG9zY29wZSUyMG1lZGljYWx8ZW58MHx8fHwxNzYxOTY0Mzk0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "stethoscope medical"
+    },
+    {
+      "id": "aesthetic-service",
+      "description": "Iconic image for aesthetic services.",
+      "imageUrl": "https://images.unsplash.com/photo-1585945037805-5fd82c2e60b1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxza2luJTIwY2FyZXxlbnwwfHx8fDE3NjE5NjQzOTR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "skin care"
+    },
+    {
+      "id": "testimonial-1",
+      "description": "Portrait of a patient.",
+      "imageUrl": "https://images.unsplash.com/photo-1542596768-5d1d21f1cf98?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxwZXJzb24lMjBzbWlsaW5nfGVufDB8fHx8MTc2MTg4NDAyNnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person smiling"
+    },
+    {
+      "id": "testimonial-2",
+      "description": "Portrait of a patient.",
+      "imageUrl": "https://images.unsplash.com/photo-1747455418298-6f1d31d5bb61?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxwZXJzb24lMjBoYXBweXxlbnwwfHx8fDE3NjE4ODI3MjV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person happy"
+    },
+    {
+      "id": "testimonial-3",
+      "description": "Portrait of a patient.",
+      "imageUrl": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8d29tYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjE5MDk0MjV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman portrait"
+    }
+  ]
 }
