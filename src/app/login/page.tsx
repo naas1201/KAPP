@@ -1,6 +1,6 @@
 'use client';
 
-import { useState }from 'firebase/auth';
+import { useState, useEffect }from 'firebase/auth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -59,10 +59,20 @@ export default function LoginPage() {
     },
   });
 
+  const rememberMe = form.watch('rememberMe');
+
+  useEffect(() => {
+    const persistence = rememberMe
+      ? browserLocalPersistence
+      : browserSessionPersistence;
+    setPersistence(auth, persistence);
+  }, [rememberMe, auth]);
+
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
+      await setPersistence(auth, browserLocalPersistence); // Persist Google sign-in
       await signInWithPopup(auth, provider);
       toast({ title: 'Signed in successfully!' });
       router.push('/admin/dashboard');
@@ -80,10 +90,6 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
-      const persistence = data.rememberMe
-        ? browserLocalPersistence
-        : browserSessionPersistence;
-      await setPersistence(auth, persistence);
       await signInWithEmailAndPassword(auth, data.email, data.password);
       toast({ title: 'Signed in successfully!' });
       router.push('/admin/dashboard');
