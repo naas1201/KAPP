@@ -1,6 +1,8 @@
+
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -85,6 +87,7 @@ export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
+  const router = useRouter();
 
 
   const form = useForm<FormData>({
@@ -110,6 +113,7 @@ export default function BookingPage() {
     dateTime.setHours(hours, minutes, 0, 0);
 
     let patientId = user?.uid;
+    const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
 
     // If user is not logged in, create a lead
     if (!patientId) {
@@ -122,32 +126,44 @@ export default function BookingPage() {
         email: data.email,
         phone: data.phone,
         source: 'Booking Form',
-        serviceInterest: services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name,
+        serviceInterest: serviceName,
         createdAt: serverTimestamp(),
       });
+      toast({
+        title: "Appointment Requested!",
+        description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}. We will contact you for confirmation.`,
+      });
+      setCurrentStep(3);
     } else {
         // If user is logged in, create an appointment
-        const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
-        addDocumentNonBlocking(appointmentRef, {
+        const appointmentData = {
             patientId,
             doctorId: 'default-doctor-id', // Placeholder
-            serviceType: services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name,
+            serviceType: serviceName,
             dateTime: dateTime.toISOString(),
+            status: 'pending',
             notes: 'Booked via website.',
-        });
+        };
+        const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
+        const newDocPromise = addDocumentNonBlocking(appointmentRef, appointmentData);
 
-        // Also update patient's appointment count
         const patientRef = doc(firestore, 'patients', patientId);
         updateDocumentNonBlocking(patientRef, {
             appointmentCount: increment(1)
         });
-    }
 
-    toast({
-        title: "Appointment Booked!",
-        description: `We've scheduled your ${services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name} on ${format(data.date, "PPP")} at ${data.time}.`,
-    });
-    setCurrentStep(3);
+        const newDoc = await newDocPromise;
+        if (newDoc) {
+          router.push(`/appointment/${newDoc.id}`);
+        } else {
+           // Fallback in case the redirect fails
+           toast({
+            title: "Appointment Booked!",
+            description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}.`,
+           });
+           setCurrentStep(3);
+        }
+    }
   }
 
   const next = async () => {

@@ -1,3 +1,6 @@
+
+'use client';
+
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -20,40 +23,45 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Metadata, ResolvingMetadata } from 'next'
+import { useState } from 'react';
+import { BookingSheet } from '@/components/BookingSheet';
 
 type Props = {
   params: { slug: string }
 }
  
-export async function generateMetadata(
-  { params }: Props,
-  parent: ResolvingMetadata
-): Promise<Metadata> {
-  const service = services.find((s) => s.slug === params.slug);
+// This function is still useful for server-side metadata generation
+// export async function generateMetadata(
+//   { params }: Props,
+//   parent: ResolvingMetadata
+// ): Promise<Metadata> {
+//   const service = services.find((s) => s.slug === params.slug);
  
-  if (!service) {
-    return {
-      title: 'Service Not Found'
-    }
-  }
+//   if (!service) {
+//     return {
+//       title: 'Service Not Found'
+//     }
+//   }
  
-  return {
-    title: service.title,
-    description: service.longDescription,
-  }
-}
+//   return {
+//     title: service.title,
+//     description: service.longDescription,
+//   }
+// }
 
-export function generateStaticParams() {
-  return services.map((service) => ({
-    slug: service.slug,
-  }));
-}
+// Since we are making this a client component, we can't use generateStaticParams
+// export function generateStaticParams() {
+//   return services.map((service) => ({
+//     slug: service.slug,
+//   }));
+// }
 
 export default function ServiceDetailPage({
   params,
 }: {
   params: { slug: string };
 }) {
+  const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
   const service = services.find((s) => s.slug === params.slug);
 
   if (!service) {
@@ -61,6 +69,7 @@ export default function ServiceDetailPage({
   }
 
   return (
+    <>
     <div>
       <section className="py-16 md:py-24 bg-card">
         <div className="container text-center max-w-3xl">
@@ -70,9 +79,7 @@ export default function ServiceDetailPage({
           <p className="mt-4 text-lg text-muted-foreground">
             {service.longDescription}
           </p>
-          <Button asChild className="mt-8">
-            <Link href="/booking">Book a Consultation</Link>
-          </Button>
+          <Button className="mt-8" onClick={() => setBookingSheetOpen(true)}>Book a Consultation</Button>
         </div>
       </section>
 
@@ -181,5 +188,7 @@ export default function ServiceDetailPage({
         </div>
       </section>
     </div>
+    <BookingSheet open={isBookingSheetOpen} onOpenChange={setBookingSheetOpen} />
+    </>
   );
 }

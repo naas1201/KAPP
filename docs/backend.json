@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Patient": {
@@ -81,6 +82,11 @@
           "description": "Date and time of the appointment.",
           "format": "date-time"
         },
+        "status": {
+          "type": "string",
+          "description": "Status of the appointment (e.g., pending, confirmed, cancelled).",
+          "enum": ["pending", "confirmed", "cancelled"]
+        },
         "notes": {
           "type": "string",
           "description": "Any notes related to the appointment."
@@ -90,7 +96,8 @@
         "patientId",
         "doctorId",
         "serviceType",
-        "dateTime"
+        "dateTime",
+        "status"
       ]
     },
     "TreatmentRecord": {

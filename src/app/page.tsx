@@ -1,3 +1,6 @@
+
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -20,8 +23,11 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
+import { useState } from 'react';
+import { BookingSheet } from '@/components/BookingSheet';
 
 export default function Home() {
+  const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
   const heroImage = PlaceHolderImages.find((img) => img.id === 'hero-clinic');
   const doctorImage = PlaceHolderImages.find(
     (img) => img.id === 'doctor-portrait'
@@ -52,6 +58,7 @@ export default function Home() {
   ];
 
   return (
+    <>
     <div className="flex flex-col">
       <section className="relative w-full py-24 md:py-32 lg:py-48 text-center bg-background">
         <div className="absolute inset-0">
@@ -75,9 +82,7 @@ export default function Home() {
             advanced aesthetic treatments, building confidence from the inside out.
           </p>
           <div className="flex flex-col justify-center gap-4 mt-8 sm:flex-row">
-            <Button size="lg" asChild>
-              <Link href="/booking">Book an Appointment</Link>
-            </Button>
+            <Button size="lg" onClick={() => setBookingSheetOpen(true)}>Book an Appointment</Button>
             <Button size="lg" variant="outline" asChild>
               <Link href="/services">Explore Services</Link>
             </Button>
@@ -291,5 +296,7 @@ export default function Home() {
         </div>
       </section>
     </div>
+    <BookingSheet open={isBookingSheetOpen} onOpenChange={setBookingSheetOpen} />
+    </>
   );
 }

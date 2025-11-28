@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Menu, User, LogOut, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ import { Logo } from '@/components/logo';
 import { useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '@/firebase';
+import { BookingSheet } from './BookingSheet';
 
 
 const navLinks = [
@@ -35,12 +37,14 @@ const navLinks = [
 export function Header() {
     const { user, isUserLoading } = useUser();
     const auth = useAuth();
+    const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
     
     const handleSignOut = async () => {
         await signOut(auth);
     }
 
   return (
+    <>
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex items-center justify-between h-16 max-w-7xl">
         <div className="flex items-center gap-4">
@@ -96,13 +100,11 @@ export function Header() {
                          <Button variant="ghost" asChild>
                             <Link href="/login">Sign In</Link>
                         </Button>
-                        <Button asChild>
-                            <Link href="/signup">Sign Up</Link>
-                        </Button>
                     </div>
                 )}
                 </>
             )}
+             <Button onClick={() => setBookingSheetOpen(true)}>Book Now</Button>
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">
@@ -135,11 +137,6 @@ export function Header() {
                     </SheetClose>
                 ) : (
                     <>
-                    <SheetClose asChild>
-                        <Button asChild size="lg" className="w-full">
-                            <Link href="/signup">Sign Up</Link>
-                        </Button>
-                    </SheetClose>
                      <SheetClose asChild>
                         <Button asChild size="lg" className="w-full" variant="outline">
                             <Link href="/login">Sign In</Link>
@@ -153,5 +150,7 @@ export function Header() {
         </div>
       </div>
     </header>
+    <BookingSheet open={isBookingSheetOpen} onOpenChange={setBookingSheetOpen} />
+    </>
   );
 }
