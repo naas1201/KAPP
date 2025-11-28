@@ -414,7 +414,7 @@ export default function PatientDetailsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="relative space-y-8">
+              <div className="relative space-y-8 pl-6">
                 {isLoadingTreatments ? (
                    Array.from({ length: 2 }).map((_, i) => (
                     <div key={i} className="flex gap-4">
@@ -429,13 +429,13 @@ export default function PatientDetailsPage() {
                 ) : treatments?.length ? (
                   treatments.map((item: any, index) => (
                     <div key={item.id} className="relative flex gap-4 timeline-item">
-                       <div className="timeline-line"/>
-                      <div className="flex-shrink-0 z-10">
-                        <div className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                       <div className="absolute -left-6 top-0 h-full w-px bg-border -translate-x-1/2" />
+                      <div className="flex-shrink-0 z-10 -ml-2">
+                        <div className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center ring-4 ring-background">
                           <HeartPulse className="w-5 h-5" />
                         </div>
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 pb-8">
                         <div className="flex justify-between items-center">
                           <p className="font-semibold">{item.treatmentType}</p>
                           <time className="text-xs text-muted-foreground">
@@ -559,3 +559,5 @@ export default function PatientDetailsPage() {
     </div>
   );
 }
+
+    
