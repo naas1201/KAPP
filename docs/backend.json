@@ -374,6 +374,36 @@
         }
       },
       "required": ["treatmentId", "price", "providesService"]
+    },
+    "ChatRoom": {
+        "title": "ChatRoom",
+        "type": "object",
+        "description": "Represents a private chat room between a doctor and a patient.",
+        "properties": {
+            "doctorId": { "type": "string", "description": "The UID of the doctor." },
+            "patientId": { "type": "string", "description": "The UID of the patient." },
+            "lastMessageText": { "type": "string", "description": "The text of the last message sent." },
+            "lastActivity": { "type": "string", "format": "date-time", "description": "Timestamp of the last activity." },
+            "status": { "type": "string", "enum": ["open", "closed"], "description": "Status of the chat room." },
+            "doctorUnreadCount": { "type": "number", "description": "Number of unread messages for the doctor." },
+            "patientUnreadCount": { "type": "number", "description": "Number of unread messages for the patient." },
+            "participants": { "type": "array", "items": { "type": "string" }, "description": "Array containing the UIDs of the doctor and patient." }
+        },
+        "required": ["doctorId", "patientId", "lastActivity", "status", "participants"]
+    },
+    "ChatMessage": {
+        "title": "ChatMessage",
+        "type": "object",
+        "description": "Represents a single message within a chat room.",
+        "properties": {
+            "senderId": { "type": "string", "description": "The UID of the message sender." },
+            "text": { "type": "string", "description": "The text content of the message." },
+            "imageUrl": { "type": "string", "description": "URL of an image attachment." },
+            "fileUrl": { "type": "string", "description": "URL of a file attachment." },
+            "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the message was created." },
+            "readByPatient": { "type": "boolean", "description": "True if the patient has read the message." }
+        },
+        "required": ["senderId", "createdAt"]
     }
   },
   "auth": {
@@ -457,7 +487,7 @@
         "schema": {
           "$ref": "#/entities/VideoCall"
         },
-        "description": "Temporary collection for WebRTC signaling."
+        "description": "Temporary signaling collection for WebRTC video calls."
       },
       {
         "path": "/prescriptions/{prescriptionId}",
@@ -472,6 +502,20 @@
           "$ref": "#/entities/Treatment"
         },
         "description": "Master list of all treatments offered by the clinic. Managed by Admin."
+      },
+      {
+          "path": "/chatRooms/{roomId}",
+          "schema": {
+              "$ref": "#/entities/ChatRoom"
+          },
+          "description": "Top-level collection for chat rooms."
+      },
+      {
+          "path": "/chatRooms/{roomId}/messages/{messageId}",
+          "schema": {
+              "$ref": "#/entities/ChatMessage"
+          },
+          "description": "Subcollection for messages within a chat room."
       }
     ]
   }

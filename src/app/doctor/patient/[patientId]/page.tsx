@@ -46,6 +46,7 @@ import {
   Edit,
   Trash2,
   Copy,
+  MessageSquare,
 } from 'lucide-react';
 import { format, formatDistanceToNow, add } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -67,6 +68,7 @@ import {
   } from "@/components/ui/dropdown-menu"
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 export default function PatientDetailsPage() {
   const { patientId } = useParams();
@@ -197,10 +199,9 @@ export default function PatientDetailsPage() {
   const handleRenewPrescription = (prescription: any) => {
     if (!firestore || !doctor || !patientId) return;
     const prescriptionRef = collection(firestore, 'patients', patientId as string, 'prescriptions');
+    const { id, ...restOfPrescription } = prescription;
     addDocumentNonBlocking(prescriptionRef, {
-        ...prescription,
-        // Omit id
-        id: undefined,
+        ...restOfPrescription,
         createdAt: new Date().toISOString(),
         expiresAt: add(new Date(), { days: 30 }).toISOString(),
     });
@@ -298,8 +299,10 @@ export default function PatientDetailsPage() {
               <Button onClick={handleStartVideoCall}>
                 <Video className="w-4 h-4 mr-2" /> Start Video Call
               </Button>
-               <Button variant="outline">
-                <Mail className="w-4 h-4 mr-2" /> Send Message
+               <Button variant="outline" asChild>
+                <Link href={`/doctor/chat/${patientId}`}>
+                  <MessageSquare className="w-4 h-4 mr-2" /> Send Message
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -509,5 +512,3 @@ export default function PatientDetailsPage() {
     </div>
   );
 }
-
-    
