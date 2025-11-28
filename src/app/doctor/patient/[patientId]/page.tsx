@@ -47,6 +47,7 @@ import {
   Trash2,
   Copy,
   MessageSquare,
+  Flag,
 } from 'lucide-react';
 import { format, formatDistanceToNow, add } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuSeparator
   } from "@/components/ui/dropdown-menu"
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -82,6 +84,8 @@ export default function PatientDetailsPage() {
   const [editingPrescription, setEditingPrescription] = useState<any>(null);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [isReportModalOpen, setReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
 
 
   const [treatmentNotes, setTreatmentNotes] = useState('');
@@ -222,7 +226,6 @@ export default function PatientDetailsPage() {
 
     try {
       const roomRef = collection(firestore, 'video-calls');
-      // Use the non-blocking version and await its promise
       const newRoom = await addDocumentNonBlocking(roomRef, {
         doctorId: doctor.uid,
         patientId: patientId,
@@ -230,7 +233,7 @@ export default function PatientDetailsPage() {
         status: 'pending',
       });
       if (newRoom) {
-        router.push(`/video-call/${newRoom.id}`);
+        router.push(`/video-call/${newRoom.id}?role=caller&peerId=${patientId}`);
       } else {
         throw new Error('Failed to create room document.');
       }
@@ -242,6 +245,20 @@ export default function PatientDetailsPage() {
         description: 'There was an issue setting up the video call room.',
       });
     }
+  };
+
+  const handleReportPatient = () => {
+    if (!firestore || !doctor || !patientId || !reportReason) return;
+    const reportRef = collection(firestore, 'reports');
+    addDocumentNonBlocking(reportRef, {
+        reporterId: doctor.uid,
+        reportedId: patientId,
+        reason: reportReason,
+        createdAt: new Date().toISOString(),
+    });
+    setReportModalOpen(false);
+    setReportReason('');
+    toast({ title: "Patient Reported", description: "Your report has been submitted to the admin for review." });
   };
 
   if (isLoadingPatient || isUserLoading) {
@@ -304,6 +321,9 @@ export default function PatientDetailsPage() {
                   <MessageSquare className="w-4 h-4 mr-2" /> Send Message
                 </Link>
               </Button>
+               <Button variant="ghost" className="text-muted-foreground" onClick={() => setReportModalOpen(true)}>
+                <Flag className="w-4 h-4 mr-2" /> Report Patient
+              </Button>
             </CardContent>
           </Card>
 
@@ -363,6 +383,7 @@ export default function PatientDetailsPage() {
                             <DropdownMenuContent>
                                 <DropdownMenuItem onClick={() => handleEditPrescription(rx)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleRenewPrescription(rx)}><Copy className="mr-2 h-4 w-4"/>Renew</DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => { setItemToDelete({ id: rx.id, collection: 'prescriptions', type: 'Prescription' }); setDeleteAlertOpen(true); }} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -506,6 +527,32 @@ export default function PatientDetailsPage() {
               <Button variant="outline">Cancel</Button>
             </DialogClose>
             <Button onClick={handleSavePrescription}>Save Prescription</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+        {/* Report Patient Dialog */}
+      <Dialog open={isReportModalOpen} onOpenChange={setReportModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report Patient</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for reporting {patientName}. This will be sent to the administrator for review.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Textarea
+              placeholder="Enter reason for reporting..."
+              rows={4}
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleReportPatient} variant="destructive">Submit Report</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

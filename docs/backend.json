@@ -404,6 +404,64 @@
             "readByPatient": { "type": "boolean", "description": "True if the patient has read the message." }
         },
         "required": ["senderId", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "type": "object",
+      "description": "Represents a report filed by a doctor against a patient.",
+      "properties": {
+        "reporterId": {
+          "type": "string",
+          "description": "The UID of the user filing the report (a doctor)."
+        },
+        "reportedId": {
+          "type": "string",
+          "description": "The UID of the user being reported (a patient)."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason for the report."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the report was created."
+        }
+      },
+      "required": ["reporterId", "reportedId", "reason", "createdAt"]
+    },
+    "Rating": {
+      "title": "Rating",
+      "type": "object",
+      "description": "Represents a rating for a consultation.",
+      "properties": {
+        "consultationId": {
+          "type": "string",
+          "description": "The ID of the consultation/call being rated."
+        },
+        "ratedId": {
+          "type": "string",
+          "description": "The UID of the user being rated (doctor or patient)."
+        },
+        "raterId": {
+          "type": "string",
+          "description": "The UID of the user giving the rating."
+        },
+        "rating": {
+          "type": "number",
+          "description": "The rating value (e.g., 1-5)."
+        },
+        "comment": {
+          "type": "string",
+          "description": "Optional comment with the rating."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the rating was submitted."
+        }
+      },
+      "required": ["consultationId", "ratedId", "raterId", "rating", "createdAt"]
     }
   },
   "auth": {
@@ -516,6 +574,20 @@
               "$ref": "#/entities/ChatMessage"
           },
           "description": "Subcollection for messages within a chat room."
+      },
+      {
+        "path": "/reports/{reportId}",
+        "schema": {
+          "$ref": "#/entities/Report"
+        },
+        "description": "Collection for reports filed by doctors. Only accessible by Admins."
+      },
+      {
+        "path": "/ratings/{ratingId}",
+        "schema": {
+          "$ref": "#/entities/Rating"
+        },
+        "description": "Collection for all consultation ratings."
       }
     ]
   }

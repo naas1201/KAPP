@@ -170,5 +170,47 @@ service cloud.firestore {
       // The patientId should be stored in the document to verify access.
       allow read, write: if isSignedIn() && (isAuthorizedDoctorForPatient(resource.data.patientId) || isOwner(resource.data.patientId));
     }
+     /**
+     * @description Chat rooms between doctors and patients.
+     */
+    match /chatRooms/{roomId} {
+      // Participants can get, list, and update room details (e.g., unread count)
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      // Only doctors can create new rooms
+      allow create: if isDoctor();
+
+      /**
+       * @description Messages within a chat room.
+       */
+      match /messages/{messageId} {
+        // Participants can read messages
+        allow get, list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
+        // Participants can add new messages if the room is open
+        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
+                     && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'open';
+        // Allow updating message (e.g. for reactions, read status) by participants
+        allow update: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
+      }
+    }
+
+    /**
+     * @description Stores reports filed by doctors against patients.
+     */
+    match /reports/{reportId} {
+      // Only doctors can create reports
+      allow create: if isDoctor();
+      // Only admins can read, update, or delete reports
+      allow read, write: if isAdmin();
+    }
+
+    /**
+     * @description Stores ratings for consultations.
+     */
+    match /ratings/{ratingId} {
+      // Only signed-in users can create ratings
+      allow create: if isSignedIn();
+      // Only admins can read all ratings
+      allow read, list: if isAdmin();
+    }
   }
 }
