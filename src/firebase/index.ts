@@ -35,16 +35,14 @@ export function initializeFirebase() {
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
-  if (!firestoreInstance) {
-    firestoreInstance = initializeFirestore(firebaseApp, {
-      localCache: persistentLocalCache({})
-    });
-  }
+  // Use getFirestore() to safely retrieve the instance.
+  // It handles initialization internally.
+  const firestore = getFirestore(firebaseApp);
 
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
-    firestore: firestoreInstance,
+    firestore: firestore,
   };
 }
 
