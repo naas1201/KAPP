@@ -50,9 +50,13 @@
           "type": "string",
           "description": "Patient's address."
         },
+        "occupation": {
+          "type": "string",
+          "description": "Patient's occupation."
+        },
         "medicalHistory": {
           "type": "string",
-          "description": "Summary of the patient's medical history."
+          "description": "Summary of the patient's medical history from the intake form."
         },
         "aestheticGoals": {
           "type": "string",
@@ -121,7 +125,7 @@
     "TreatmentRecord": {
       "title": "TreatmentRecord",
       "type": "object",
-      "description": "Represents a treatment record for a patient.",
+      "description": "Represents a detailed treatment record for a patient's consultation.",
       "properties": {
         "patientId": {
           "type": "string",
@@ -131,32 +135,46 @@
           "type": "string",
           "description": "Reference to Doctor. (Relationship: Doctor 1:N TreatmentRecord)"
         },
-        "treatmentType": {
-          "type": "string",
-          "description": "Type of treatment (e.g., Botox, Consultation)."
-        },
         "date": {
           "type": "string",
-          "description": "Date of the treatment.",
+          "description": "Date of the consultation.",
           "format": "date"
         },
-        "details": {
+        "historyOfPresentIllness": {
           "type": "string",
-          "description": "Details of the treatment performed."
+          "description": "Details of the patient's current illness or concern."
         },
-        "prescriptionIds": {
-          "type": "array",
-          "description": "References to prescriptions associated with the treatment. (Relationship: TreatmentRecord 1:N Prescription)",
-          "items": {
-            "type": "string"
-          }
+        "pastMedicalHistory": {
+          "type": "string",
+          "description": "Summary of the patient's past medical conditions."
+        },
+        "familyHistory": {
+          "type": "string",
+          "description": "Relevant family medical history."
+        },
+        "personalAndSocialHistory": {
+          "type": "string",
+          "description": "Patient's lifestyle, habits, etc."
+        },
+        "skinCareRoutine": {
+          "type": "string",
+          "description": "Current skincare products and routine."
+        },
+        "diagnosis": {
+          "type": "string",
+          "description": "The doctor's diagnosis for this consultation."
+        },
+        "treatmentPlan": {
+          "type": "string",
+          "description": "The recommended treatment plan."
         }
       },
       "required": [
         "patientId",
         "doctorId",
-        "treatmentType",
-        "date"
+        "date",
+        "diagnosis",
+        "treatmentPlan"
       ]
     },
     "Doctor": {
@@ -592,3 +610,5 @@
     ]
   }
 }
+
+    

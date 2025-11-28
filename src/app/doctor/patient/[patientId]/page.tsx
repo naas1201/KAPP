@@ -48,6 +48,11 @@ import {
   Copy,
   MessageSquare,
   Flag,
+  Briefcase,
+  BookUser,
+  NotebookTabs,
+  Heart,
+  FileText
 } from 'lucide-react';
 import { format, formatDistanceToNow, add } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -71,6 +76,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { Label } from '@/components/ui/label';
+
+const initialConsultationFormState = {
+  historyOfPresentIllness: '',
+  pastMedicalHistory: '',
+  familyHistory: '',
+  personalAndSocialHistory: '',
+  skinCareRoutine: '',
+  diagnosis: '',
+  treatmentPlan: '',
+};
 
 export default function PatientDetailsPage() {
   const { patientId } = useParams();
@@ -86,10 +102,10 @@ export default function PatientDetailsPage() {
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [isReportModalOpen, setReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  
+  const [consultationForm, setConsultationForm] = useState(initialConsultationFormState);
 
 
-  const [treatmentNotes, setTreatmentNotes] = useState('');
-  const [treatmentType, setTreatmentType] = useState('');
   const [prescriptionDetails, setPrescriptionDetails] = useState({
     drugName: '',
     dosage: '',
@@ -133,16 +149,23 @@ export default function PatientDetailsPage() {
     setEditingPrescription(null);
     setPrescriptionDetails({ drugName: '', dosage: '', frequency: '', notes: '' });
   };
+  
+  const openConsultationModal = () => {
+    setConsultationForm({
+        ...initialConsultationFormState,
+        pastMedicalHistory: patient?.medicalHistory || '',
+        personalAndSocialHistory: `Occupation: ${patient?.occupation || 'N/A'}`,
+    });
+    setTreatmentModalOpen(true);
+  }
 
   const handleAddTreatment = () => {
     if (
       !firestore ||
       !doctor ||
-      !patientId ||
-      !treatmentNotes ||
-      !treatmentType
-    )
-      return;
+      !patientId
+    ) return;
+
     const treatmentRef = collection(
       firestore,
       'patients',
@@ -153,13 +176,11 @@ export default function PatientDetailsPage() {
       patientId,
       doctorId: doctor.uid,
       date: new Date().toISOString(),
-      details: treatmentNotes,
-      treatmentType: treatmentType,
+      ...consultationForm
     });
     setTreatmentModalOpen(false);
-    setTreatmentNotes('');
-    setTreatmentType('');
-    toast({ title: "Treatment note added." });
+    setConsultationForm(initialConsultationFormState);
+    toast({ title: "Consultation record saved." });
   };
 
   const handleSavePrescription = () => {
@@ -268,6 +289,17 @@ export default function PatientDetailsPage() {
   if (!patient) {
     notFound();
   }
+  
+  const getAge = (dateString: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateString);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+  }
 
   const patientName = `${patient.firstName} ${patient.lastName}`;
 
@@ -291,8 +323,12 @@ export default function PatientDetailsPage() {
               <div className="flex items-center gap-3">
                 <Cake className="w-5 h-5 text-muted-foreground" />
                 <span>
-                  {format(new Date(patient.dateOfBirth), 'MMMM d, yyyy')}
+                  {format(new Date(patient.dateOfBirth), 'MMMM d, yyyy')} ({getAge(patient.dateOfBirth)} years old)
                 </span>
+              </div>
+               <div className="flex items-center gap-3">
+                <Briefcase className="w-5 h-5 text-muted-foreground" />
+                <span>{patient.occupation || 'Not specified'}</span>
               </div>
               <div className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-muted-foreground" />
@@ -343,7 +379,7 @@ export default function PatientDetailsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <HeartPulse className="w-5 h-5" /> Medical History
+                <HeartPulse className="w-5 h-5" /> Initial Medical History
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -407,9 +443,9 @@ export default function PatientDetailsPage() {
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle>Patient Timeline</CardTitle>
-                <Button onClick={() => setTreatmentModalOpen(true)}>
-                  <ClipboardPlus className="w-4 h-4 mr-2" /> Add Treatment Note
+                <CardTitle>Consultation History</CardTitle>
+                <Button onClick={openConsultationModal}>
+                  <ClipboardPlus className="w-4 h-4 mr-2" /> New Consultation
                 </Button>
               </div>
             </CardHeader>
@@ -432,25 +468,26 @@ export default function PatientDetailsPage() {
                        <div className="absolute -left-6 top-0 h-full w-px bg-border -translate-x-1/2" />
                       <div className="flex-shrink-0 z-10 -ml-2">
                         <div className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center ring-4 ring-background">
-                          <HeartPulse className="w-5 h-5" />
+                          <FileText className="w-5 h-5" />
                         </div>
                       </div>
                       <div className="flex-1 pb-8">
                         <div className="flex justify-between items-center">
-                          <p className="font-semibold">{item.treatmentType}</p>
+                          <p className="font-semibold">Consultation Record</p>
                           <time className="text-xs text-muted-foreground">
                             {formatDistanceToNow(new Date(item.date), { addSuffix: true })}
                           </time>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {item.details}
-                        </p>
+                        <div className="mt-2 text-sm space-y-2 text-muted-foreground">
+                            <p><strong>Diagnosis:</strong> {item.diagnosis}</p>
+                            <p><strong>Treatment Plan:</strong> {item.treatmentPlan}</p>
+                        </div>
                       </div>
                     </div>
                   ))
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">
-                    <p>No treatment history recorded.</p>
+                    <p>No consultation history recorded.</p>
                   </div>
                 )}
               </div>
@@ -461,31 +498,51 @@ export default function PatientDetailsPage() {
       
       {/* Add Treatment Note Dialog */}
       <Dialog open={isTreatmentModalOpen} onOpenChange={setTreatmentModalOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add Treatment Note</DialogTitle>
+            <DialogTitle>New Consultation Record</DialogTitle>
             <DialogDescription>
-              Record the details of the treatment provided to {patientName}.
+              Create a new medical record for this consultation with {patientName}.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-             <Input 
-                placeholder="Treatment Type (e.g., Consultation, Botox)"
-                value={treatmentType}
-                onChange={(e) => setTreatmentType(e.target.value)}
-            />
-            <Textarea
-              placeholder="Enter treatment details here..."
-              rows={6}
-              value={treatmentNotes}
-              onChange={(e) => setTreatmentNotes(e.target.value)}
-            />
+          <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-6">
+            
+            <div>
+              <Label htmlFor="historyOfPresentIllness">History of Present Illness</Label>
+              <Textarea id="historyOfPresentIllness" value={consultationForm.historyOfPresentIllness} onChange={(e) => setConsultationForm({...consultationForm, historyOfPresentIllness: e.target.value})} />
+            </div>
+            <div>
+              <Label htmlFor="pastMedicalHistory">Past Medical History</Label>
+              <Textarea id="pastMedicalHistory" value={consultationForm.pastMedicalHistory} onChange={(e) => setConsultationForm({...consultationForm, pastMedicalHistory: e.target.value})} />
+            </div>
+            <div>
+              <Label htmlFor="familyHistory">Family History</Label>
+              <Textarea id="familyHistory" value={consultationForm.familyHistory} onChange={(e) => setConsultationForm({...consultationForm, familyHistory: e.target.value})} />
+            </div>
+            <div>
+              <Label htmlFor="personalAndSocialHistory">Personal and Social History</Label>
+              <Textarea id="personalAndSocialHistory" value={consultationForm.personalAndSocialHistory} onChange={(e) => setConsultationForm({...consultationForm, personalAndSocialHistory: e.target.value})} />
+            </div>
+             <div>
+              <Label htmlFor="skinCareRoutine">Skin Care Routine</Label>
+              <Textarea id="skinCareRoutine" value={consultationForm.skinCareRoutine} onChange={(e) => setConsultationForm({...consultationForm, skinCareRoutine: e.target.value})} />
+            </div>
+
+            <div className="pt-4 border-t">
+              <Label htmlFor="diagnosis" className="font-semibold text-base">Diagnosis</Label>
+              <Textarea id="diagnosis" value={consultationForm.diagnosis} onChange={(e) => setConsultationForm({...consultationForm, diagnosis: e.target.value})} />
+            </div>
+            <div>
+              <Label htmlFor="treatmentPlan" className="font-semibold text-base">Treatment Plan</Label>
+              <Textarea id="treatmentPlan" value={consultationForm.treatmentPlan} onChange={(e) => setConsultationForm({...consultationForm, treatmentPlan: e.target.value})} />
+            </div>
+            
           </div>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleAddTreatment}>Save Note</Button>
+            <Button onClick={handleAddTreatment}>Save Record</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

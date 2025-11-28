@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -44,6 +45,7 @@ const formSchema = z.object({
   phone: z.string().min(10, { message: 'Please enter a valid phone number.' }),
   birthDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid date format" }),
   address: z.string().min(5, { message: 'Address is required.' }),
+  occupation: z.string().min(2, { message: 'Occupation is required.' }),
   medicalConditions: z.array(z.string()).refine((value) => value.some((item) => item), {
     message: "You have to select at least one item.",
   }),
@@ -64,6 +66,7 @@ export default function NewPatientPage() {
       email: '',
       phone: '',
       address: '',
+      occupation: '',
       medicalConditions: [],
       allergies: '',
       medications: '',
@@ -91,6 +94,7 @@ export default function NewPatientPage() {
       email: values.email,
       phone: values.phone,
       address: values.address,
+      occupation: values.occupation,
       medicalHistory: `Conditions: ${values.medicalConditions.join(', ')}. Allergies: ${values.allergies}. Medications: ${values.medications}`,
       aestheticGoals: values.aestheticGoals,
     };
@@ -181,6 +185,7 @@ export default function NewPatientPage() {
                       )}
                     />
                   </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="birthDate"
@@ -194,6 +199,20 @@ export default function NewPatientPage() {
                       </FormItem>
                     )}
                   />
+                   <FormField
+                    control={form.control}
+                    name="occupation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Occupation</FormLabel>
+                        <FormControl>
+                           <Input placeholder="e.g., Software Engineer" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  </div>
                    <FormField
                     control={form.control}
                     name="address"
@@ -364,3 +383,5 @@ export default function NewPatientPage() {
     </>
   );
 }
+
+    
