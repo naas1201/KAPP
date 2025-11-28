@@ -15,6 +15,7 @@ import {
   Clock,
   User,
   Sparkles,
+  BriefcaseMedical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -47,7 +48,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { services } from '@/lib/data';
+import { services, doctors } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp, doc, increment } from 'firebase/firestore';
@@ -57,9 +58,10 @@ import { Label } from '@/components/ui/label';
 
 const steps = [
   { id: 'Step 1', name: 'Select Service', icon: <Sparkles /> },
-  { id: 'Step 2', name: 'Choose Date & Time', icon: <CalendarIcon /> },
-  { id: 'Step 3', name: 'Your Details', icon: <User /> },
-  { id: 'Step 4', name: 'Confirmation', icon: <CheckCircle /> },
+  { id: 'Step 2', name: 'Choose Doctor', icon: <BriefcaseMedical /> },
+  { id: 'Step 3', name: 'Choose Date & Time', icon: <CalendarIcon /> },
+  { id: 'Step 4', name: 'Your Details', icon: <User /> },
+  { id: 'Step 5', name: 'Confirmation', icon: <CheckCircle /> },
 ];
 
 const availableTimes = [
@@ -74,6 +76,7 @@ const availableTimes = [
 
 const formSchema = z.object({
   service: z.string().min(1, 'Please select a service.'),
+  doctorId: z.string().min(1, 'Please select a doctor.'),
   date: z.date({ required_error: 'A date is required.' }),
   time: z.string().min(1, 'Please select a time.'),
   fullName: z.string().min(2, 'Full name is required.'),
@@ -94,6 +97,7 @@ export default function BookingPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       service: '',
+      doctorId: '',
       time: '',
       fullName: '',
       email: '',
@@ -133,12 +137,12 @@ export default function BookingPage() {
         title: "Appointment Requested!",
         description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}. We will contact you for confirmation.`,
       });
-      setCurrentStep(3);
+      setCurrentStep(4);
     } else {
         // If user is logged in, create an appointment
         const appointmentData = {
             patientId,
-            doctorId: 'default-doctor-id', // Placeholder
+            doctorId: data.doctorId,
             serviceType: serviceName,
             dateTime: dateTime.toISOString(),
             status: 'pending',
@@ -161,7 +165,7 @@ export default function BookingPage() {
             title: "Appointment Booked!",
             description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}.`,
            });
-           setCurrentStep(3);
+           setCurrentStep(4);
         }
     }
   }
@@ -171,15 +175,17 @@ export default function BookingPage() {
       currentStep === 0
         ? ['service']
         : currentStep === 1
+        ? ['doctorId']
+        : currentStep === 2
         ? ['date', 'time']
         : ['fullName', 'email', 'phone'];
 
-    const output = await form.trigger(fields as (keyof FormData)[], {
+    const output = await form.trigger(fields as any, {
       shouldFocus: true,
     });
     if (!output) return;
     
-    if (currentStep === 2) {
+    if (currentStep === 3) {
       await form.handleSubmit(processForm)();
     } else {
       setCurrentStep((step) => step + 1);
@@ -274,6 +280,35 @@ export default function BookingPage() {
                 )}
 
                 {currentStep === 1 && (
+                    <CardContent className="pt-6">
+                        <FormField
+                            control={form.control}
+                            name="doctorId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-lg font-semibold">Choose a Doctor</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a doctor..." />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {doctors.map(doctor => (
+                                                <SelectItem key={doctor.id} value={doctor.id}>
+                                                    Dr. {doctor.firstName} {doctor.lastName} - {doctor.specialization}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </CardContent>
+                )}
+
+                {currentStep === 2 && (
                   <CardContent className="pt-6 grid gap-8">
                     <FormField
                       control={form.control}
@@ -352,7 +387,7 @@ export default function BookingPage() {
                   </CardContent>
                 )}
 
-                {currentStep === 2 && (
+                {currentStep === 3 && (
                     <CardContent className="pt-6 space-y-4">
                         <FormField
                             control={form.control}
@@ -390,14 +425,15 @@ export default function BookingPage() {
                     </CardContent>
                 )}
 
-                {currentStep === 3 && (
+                {currentStep === 4 && (
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
-                        <h2 className="mt-4 text-2xl font-semibold">Appointment Confirmed!</h2>
-                        <p className="mt-2 text-muted-foreground">Thank you for booking with us. A confirmation has been sent to your email.</p>
+                        <h2 className="mt-4 text-2xl font-semibold">Appointment Request Sent!</h2>
+                        <p className="mt-2 text-muted-foreground">Thank you for booking with us. We will notify you once the doctor confirms your appointment.</p>
                         <div className="p-4 mt-6 text-left border rounded-lg bg-muted/50">
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
+                            <p><strong>Doctor:</strong> Dr. {doctors.find(d => d.id === form.getValues('doctorId'))?.firstName} {doctors.find(d => d.id === form.getValues('doctorId'))?.lastName}</p>
                             <p><strong>Date:</strong> {format(form.getValues('date'), 'EEEE, MMMM d, yyyy')}</p>
                             <p><strong>Time:</strong> {form.getValues('time')}</p>
                         </div>
@@ -408,18 +444,18 @@ export default function BookingPage() {
                 )}
                 
                 <CardFooter className="justify-between pt-6">
-                    {currentStep > 0 && currentStep < 3 && (
+                    {currentStep > 0 && currentStep < 4 && (
                         <Button type="button" variant="outline" onClick={prev}>
                         <ArrowLeft className="w-4 h-4 mr-2" /> Previous
                         </Button>
                     )}
                     <div/>
-                    {currentStep < 2 && (
+                    {currentStep < 3 && (
                         <Button type="button" onClick={next}>
                         Next <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                     )}
-                    {currentStep === 2 && (
+                    {currentStep === 3 && (
                         <Button type="button" onClick={next} disabled={form.formState.isSubmitting}>
                         {form.formState.isSubmitting ? 'Booking...' : 'Confirm Booking'}
                         </Button>

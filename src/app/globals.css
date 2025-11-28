@@ -91,3 +91,12 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .timeline-line {
+    @apply absolute left-[1.125rem] top-8 h-[calc(100%_-_2rem)] w-0.5 -translate-x-1/2 bg-border;
+  }
+  .timeline-item:last-child .timeline-line {
+    @apply hidden;
+  }
+}

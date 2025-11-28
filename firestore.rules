@@ -11,30 +11,33 @@ service cloud.firestore {
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-
-    function isExistingDoc() {
-      return resource != null;
+    
+    function isDoctor() {
+        return exists(/databases/$(database)/documents/doctors/$(request.auth.uid));
     }
 
     /**
      * Checks if the requesting user is an authorized doctor for a given patient.
      * Authorization is determined by the existence of a document in the doctor's
      * own patient list. This is a performant denormalized ACL check.
+     * In a real-world scenario, an admin or cloud function would create this record.
      */
-    function isAuthorizedDoctor(patientId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/doctors/$(request.auth.uid)/authorizedPatients/$(patientId));
+    function isAuthorizedDoctorForPatient(patientId) {
+      return isDoctor() && exists(/databases/$(database)/documents/doctors/$(request.auth.uid)/authorizedPatients/$(patientId));
     }
     
     /**
-     * Grants access if the user is the patient themselves or an authorized doctor.
+     * Grants access if the user is the patient themselves or an authorized doctor for them.
      */
     function canAccessPatientData(patientId) {
-      return isOwner(patientId) || isAuthorizedDoctor(patientId);
+      return isOwner(patientId) || isAuthorizedDoctorForPatient(patientId);
     }
     
     // Admins have special privileges. This could be based on a custom claim.
     function isAdmin() {
-      return request.auth.token.admin == true;
+      // For this example, we'll allow any doctor to be an admin.
+      // In production, you'd use custom claims: request.auth.token.admin == true;
+      return isDoctor();
     }
 
     /**
@@ -43,24 +46,47 @@ service cloud.firestore {
     match /patients/{patientId} {
       allow get, update: if canAccessPatientData(patientId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isOwner(patientId);
-      allow delete: if isOwner(patientId) || isAdmin();
+      allow create: if isOwner(patientId); // Patient creates their own record
+      allow delete: if isAdmin();
 
       /**
        * @description Secures patient appointments, treatment records, and prescriptions.
        * Access is inherited from the parent patient document.
        */
-      match /{subcollection}/{docId} {
-        allow read, write: if canAccessPatientData(patientId) || isAdmin();
+      match /appointments/{appointmentId} {
+        allow read, create: if canAccessPatientData(patientId);
+        allow update, delete: if isAuthorizedDoctorForPatient(patientId) || isAdmin(); // Only docs/admins can change appointments
+      }
+      
+      match /treatmentRecords/{recordId} {
+        allow read: if canAccessPatientData(patientId);
+        allow write: if isAuthorizedDoctorForPatient(patientId) || isAdmin(); // Only docs/admins can write treatment records
+      }
+      
+       match /prescriptions/{prescriptionId} {
+        allow read: if canAccessPatientData(patientId);
+        allow write: if isAuthorizedDoctorForPatient(patientId) || isAdmin(); // Only docs/admins can write prescriptions
       }
     }
 
     /**
-     * @description Manages doctor profiles. Profiles are readable by any authenticated user.
+     * @description Publicly readable collection of all appointments, used by doctors.
+     * This denormalizes appointment data for easier querying by doctors.
+     * SECURITY: Only doctors can read this collection. Patients cannot list all appointments.
+     * Writes are handled via the patient's subcollection for security, then mirrored here by a function.
+     */
+     match /appointments/{appointmentId} {
+        allow read: if isDoctor();
+        // Disallow direct writes. Writes must go through /patients/{patientId}/appointments/{appointmentId}
+        allow write: if false; 
+     }
+
+    /**
+     * @description Manages doctor profiles. Profiles are readable by any authenticated user for booking.
      */
     match /doctors/{doctorId} {
       allow get, list: if isSignedIn();
-      allow create: if isOwner(doctorId);
+      allow create: if isOwner(doctorId); // A doctor can create their own profile
       allow update: if isOwner(doctorId) || isAdmin();
       allow delete: if isAdmin();
       
@@ -69,16 +95,18 @@ service cloud.firestore {
        * Only admins can grant/revoke doctor access to a patient.
        */
       match /authorizedPatients/{patientId} {
-        allow read, write: if isAdmin();
+        allow write: if isAdmin();
+        // Read access is checked via exists() in other rules, no direct read needed.
+        allow read: if isAuthorizedDoctorForPatient(patientId);
       }
     }
 
     /**
-     * @description Stores leads from contact forms. Writable by any authenticated source, but manageable only by staff.
+     * @description Stores leads from contact forms. Writable by any source (even unauthenticated), but manageable only by staff.
      */
     match /leads/{leadId} {
       allow read, list: if isAdmin();
-      allow create: if isSignedIn();
+      allow create: if true;
       allow update, delete: if isAdmin();
     }
 

@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Menu, User, LogOut, LayoutDashboard } from 'lucide-react';
+import { Menu, User, LogOut, LayoutDashboard, Stethoscope } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -34,6 +34,10 @@ const navLinks = [
   { href: '/#contact', label: 'Contact' },
 ];
 
+// This is a placeholder. In a real app, you'd fetch this from a 'doctors' collection
+// or check a custom claim on the user object.
+const DOCTOR_UIDS = ['default-doctor-id'];
+
 export function Header() {
     const { user, isUserLoading } = useUser();
     const auth = useAuth();
@@ -42,6 +46,9 @@ export function Header() {
     const handleSignOut = async () => {
         await signOut(auth);
     }
+    
+    // Placeholder logic to determine if the user is a doctor
+    const isDoctor = user && DOCTOR_UIDS.includes(user.uid);
 
   return (
     <>
@@ -85,9 +92,15 @@ export function Header() {
                          </div>
                        </DropdownMenuLabel>
                        <DropdownMenuSeparator />
-                       <DropdownMenuItem asChild>
-                         <Link href="/admin/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link>
-                       </DropdownMenuItem>
+                        {isDoctor ? (
+                             <DropdownMenuItem asChild>
+                                <Link href="/doctor/dashboard"><Stethoscope className="mr-2 h-4 w-4" />Doctor Portal</Link>
+                             </DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem asChild>
+                                <Link href="/admin/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link>
+                            </DropdownMenuItem>
+                        )}
                        <DropdownMenuSeparator />
                        <DropdownMenuItem onClick={handleSignOut}>
                          <LogOut className="mr-2 h-4 w-4" />

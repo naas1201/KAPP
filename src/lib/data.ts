@@ -1,4 +1,4 @@
-import type { Service } from './types';
+import type { Doctor, Service } from './types';
 
 export const services: Service[] = [
   {
@@ -80,5 +80,44 @@ export const services: Service[] = [
         price: 'Starts at ₱8,000',
       },
     ],
+  },
+];
+
+
+export const doctors: Doctor[] = [
+  {
+    id: 'default-doctor-id',
+    firstName: 'Katheryne',
+    lastName: 'Castillo',
+    specialization: 'General & Aesthetic Medicine',
+    email: 'dr.castillo@example.com',
+  },
+  {
+    id: 'doctor-2',
+    firstName: 'Maria',
+    lastName: 'Santos',
+    specialization: 'Dermatology',
+    email: 'dr.santos@example.com',
+  },
+  {
+    id: 'doctor-3',
+    firstName: 'Jose',
+    lastName: 'Rizal',
+    specialization: 'General Medicine',
+    email: 'dr.rizal@example.com',
+  },
+  {
+    id: 'doctor-4',
+    firstName: 'Lourdes',
+    lastName: 'Gomez',
+    specialization: 'Aesthetic Medicine',
+    email: 'dr.gomez@example.com',
+  },
+  {
+    id: 'doctor-5',
+    firstName: 'Antonio',
+    lastName: 'Luna',
+    specialization: 'Internal Medicine',
+    email: 'dr.luna@example.com',
   },
 ];
