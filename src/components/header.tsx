@@ -10,6 +10,8 @@ import {
   SheetContent,
   SheetTrigger,
   SheetClose,
+  SheetHeader,
+  SheetTitle,
 } from '@/components/ui/sheet';
 import {
     DropdownMenu,
@@ -125,10 +127,11 @@ export function Header() {
                 <span className="sr-only">Toggle Menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] flex flex-col">
-              <div className="p-4 border-b">
+            <SheetContent side="right" className="w-[300px] flex flex-col p-0">
+              <SheetHeader className="p-4 border-b">
+                <SheetTitle className="sr-only">Mobile Menu</SheetTitle>
                 <Logo />
-              </div>
+              </SheetHeader>
               <nav className="grid gap-4 p-4 text-lg font-medium">
                 {navLinks.map((link) => (
                   <SheetClose asChild key={link.href}>
