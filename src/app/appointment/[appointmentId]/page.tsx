@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import { useDoc, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -12,11 +12,20 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User, Sparkles, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { services } from '@/lib/data';
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
 
 export default function AppointmentDetailsPage() {
   const { appointmentId } = useParams();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const { width, height } = useWindowSize();
+  const [showConfetti, setShowConfetti] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowConfetti(false), 8000); // Stop confetti after 8 seconds
+    return () => clearTimeout(timer);
+  }, []);
 
   const appointmentRef = useMemo(() => {
     if (!firestore || !user || !appointmentId) return null;
@@ -65,6 +74,8 @@ export default function AppointmentDetailsPage() {
   const appointmentStatus = appointment.status || 'pending';
 
   return (
+    <>
+    {showConfetti && <Confetti width={width} height={height} recycle={false} numberOfPieces={400} />}
     <div className="py-16 md:py-24 bg-muted/20">
       <div className="container max-w-2xl">
         <Card className="shadow-lg">
@@ -121,5 +132,6 @@ export default function AppointmentDetailsPage() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

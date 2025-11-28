@@ -54,6 +54,8 @@ import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '
 import { collection, serverTimestamp, doc, increment } from 'firebase/firestore';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
+import { useHapticFeedback } from '@/hooks/use-haptic-feedback';
+import { motion } from 'framer-motion';
 
 
 const steps = [
@@ -81,7 +83,7 @@ const formSchema = z.object({
   time: z.string().min(1, 'Please select a time.'),
   fullName: z.string().min(2, 'Full name is required.'),
   email: z.string().email('Invalid email address.'),
-  phone: z.string().min(10, 'A valid phone number is required.'),
+  phone: z.string().min(10, 'A valid phone number is required. eg. 09171234567'),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -91,6 +93,7 @@ export default function BookingPage() {
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
   const router = useRouter();
+  const { triggerHaptic } = useHapticFeedback();
 
 
   const form = useForm<FormData>({
@@ -106,6 +109,7 @@ export default function BookingPage() {
   });
 
   async function processForm(data: FormData) {
+    triggerHaptic();
     if (!firestore) return;
     
     // Combine date and time
@@ -171,6 +175,7 @@ export default function BookingPage() {
   }
 
   const next = async () => {
+    triggerHaptic();
     const fields =
       currentStep === 0
         ? ['service']
@@ -193,6 +198,7 @@ export default function BookingPage() {
   };
 
   const prev = () => {
+    triggerHaptic();
     if (currentStep > 0) {
       setCurrentStep((step) => step - 1);
     }
@@ -200,8 +206,8 @@ export default function BookingPage() {
 
   return (
     <>
-      <section className="py-16 md:py-24 bg-card">
-        <div className="container text-center max-w-3xl">
+      <section className="py-16 md:py-24 marble-background">
+        <div className="container text-center max-w-3xl bg-background/80 backdrop-blur-sm p-8 rounded-lg shadow-xl">
           <h1 className="text-4xl font-bold font-headline sm:text-5xl">
             Book an Appointment
           </h1>
@@ -220,11 +226,11 @@ export default function BookingPage() {
                 <li key={step.name} className="md:flex-1">
                   <div
                     className={cn(
-                      "group flex flex-col border-l-4 py-2 pl-4 md:border-l-0 md:border-t-4 md:pl-0 md:pt-4 md:pb-0",
+                      "group flex flex-col border-l-4 py-2 pl-4 transition-colors md:border-l-0 md:border-t-4 md:pl-0 md:pt-4 md:pb-0",
                       index < currentStep ? "border-primary" : index === currentStep ? "border-primary" : "border-border hover:border-gray-300",
                     )}
                   >
-                    <span className={cn("text-sm font-medium", index <= currentStep ? "text-primary" : "text-muted-foreground group-hover:text-gray-700")}>{step.id}</span>
+                    <span className={cn("text-sm font-medium transition-colors", index <= currentStep ? "text-primary" : "text-muted-foreground group-hover:text-gray-700")}>{step.id}</span>
                     <span className="text-sm font-medium">{step.name}</span>
                   </div>
                 </li>
@@ -235,6 +241,12 @@ export default function BookingPage() {
           <Card>
             <Form {...form}>
               <form>
+                <motion.div
+                  key={currentStep}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
                 {currentStep === 0 && (
                   <CardContent className="pt-6">
                     <FormField
@@ -373,7 +385,7 @@ export default function BookingPage() {
                                   <FormControl>
                                     <RadioGroupItem value={time} id={time} className="sr-only" />
                                   </FormControl>
-                                  <Label htmlFor={time} className="flex items-center justify-center p-4 border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/10 [&:has([data-state=checked])]:text-primary">
+                                  <Label htmlFor={time} className="flex items-center justify-center p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/10 [&:has([data-state=checked])]:text-primary">
                                     <Clock className="w-4 h-4 mr-2" />
                                     {time}
                                   </Label>
@@ -442,6 +454,7 @@ export default function BookingPage() {
                         </Button>
                     </CardContent>
                 )}
+                </motion.div>
                 
                 <CardFooter className="justify-between pt-6">
                     {currentStep > 0 && currentStep < 4 && (
