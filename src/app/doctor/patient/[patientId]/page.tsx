@@ -19,8 +19,6 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  addDoc,
-  deleteDoc,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -223,13 +221,18 @@ export default function PatientDetailsPage() {
 
     try {
       const roomRef = collection(firestore, 'video-calls');
-      const newRoom = await addDoc(roomRef, {
+      // Use the non-blocking version and await its promise
+      const newRoom = await addDocumentNonBlocking(roomRef, {
         doctorId: doctor.uid,
         patientId: patientId,
         createdAt: serverTimestamp(),
         status: 'pending',
       });
-      router.push(`/video-call/${newRoom.id}`);
+      if (newRoom) {
+        router.push(`/video-call/${newRoom.id}`);
+      } else {
+        throw new Error('Failed to create room document.');
+      }
     } catch (error) {
       console.error('Error creating video call room:', error);
       toast({
@@ -506,3 +509,5 @@ export default function PatientDetailsPage() {
     </div>
   );
 }
+
+    
