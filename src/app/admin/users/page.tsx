@@ -32,6 +32,7 @@ import {
   useFirebase,
   setDocumentNonBlocking,
   deleteDocumentNonBlocking,
+  useMemoFirebase,
 } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -61,7 +62,7 @@ export default function UsersPage() {
     role: 'doctor' as 'admin' | 'doctor',
   });
 
-  const usersRef = firestore ? collection(firestore, 'users') : null;
+  const usersRef = useMemoFirebase(() => (firestore ? collection(firestore, 'users') : null), [firestore]);
   const { data: users, isLoading } = useCollection<User>(usersRef);
 
   const resetForm = () => {
