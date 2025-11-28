@@ -199,6 +199,16 @@
         "notes": {
           "type": "string",
           "description": "Additional notes on the prescription."
+        },
+        "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the prescription was created."
+        },
+        "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the prescription expires."
         }
       },
       "required": [
@@ -206,7 +216,9 @@
         "patientId",
         "drugName",
         "dosage",
-        "frequency"
+        "frequency",
+        "createdAt",
+        "expiresAt"
       ]
     },
     "Lead": {
@@ -370,6 +382,13 @@
           "$ref": "#/entities/VideoCall"
         },
         "description": "Temporary collection for WebRTC signaling."
+      },
+      {
+        "path": "/prescriptions/{prescriptionId}",
+        "schema": {
+            "$ref": "#/entities/Prescription"
+        },
+        "description": "Denormalized collection of all prescriptions for easier querying by staff for expiry."
       }
     ]
   }

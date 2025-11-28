@@ -10,6 +10,8 @@ import {
   useFirebase,
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
+  deleteDocumentNonBlocking,
+  setDocumentNonBlocking,
 } from '@/firebase';
 import {
   doc,
@@ -18,6 +20,7 @@ import {
   orderBy,
   serverTimestamp,
   addDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,8 +44,12 @@ import {
   ClipboardPlus,
   Pill,
   Video,
+  MoreVertical,
+  Edit,
+  Trash2,
+  Copy,
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, add } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -54,6 +61,12 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+  } from "@/components/ui/dropdown-menu"
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
@@ -66,6 +79,11 @@ export default function PatientDetailsPage() {
 
   const [isTreatmentModalOpen, setTreatmentModalOpen] = useState(false);
   const [isPrescriptionModalOpen, setPrescriptionModalOpen] = useState(false);
+  const [editingPrescription, setEditingPrescription] = useState<any>(null);
+  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+
+
   const [treatmentNotes, setTreatmentNotes] = useState('');
   const [treatmentType, setTreatmentType] = useState('');
   const [prescriptionDetails, setPrescriptionDetails] = useState({
@@ -106,6 +124,11 @@ export default function PatientDetailsPage() {
   }, [firestore, patientId]);
   const { data: prescriptions, isLoading: isLoadingPrescriptions } =
     useCollection(prescriptionsQuery);
+  
+  const resetPrescriptionForm = () => {
+    setEditingPrescription(null);
+    setPrescriptionDetails({ drugName: '', dosage: '', frequency: '', notes: '' });
+  };
 
   const handleAddTreatment = () => {
     if (
@@ -132,29 +155,67 @@ export default function PatientDetailsPage() {
     setTreatmentModalOpen(false);
     setTreatmentNotes('');
     setTreatmentType('');
+    toast({ title: "Treatment note added." });
   };
 
-  const handleAddPrescription = () => {
+  const handleSavePrescription = () => {
     if (!firestore || !doctor || !patientId) return;
-    const prescriptionRef = collection(
-      firestore,
-      'patients',
-      patientId as string,
-      'prescriptions'
-    );
-    addDocumentNonBlocking(prescriptionRef, {
-      ...prescriptionDetails,
-      patientId,
-      doctorId: doctor.uid,
-      createdAt: serverTimestamp(),
-    });
+
+    const prescriptionData = {
+        ...prescriptionDetails,
+        patientId,
+        doctorId: doctor.uid,
+    };
+
+    if (editingPrescription) {
+        const prescriptionRef = doc(firestore, 'patients', patientId as string, 'prescriptions', editingPrescription.id);
+        updateDocumentNonBlocking(prescriptionRef, prescriptionData);
+        toast({ title: "Prescription updated." });
+    } else {
+        const prescriptionRef = collection(firestore, 'patients', patientId as string, 'prescriptions');
+        addDocumentNonBlocking(prescriptionRef, {
+            ...prescriptionData,
+            createdAt: new Date().toISOString(),
+            expiresAt: add(new Date(), { days: 30 }).toISOString(), // Default 30-day expiry
+        });
+        toast({ title: "Prescription created." });
+    }
+
     setPrescriptionModalOpen(false);
+    resetPrescriptionForm();
+  };
+  
+  const handleEditPrescription = (prescription: any) => {
+    setEditingPrescription(prescription);
     setPrescriptionDetails({
-      drugName: '',
-      dosage: '',
-      frequency: '',
-      notes: '',
+      drugName: prescription.drugName,
+      dosage: prescription.dosage,
+      frequency: prescription.frequency,
+      notes: prescription.notes,
     });
+    setPrescriptionModalOpen(true);
+  };
+  
+  const handleRenewPrescription = (prescription: any) => {
+    if (!firestore || !doctor || !patientId) return;
+    const prescriptionRef = collection(firestore, 'patients', patientId as string, 'prescriptions');
+    addDocumentNonBlocking(prescriptionRef, {
+        ...prescription,
+        // Omit id
+        id: undefined,
+        createdAt: new Date().toISOString(),
+        expiresAt: add(new Date(), { days: 30 }).toISOString(),
+    });
+    toast({ title: `Prescription for ${prescription.drugName} renewed.` });
+  };
+  
+  const handleDeleteItem = () => {
+    if (!firestore || !patientId || !itemToDelete) return;
+    const itemRef = doc(firestore, 'patients', patientId as string, itemToDelete.collection, itemToDelete.id);
+    deleteDocumentNonBlocking(itemRef);
+    toast({ title: `${itemToDelete.type} deleted.` });
+    setDeleteAlertOpen(false);
+    setItemToDelete(null);
   };
 
   const handleStartVideoCall = async () => {
@@ -276,18 +337,37 @@ export default function PatientDetailsPage() {
                 <Skeleton className="h-10 w-full" />
               ) : (
                 prescriptions?.map((rx: any) => (
-                  <div key={rx.id} className="text-sm">
+                  <div key={rx.id} className="text-sm group relative">
                     <p className="font-semibold">{rx.drugName}</p>
                     <p className="text-muted-foreground">
                       {rx.dosage} - {rx.frequency}
                     </p>
+                     {rx.expiresAt && (
+                      <p className="text-xs text-muted-foreground/80">
+                        Expires {formatDistanceToNow(new Date(rx.expiresAt), { addSuffix: true })}
+                      </p>
+                    )}
+                     <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                    <MoreVertical className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => handleEditPrescription(rx)}><Edit className="mr-2 h-4 w-4"/>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleRenewPrescription(rx)}><Copy className="mr-2 h-4 w-4"/>Renew</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setItemToDelete({ id: rx.id, collection: 'prescriptions', type: 'Prescription' }); setDeleteAlertOpen(true); }} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                     </div>
                   </div>
                 ))
               )}
                <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => setPrescriptionModalOpen(true)}
+                onClick={() => { resetPrescriptionForm(); setPrescriptionModalOpen(true); }}
               >
                 <FilePlus className="w-4 h-4 mr-2" /> Add Prescription
               </Button>
@@ -383,13 +463,13 @@ export default function PatientDetailsPage() {
         </DialogContent>
       </Dialog>
       
-       {/* Add Prescription Dialog */}
-      <Dialog open={isPrescriptionModalOpen} onOpenChange={setPrescriptionModalOpen}>
+       {/* Add/Edit Prescription Dialog */}
+      <Dialog open={isPrescriptionModalOpen} onOpenChange={(isOpen) => { if (!isOpen) resetPrescriptionForm(); setPrescriptionModalOpen(isOpen); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Prescription</DialogTitle>
+            <DialogTitle>{editingPrescription ? 'Edit' : 'Create'} Prescription</DialogTitle>
             <DialogDescription>
-              Create a new prescription for {patientName}.
+              {editingPrescription ? 'Update the' : 'Create a new'} prescription for {patientName}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -419,7 +499,7 @@ export default function PatientDetailsPage() {
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleAddPrescription}>Save Prescription</Button>
+            <Button onClick={handleSavePrescription}>Save Prescription</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

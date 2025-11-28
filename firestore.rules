@@ -77,9 +77,18 @@ service cloud.firestore {
      * Writes are handled via the patient's subcollection for security, then mirrored here by a function.
      */
      match /appointments/{appointmentId} {
-        allow read: if isDoctor();
+        allow read: if isDoctor() || isAdmin();
         // Disallow direct writes. Writes must go through /patients/{patientId}/appointments/{appointmentId}
         allow write: if false; 
+     }
+
+     /**
+      * @description Denormalized collection of all prescriptions for easier querying by staff.
+      * Writable only via a function that mirrors from the patient's subcollection.
+      */
+     match /prescriptions/{prescriptionId} {
+        allow read, list: if isAdmin();
+        allow write: if false; // Writes must be mirrored from patient's subcollection
      }
 
     /**

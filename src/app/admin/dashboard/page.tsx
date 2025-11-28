@@ -17,12 +17,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, BellRing } from 'lucide-react';
 import { useCollection } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
+import { format, formatDistanceToNow } from 'date-fns';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -41,17 +43,44 @@ export default function DashboardPage() {
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection(patientsQuery);
 
+  const thirtyDaysFromNow = new Date();
+  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+  const expiringPrescriptionsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'prescriptions'),
+      where('expiresAt', '<=', thirtyDaysFromNow.toISOString()),
+      where('expiresAt', '>=', new Date().toISOString())
+    );
+  }, [firestore]);
+
+  const { data: expiringPrescriptions, isLoading: isLoadingPrescriptions } = useCollection(expiringPrescriptionsQuery);
+  
+  const enrichedPrescriptions = useMemoFirebase(() => {
+    if (!expiringPrescriptions || !patients) return [];
+    return expiringPrescriptions.map((rx: any) => {
+        const patient = patients.find((p: any) => p.id === rx.patientId);
+        return {
+            ...rx,
+            patientName: patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown',
+            patientEmail: patient ? patient.email : '',
+        };
+    });
+  }, [expiringPrescriptions, patients]);
+
+
   const customers = patients?.filter(p => (p as any).appointmentCount === 1);
   const clients = patients?.filter(p => (p as any).appointmentCount > 1);
 
-  const renderSkeleton = () => (
+  const renderSkeleton = (cols = 5) => (
     Array.from({ length: 3 }).map((_, i) => (
       <TableRow key={i}>
-        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-        <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-40" /></TableCell>
-        <TableCell className="hidden sm:table-cell"><Skeleton className="h-6 w-16" /></TableCell>
-        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-24" /></TableCell>
-        <TableCell className="text-right"><Skeleton className="h-9 w-24 ml-auto" /></TableCell>
+        {Array.from({length: cols}).map((_, j) => (
+            <TableCell key={j} className={j === cols - 1 ? 'text-right' : ''}>
+                <Skeleton className="h-5 w-full" />
+            </TableCell>
+        ))}
       </TableRow>
     ))
   );
@@ -62,10 +91,19 @@ export default function DashboardPage() {
         Client & Lead Dashboard
       </h1>
       <Tabs defaultValue="leads">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="leads">Leads</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="clients">Clients</TabsTrigger>
+          <TabsTrigger value="expiring" className="relative">
+            Expiring RX
+            {expiringPrescriptions && expiringPrescriptions.length > 0 && (
+                <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                </span>
+            )}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="leads">
           <Card>
@@ -198,6 +236,55 @@ export default function DashboardPage() {
                         ))}
                     </TableBody>
                 </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="expiring">
+          <Card>
+            <CardHeader className="px-7">
+              <CardTitle>Expiring Prescriptions</CardTitle>
+              <CardDescription>
+                Prescriptions expiring in the next 30 days. Contact patients to schedule a follow-up.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Drug</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(isLoadingPrescriptions || isLoadingPatients) && renderSkeleton(4)}
+                  {enrichedPrescriptions?.map((rx: any) => (
+                    <TableRow key={rx.id}>
+                      <TableCell>
+                        <div className="font-medium">{rx.patientName}</div>
+                        <div className="hidden text-sm text-muted-foreground md:inline">
+                          {rx.patientEmail}
+                        </div>
+                      </TableCell>
+                      <TableCell>{rx.drugName}</TableCell>
+                      <TableCell>
+                        {formatDistanceToNow(new Date(rx.expiresAt), { addSuffix: true })}
+                        <div className="text-sm text-muted-foreground">
+                            {format(new Date(rx.expiresAt), 'MMM d, yyyy')}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" className="ml-auto gap-1">
+                          <Link href={`/doctor/patient/${rx.patientId}`}>
+                            View Patient <ArrowUpRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
