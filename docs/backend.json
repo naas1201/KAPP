@@ -1,15 +1,10 @@
 {
   "entities": {
     "Patient": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Patient",
       "type": "object",
       "description": "Represents a patient in the Castillo Health & Aesthetics system.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the patient."
-        },
         "firstName": {
           "type": "string",
           "description": "Patient's first name."
@@ -50,10 +45,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "appointmentCount": {
+            "type": "number",
+            "description": "Total number of appointments for this patient."
         }
       },
       "required": [
-        "id",
         "firstName",
         "lastName",
         "dateOfBirth",
@@ -62,15 +60,10 @@
       ]
     },
     "Appointment": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Appointment",
       "type": "object",
       "description": "Represents an appointment booking.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the appointment."
-        },
         "patientId": {
           "type": "string",
           "description": "Reference to Patient. (Relationship: Patient 1:N Appointment)"
@@ -94,7 +87,6 @@
         }
       },
       "required": [
-        "id",
         "patientId",
         "doctorId",
         "serviceType",
@@ -102,15 +94,10 @@
       ]
     },
     "TreatmentRecord": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "TreatmentRecord",
       "type": "object",
       "description": "Represents a treatment record for a patient.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the treatment record."
-        },
         "patientId": {
           "type": "string",
           "description": "Reference to Patient. (Relationship: Patient 1:N TreatmentRecord)"
@@ -141,7 +128,6 @@
         }
       },
       "required": [
-        "id",
         "patientId",
         "doctorId",
         "treatmentType",
@@ -149,15 +135,10 @@
       ]
     },
     "Doctor": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Doctor",
       "type": "object",
       "description": "Represents a doctor in the system.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the doctor."
-        },
         "firstName": {
           "type": "string",
           "description": "Doctor's first name."
@@ -177,7 +158,6 @@
         }
       },
       "required": [
-        "id",
         "firstName",
         "lastName",
         "specialization",
@@ -185,15 +165,10 @@
       ]
     },
     "Prescription": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Prescription",
       "type": "object",
       "description": "Represents a prescription.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the prescription."
-        },
         "doctorId": {
           "type": "string",
           "description": "Reference to Doctor. (Relationship: Doctor 1:N Prescription)"
@@ -220,7 +195,6 @@
         }
       },
       "required": [
-        "id",
         "doctorId",
         "patientId",
         "drugName",
@@ -229,15 +203,10 @@
       ]
     },
     "Lead": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Lead",
       "type": "object",
       "description": "Represents a lead captured through the lead capture form.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the lead."
-        },
         "firstName": {
           "type": "string",
           "description": "Lead's first name."
@@ -265,7 +234,6 @@
         }
       },
       "required": [
-        "id",
         "firstName",
         "lastName",
         "email",
@@ -274,15 +242,10 @@
       ]
     },
     "FAQ": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "FAQ",
       "type": "object",
       "description": "Represents a frequently asked question for a specific treatment.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the FAQ."
-        },
         "treatmentName": {
           "type": "string",
           "description": "Name of the treatment the FAQ is related to."
@@ -297,7 +260,6 @@
         }
       },
       "required": [
-        "id",
         "treatmentName",
         "question",
         "answer"
@@ -307,160 +269,65 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "google.com"
     ]
   },
   "firestore": {
-    "structure": [
+    "collections": [
       {
-        "path": "patients/{patientId}",
-        "definition": {
-          "entityName": "Patient",
-          "schema": {
-            "$ref": "#/backend/entities/Patient"
-          },
-          "description": "Stores patient information. The `patientId` is the document ID. Includes denormalized data for authorization independence.",
-          "params": [
-            {
-              "name": "patientId",
-              "description": "The unique identifier for the patient."
-            }
-          ]
-        }
+        "path": "/patients/{patientId}",
+        "schema": {
+          "$ref": "#/entities/Patient"
+        },
+        "description": "Stores patient profiles. The document ID is the patient's auth UID."
       },
       {
-        "path": "patients/{patientId}/appointments/{appointmentId}",
-        "definition": {
-          "entityName": "Appointment",
-          "schema": {
-            "$ref": "#/backend/entities/Appointment"
-          },
-          "description": "Stores appointment information for a specific patient.",
-          "params": [
-            {
-              "name": "patientId",
-              "description": "The unique identifier for the patient."
-            },
-            {
-              "name": "appointmentId",
-              "description": "The unique identifier for the appointment."
-            }
-          ]
-        }
+        "path": "/patients/{patientId}/appointments/{appointmentId}",
+        "schema": {
+          "$ref": "#/entities/Appointment"
+        },
+        "description": "Subcollection for a patient's appointments."
       },
       {
-        "path": "patients/{patientId}/treatmentRecords/{treatmentRecordId}",
-        "definition": {
-          "entityName": "TreatmentRecord",
-          "schema": {
-            "$ref": "#/backend/entities/TreatmentRecord"
-          },
-          "description": "Stores treatment records for a specific patient.",
-          "params": [
-            {
-              "name": "patientId",
-              "description": "The unique identifier for the patient."
-            },
-            {
-              "name": "treatmentRecordId",
-              "description": "The unique identifier for the treatment record."
-            }
-          ]
-        }
+        "path": "/patients/{patientId}/treatmentRecords/{recordId}",
+        "schema": {
+          "$ref": "#/entities/TreatmentRecord"
+        },
+        "description": "Subcollection for a patient's treatment history."
       },
       {
-        "path": "patients/{patientId}/treatmentRecords/{treatmentRecordId}/prescriptions/{prescriptionId}",
-        "definition": {
-          "entityName": "Prescription",
-          "schema": {
-            "$ref": "#/backend/entities/Prescription"
-          },
-          "description": "Stores prescriptions for a specific treatment record.",
-          "params": [
-            {
-              "name": "patientId",
-              "description": "The unique identifier for the patient."
-            },
-            {
-              "name": "treatmentRecordId",
-              "description": "The unique identifier for the treatment record."
-            },
-            {
-              "name": "prescriptionId",
-              "description": "The unique identifier for the prescription."
-            }
-          ]
-        }
+        "path": "/patients/{patientId}/prescriptions/{prescriptionId}",
+        "schema": {
+          "$ref": "#/entities/Prescription"
+        },
+        "description": "Subcollection for a patient's prescriptions."
       },
       {
-        "path": "doctors/{doctorId}",
-        "definition": {
-          "entityName": "Doctor",
-          "schema": {
-            "$ref": "#/backend/entities/Doctor"
-          },
-          "description": "Stores doctor information.",
-          "params": [
-            {
-              "name": "doctorId",
-              "description": "The unique identifier for the doctor."
-            }
-          ]
-        }
+        "path": "/doctors/{doctorId}",
+        "schema": {
+          "$ref": "#/entities/Doctor"
+        },
+        "description": "Stores doctor profiles. The document ID is the doctor's auth UID."
       },
       {
-        "path": "leads/{leadId}",
-        "definition": {
-          "entityName": "Lead",
-          "schema": {
-            "$ref": "#/backend/entities/Lead"
-          },
-          "description": "Stores lead information.",
-          "params": [
-            {
-              "name": "leadId",
-              "description": "The unique identifier for the lead."
-            }
-          ]
-        }
+        "path": "/doctors/{doctorId}/authorizedPatients/{patientId}",
+        "schema": {},
+        "description": "An empty document here acts as an ACL entry, granting the doctor (identified by doctorId) access to the patient (identified by patientId). This allows for efficient security rule checks without reading patient documents."
       },
       {
-        "path": "faqs/{faqId}",
-        "definition": {
-          "entityName": "FAQ",
-          "schema": {
-            "$ref": "#/backend/entities/FAQ"
-          },
-          "description": "Stores frequently asked questions.",
-          "params": [
-            {
-              "name": "faqId",
-              "description": "The unique identifier for the FAQ."
-            }
-          ]
-        }
+        "path": "/leads/{leadId}",
+        "schema": {
+          "$ref": "#/entities/Lead"
+        },
+        "description": "Stores leads from contact forms. Accessible by staff roles."
       },
       {
-        "path": "doctors/{doctorId}/patients/{patientId}",
-        "definition": {
-          "entityName": "Patient",
-          "schema": {
-            "$ref": "#/backend/entities/Patient"
-          },
-          "description": "Indicates which doctors are authorized to access a specific patient's data. This is a denormalized relationship for authorization independence.",
-          "params": [
-            {
-              "name": "doctorId",
-              "description": "The unique identifier for the doctor."
-            },
-            {
-              "name": "patientId",
-              "description": "The unique identifier for the patient."
-            }
-          ]
-        }
+        "path": "/faqs/{faqId}",
+        "schema": {
+          "$ref": "#/entities/FAQ"
+        },
+        "description": "Stores frequently asked questions. Publicly readable."
       }
-    ],
-    "reasoning": "The Firestore data structure is designed to ensure data privacy, facilitate efficient queries, and maintain data integrity. The structure incorporates path-based ownership, denormalization for authorization independence, and segregation of data based on access requirements.\n\n**Authorization Independence:**  Access to patient data is primarily controlled via path-based ownership and membership maps. For example, `patients/{patientId}` and associated subcollections like `patients/{patientId}/treatmentRecords/{treatmentRecordId}` allow straightforward security rules based on `request.auth.uid == patientId`. Doctor access to patient data is managed via the `doctors/{doctorId}/patients/{patientId}` collection, indicating authorized doctors. This denormalizes the relationship and removes the need for `get()` calls in security rules to check doctor authorization.\n\n**Segregation:**  Leads are stored separately in the `/leads/{leadId}` collection, accessible to staff for conversion to patients. FAQs are stored in the `/faqs/{faqId}` collection, publicly accessible. Doctors are stored in the `/doctors/{doctorId}` collection.\n\n**QAPs (Rules Are Not Filters):** The structure supports secure `list` operations by clearly defining ownership and roles. Listing patients is restricted to authorized doctors. Listing treatment records is restricted to the patient and authorized doctors. There are no queries that would require filtering based on user roles within the rules themselves, ensuring that rules remain simple and efficient.\n\n**Additional Considerations:**\n*   **Patient Interconnections:** The `relatedPatientIds` field in the `Patient` entity allows interconnection of patients. This is handled at the application level and does not require special security considerations within the Firestore structure.\n*   **Filtering by History:**  Filtering patients based on their treatment history is managed at the application layer by querying `treatmentRecords` and then retrieving related `patients`. The Firestore structure supports this through the `patients/{patientId}/treatmentRecords/{treatmentRecordId}` subcollection.\n*   **Doctor Access:** Doctors are granted access to patient data via the `doctors/{doctorId}/patients/{patientId}` collection. Doctors are added to the patient's authorized doctors list.\n*   **Leads Conversion:** Leads are converted into patients, and the patient ID is stored in the Lead document, this field is used to link the new patient document to the original lead."
+    ]
   }
 }

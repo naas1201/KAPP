@@ -12,7 +12,6 @@ import {
   CheckCircle,
   Clock,
   User,
-  HeartPulse,
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,10 +26,8 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import {
   Select,
@@ -50,6 +47,11 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { services } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp, doc, increment } from 'firebase/firestore';
+import Link from 'next/link';
+import { Label } from '@/components/ui/label';
+
 
 const steps = [
   { id: 'Step 1', name: 'Select Service', icon: <Sparkles /> },
@@ -82,6 +84,8 @@ type FormData = z.infer<typeof formSchema>;
 export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const { toast } = useToast();
+  const { firestore, user } = useFirebase();
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -95,9 +99,50 @@ export default function BookingPage() {
   });
 
   async function processForm(data: FormData) {
-    console.log(data);
-    // Here you would typically send data to your backend
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (!firestore) return;
+    
+    // Combine date and time
+    const dateTime = new Date(data.date);
+    const [time, period] = data.time.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    if (period === 'PM' && hours < 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    dateTime.setHours(hours, minutes, 0, 0);
+
+    let patientId = user?.uid;
+
+    // If user is not logged in, create a lead
+    if (!patientId) {
+      const [firstName, ...lastNameParts] = data.fullName.split(' ');
+      const lastName = lastNameParts.join(' ');
+      const leadRef = collection(firestore, 'leads');
+      addDocumentNonBlocking(leadRef, {
+        firstName,
+        lastName,
+        email: data.email,
+        phone: data.phone,
+        source: 'Booking Form',
+        serviceInterest: services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name,
+        createdAt: serverTimestamp(),
+      });
+    } else {
+        // If user is logged in, create an appointment
+        const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
+        addDocumentNonBlocking(appointmentRef, {
+            patientId,
+            doctorId: 'default-doctor-id', // Placeholder
+            serviceType: services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name,
+            dateTime: dateTime.toISOString(),
+            notes: 'Booked via website.',
+        });
+
+        // Also update patient's appointment count
+        const patientRef = doc(firestore, 'patients', patientId);
+        updateDocumentNonBlocking(patientRef, {
+            appointmentCount: increment(1)
+        });
+    }
+
     toast({
         title: "Appointment Booked!",
         description: `We've scheduled your ${services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name} on ${format(data.date, "PPP")} at ${data.time}.`,
@@ -117,13 +162,11 @@ export default function BookingPage() {
       shouldFocus: true,
     });
     if (!output) return;
-
-    if (currentStep < steps.length - 2) {
-      if (currentStep === 2) {
-        await form.handleSubmit(processForm)();
-      } else {
-        setCurrentStep((step) => step + 1);
-      }
+    
+    if (currentStep === 2) {
+      await form.handleSubmit(processForm)();
+    } else {
+      setCurrentStep((step) => step + 1);
     }
   };
 
@@ -169,7 +212,7 @@ export default function BookingPage() {
 
           <Card>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(processForm)}>
+              <form>
                 {currentStep === 0 && (
                   <CardContent className="pt-6">
                     <FormField

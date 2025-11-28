@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { doc, setDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -17,13 +18,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Card,
   CardContent,
   CardDescription,
@@ -32,6 +26,8 @@ import {
 } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { useFirebase } from '@/firebase';
+import { setDocumentNonBlocking } from '@/firebase';
 
 const medicalConditions = [
   { id: 'hypertension', label: 'Hypertension' },
@@ -59,6 +55,8 @@ const formSchema = z.object({
 
 export default function NewPatientPage() {
   const { toast } = useToast();
+  const { firestore, user } = useFirebase();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -73,8 +71,34 @@ export default function NewPatientPage() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!firestore || !user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to submit this form.",
+      });
+      return;
+    }
+
+    const [firstName, ...lastNameParts] = values.fullName.split(' ');
+    const lastName = lastNameParts.join(' ');
+
+    const patientData = {
+      firstName,
+      lastName,
+      dateOfBirth: values.birthDate,
+      email: values.email,
+      phone: values.phone,
+      address: values.address,
+      medicalHistory: `Conditions: ${values.medicalConditions.join(', ')}. Allergies: ${values.allergies}. Medications: ${values.medications}`,
+      aestheticGoals: values.aestheticGoals,
+    };
+    
+    const patientRef = doc(firestore, 'patients', user.uid);
+    
+    setDocumentNonBlocking(patientRef, patientData, { merge: true });
+
     toast({
       title: 'Form Submitted Successfully!',
       description: 'Thank you for completing the new patient form. We will review it shortly.',
@@ -330,7 +354,7 @@ export default function NewPatientPage() {
                 </CardContent>
               </Card>
 
-              <Button type="submit" size="lg" className="w-full">
+              <Button type="submit" size="lg" className="w-full" disabled={form.formState.isSubmitting}>
                 Submit Form
               </Button>
             </form>
