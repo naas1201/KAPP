@@ -1,6 +1,24 @@
 
 {
   "entities": {
+    "User": {
+      "title": "User",
+      "type": "object",
+      "description": "Represents a registered user in the system, could be a doctor or admin staff.",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user.",
+          "enum": ["admin", "doctor"]
+        }
+      },
+      "required": ["email", "role"]
+    },
     "Patient": {
       "title": "Patient",
       "type": "object",
@@ -366,6 +384,13 @@
   },
   "firestore": {
     "collections": [
+      {
+        "path": "/users/{userId}",
+        "schema": {
+          "$ref": "#/entities/User"
+        },
+        "description": "Stores user roles (admin, doctor). The document ID is the user's auth UID."
+      },
       {
         "path": "/patients/{patientId}",
         "schema": {

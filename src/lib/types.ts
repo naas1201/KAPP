@@ -36,3 +36,9 @@ export interface Doctor {
     specialization: string;
     email: string;
 }
+
+export interface User {
+    id: string;
+    email: string;
+    role: 'admin' | 'doctor';
+}

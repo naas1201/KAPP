@@ -13,9 +13,30 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
     
-    function isDoctor() {
-        return exists(/databases/$(database)/documents/doctors/$(request.auth.uid));
+    // Check the /users collection for the user's role
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
+
+    function isDoctor() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'doctor';
+    }
+
+    function isAdmin() {
+       return isSignedIn() && getUserRole(request.auth.uid) == 'admin';
+    }
+
+    /**
+     * @description Stores user roles. Admin can write, user can create their own doc on signup.
+     */
+    match /users/{userId} {
+      allow read, write: if isAdmin();
+      // Allow a user to create their own user document if one doesn't exist.
+      // This is used for when a user signs up via Google and doesn't have a pre-made role.
+      // The email is used as the document ID for simplicity in this prototype.
+      allow create: if isSignedIn() && request.resource.data.email == request.auth.token.email;
+    }
+
 
     /**
      * Checks if the requesting user is an authorized doctor for a given patient.
@@ -31,21 +52,14 @@ service cloud.firestore {
      * Grants access if the user is the patient themselves or an authorized doctor for them.
      */
     function canAccessPatientData(patientId) {
-      return isOwner(patientId) || isAuthorizedDoctorForPatient(patientId);
-    }
-    
-    // Admins have special privileges. This could be based on a custom claim.
-    function isAdmin() {
-      // For this example, we'll allow any doctor to be an admin.
-      // In production, you'd use custom claims: request.auth.token.admin == true;
-      return isDoctor();
+      return isOwner(patientId) || isAuthorizedDoctorForPatient(patientId) || isAdmin();
     }
 
     /**
      * @description Manages patient profiles. Only the patient can create. Patient or authorized doctor can read/update it.
      */
     match /patients/{patientId} {
-      allow get, update: if canAccessPatientData(patientId) || isAdmin();
+      allow get, update: if canAccessPatientData(patientId);
       allow list: if isAdmin();
       allow create: if isOwner(patientId); // Patient creates their own record
       allow delete: if isAdmin();
