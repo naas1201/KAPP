@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User, Sparkles, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { services } from '@/lib/data';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 
@@ -20,9 +19,11 @@ export default function AppointmentDetailsPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { width, height } = useWindowSize();
-  const [showConfetti, setShowConfetti] = useState(true);
+  const [showConfetti, setShowConfetti] = useState(false);
 
+  // We need to use useEffect to ensure confetti only runs on the client
   useEffect(() => {
+    setShowConfetti(true);
     const timer = setTimeout(() => setShowConfetti(false), 8000); // Stop confetti after 8 seconds
     return () => clearTimeout(timer);
   }, []);
