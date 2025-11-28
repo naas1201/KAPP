@@ -57,12 +57,12 @@ type Props = {
 // }
 
 export default function ServiceDetailPage({
-  params,
+  params: { slug },
 }: {
   params: { slug: string };
 }) {
   const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
-  const service = services.find((s) => s.slug === params.slug);
+  const service = services.find((s) => s.slug === slug);
 
   if (!service) {
     notFound();
