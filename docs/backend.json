@@ -162,6 +162,10 @@
           "type": "string",
           "description": "Doctor's email address.",
           "format": "email"
+        },
+        "onboardingCompleted": {
+          "type": "boolean",
+          "description": "Flag to check if doctor has completed the initial service selection."
         }
       },
       "required": [
@@ -312,6 +316,46 @@
           "enum": ["pending", "active", "completed", "declined"]
         }
       }
+    },
+    "Treatment": {
+      "title": "Treatment",
+      "type": "object",
+      "description": "Represents a master treatment/procedure offered by the clinic.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the treatment."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the treatment."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the treatment (e.g., 'Aesthetic', 'General Medicine')."
+        }
+      },
+      "required": ["name", "description", "category"]
+    },
+    "DoctorService": {
+      "title": "DoctorService",
+      "type": "object",
+      "description": "Links a doctor to a master treatment and specifies their price.",
+      "properties": {
+        "treatmentId": {
+          "type": "string",
+          "description": "Reference to the master Treatment document."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price this specific doctor charges for the treatment."
+        },
+        "providesService": {
+          "type": "boolean",
+          "description": "Whether the doctor provides this service."
+        }
+      },
+      "required": ["treatmentId", "price", "providesService"]
     }
   },
   "auth": {
@@ -362,6 +406,13 @@
         "schema": {},
         "description": "An empty document here acts as an ACL entry, granting the doctor (identified by doctorId) access to the patient (identified by patientId). This allows for efficient security rule checks without reading patient documents."
       },
+       {
+        "path": "/doctors/{doctorId}/services/{treatmentId}",
+        "schema": {
+          "$ref": "#/entities/DoctorService"
+        },
+        "description": "Stores the services and pricing a specific doctor offers."
+      },
       {
         "path": "/leads/{leadId}",
         "schema": {
@@ -389,6 +440,13 @@
             "$ref": "#/entities/Prescription"
         },
         "description": "Denormalized collection of all prescriptions for easier querying by staff for expiry."
+      },
+      {
+        "path": "/treatments/{treatmentId}",
+        "schema": {
+          "$ref": "#/entities/Treatment"
+        },
+        "description": "Master list of all treatments offered by the clinic. Managed by Admin."
       }
     ]
   }

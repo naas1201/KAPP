@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Stethoscope } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, ListPlus } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -13,9 +13,11 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
-import { useUser } from '@/firebase';
+import { useUser, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { doc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 export default function DoctorLayout({
   children,
@@ -25,16 +27,24 @@ export default function DoctorLayout({
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const firestore = useFirestore();
+
+  const doctorRef = user ? doc(firestore, 'doctors', user.uid) : null;
+  const { data: doctorData, isLoading: isDoctorLoading } = useDoc(doctorRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/login');
     }
-    // For now, we assume anyone logged in can see the doctor layout.
-    // In a real app, you would check for a doctor role/claim.
-  }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user) {
+    if (!isDoctorLoading && doctorData) {
+        if (!(doctorData as any).onboardingCompleted && pathname !== '/doctor/onboarding') {
+            router.push('/doctor/onboarding');
+        }
+    }
+  }, [user, isUserLoading, router, doctorData, isDoctorLoading, pathname]);
+
+  if (isUserLoading || !user || isDoctorLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading...</p>
@@ -62,7 +72,18 @@ export default function DoctorLayout({
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {/* Add more doctor-specific links here */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/doctor/my-services'}
+                tooltip={{ children: 'My Services' }}
+              >
+                <Link href="/doctor/my-services">
+                  <ListPlus />
+                  <span>My Services</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
       </Sidebar>

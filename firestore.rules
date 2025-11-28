@@ -109,7 +109,27 @@ service cloud.firestore {
         // Read access is checked via exists() in other rules, no direct read needed.
         allow read: if isAuthorizedDoctorForPatient(patientId);
       }
+
+      /**
+       * @description A doctor's individual list of services and prices.
+       * Only the doctor themselves or an admin can write to this.
+       * Any authenticated user can read this to see what a doctor offers.
+       */
+      match /services/{serviceId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(doctorId) || isAdmin();
+      }
     }
+
+    /**
+     * @description Master list of all treatments. Readable by any authenticated user.
+     * Writable only by admins.
+     */
+    match /treatments/{treatmentId} {
+      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
 
     /**
      * @description Stores leads from contact forms. Writable by any source (even unauthenticated), but manageable only by staff.
