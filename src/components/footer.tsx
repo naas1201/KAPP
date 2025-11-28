@@ -5,13 +5,13 @@ import { Input } from '@/components/ui/input';
 
 export function Footer() {
   return (
-    <footer className="border-t bg-card">
+    <footer className="border-t bg-secondary/50">
       <div className="container max-w-7xl">
         <div className="grid grid-cols-1 gap-8 py-12 md:grid-cols-3">
           <div className="flex flex-col gap-4">
             <Logo />
             <p className="text-sm text-muted-foreground">
-              Your partner in health and beauty. Located in the heart of the
+              Sincere care, beautiful results. Located in the heart of the
               Philippines.
             </p>
           </div>

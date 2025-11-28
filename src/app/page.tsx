@@ -68,11 +68,11 @@ export default function Home() {
         </div>
         <div className="container relative z-10 max-w-4xl mx-auto">
           <h1 className="text-4xl font-extrabold tracking-tight font-headline sm:text-5xl md:text-6xl lg:text-7xl">
-            Your Partner in Health & Beauty
+            Sincere Care, Beautiful Results
           </h1>
           <p className="max-w-2xl mx-auto mt-6 text-lg text-muted-foreground md:text-xl">
             Dr. Katheryne Castillo offers compassionate general medicine and
-            advanced aesthetic treatments, tailored just for you.
+            advanced aesthetic treatments, building confidence from the inside out.
           </p>
           <div className="flex flex-col justify-center gap-4 mt-8 sm:flex-row">
             <Button size="lg" asChild>
@@ -85,20 +85,19 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="services" className="py-16 bg-background md:py-24">
+      <section id="services" className="py-16 bg-card md:py-24">
         <div className="container max-w-7xl">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl font-bold tracking-tight font-headline sm:text-4xl">
-              Comprehensive Care
+              A Dual Approach to Wellness
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              From wellness check-ups to rejuvenating aesthetic treatments, we
-              provide a holistic approach to your well-being.
+              We believe in a holistic approach, providing both essential medical care and expert aesthetic treatments for your complete well-being.
             </p>
           </div>
           <div className="grid gap-8 mt-12 md:grid-cols-2">
             <Card className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center gap-4">
+              <CardHeader className="flex flex-row items-center gap-4 p-6">
                 <div className="p-3 rounded-full bg-primary/10 text-primary">
                   <HeartPulse className="w-8 h-8" />
                 </div>
@@ -106,11 +105,9 @@ export default function Home() {
                   General Medicine
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex-grow">
+              <CardContent className="flex-grow p-6 pt-0">
                 <p className="text-muted-foreground">
-                  Personalized primary care services to keep you and your family
-                  healthy, from routine check-ups to managing chronic
-                  conditions.
+                  Your foundation for a healthy life. We offer personalized primary care to keep you and your family well, from routine check-ups to managing chronic conditions.
                 </p>
               </CardContent>
               <div className="p-6 pt-0">
@@ -121,23 +118,22 @@ export default function Home() {
                 </Button>
               </div>
             </Card>
-            <Card className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center gap-4">
-                <div className="p-3 rounded-full bg-accent/20 text-accent-foreground">
+            <Card className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-primary text-primary-foreground">
+              <CardHeader className="flex flex-row items-center gap-4 p-6">
+                <div className="p-3 rounded-full bg-primary-foreground/10 text-primary-foreground">
                   <Sparkles className="w-8 h-8" />
                 </div>
                 <CardTitle className="text-2xl font-headline">
                   Aesthetic Treatments
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-muted-foreground">
-                  Enhance your natural beauty with our state-of-the-art
-                  aesthetic procedures, designed for safe and stunning results.
+              <CardContent className="flex-grow p-6 pt-0">
+                <p className="text-primary-foreground/80">
+                  Enhance your natural beauty with our state-of-the-art aesthetic procedures, designed for safe, sincere, and stunning results that feel like you.
                 </p>
               </CardContent>
               <div className="p-6 pt-0">
-                <Button variant="outline" asChild>
+                <Button variant="secondary" asChild>
                   <Link href="/services/aesthetic-treatments">
                     View Treatments <ArrowRight className="ml-2" />
                   </Link>
@@ -148,7 +144,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="about" className="py-16 bg-card md:py-24">
+      <section id="about" className="py-16 bg-background md:py-24">
         <div className="container max-w-7xl">
           <div className="grid items-center gap-12 md:grid-cols-2">
             <div className="space-y-4">
@@ -192,7 +188,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="testimonials" className="py-16 bg-background md:py-24">
+      <section id="testimonials" className="py-16 bg-card md:py-24">
         <div className="container max-w-7xl">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl font-bold tracking-tight font-headline sm:text-4xl">
@@ -214,9 +210,9 @@ export default function Home() {
                   className="md:basis-1/2 lg:basis-1/3"
                 >
                   <div className="p-1">
-                    <Card className="flex flex-col h-full">
+                    <Card className="flex flex-col h-full bg-background">
                       <CardContent className="flex flex-col items-center flex-grow p-6 text-center">
-                        <Quote className="w-8 h-8 mb-4 text-primary" />
+                        <Quote className="w-8 h-8 mb-4 text-accent" />
                         <p className="flex-grow text-muted-foreground">
                           {testimonial.quote}
                         </p>
@@ -252,7 +248,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="contact" className="py-16 bg-card md:py-24">
+      <section id="contact" className="py-16 bg-background md:py-24">
         <div className="container max-w-4xl">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl font-bold tracking-tight font-headline sm:text-4xl">
