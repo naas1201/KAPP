@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useMemo, useState } from 'react';
-import { notFound, useParams } from 'next/navigation';
+import { notFound, useParams, useRouter } from 'next/navigation';
 import {
   useDoc,
   useUser,
@@ -16,6 +17,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  addDoc,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,12 +38,11 @@ import {
   HeartPulse,
   Sparkles,
   FilePlus,
-  Send,
   ClipboardPlus,
   Pill,
+  Video,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -54,11 +55,14 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
 export default function PatientDetailsPage() {
   const { patientId } = useParams();
   const { user: doctor, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const router = useRouter();
+  const { toast } = useToast();
 
   const [isTreatmentModalOpen, setTreatmentModalOpen] = useState(false);
   const [isPrescriptionModalOpen, setPrescriptionModalOpen] = useState(false);
@@ -153,6 +157,28 @@ export default function PatientDetailsPage() {
     });
   };
 
+  const handleStartVideoCall = async () => {
+    if (!firestore || !doctor || !patientId) return;
+
+    try {
+      const roomRef = collection(firestore, 'video-calls');
+      const newRoom = await addDoc(roomRef, {
+        doctorId: doctor.uid,
+        patientId: patientId,
+        createdAt: serverTimestamp(),
+        status: 'pending',
+      });
+      router.push(`/video-call/${newRoom.id}`);
+    } catch (error) {
+      console.error('Error creating video call room:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Could not start call',
+        description: 'There was an issue setting up the video call room.',
+      });
+    }
+  };
+
   if (isLoadingPatient || isUserLoading) {
     return <Skeleton className="h-screen w-full" />;
   }
@@ -200,6 +226,17 @@ export default function PatientDetailsPage() {
                 <Home className="w-5 h-5 text-muted-foreground mt-1" />
                 <span>{patient.address}</span>
               </div>
+            </CardContent>
+          </Card>
+          
+           <Card>
+            <CardContent className="p-4 flex flex-col gap-2">
+              <Button onClick={handleStartVideoCall}>
+                <Video className="w-4 h-4 mr-2" /> Start Video Call
+              </Button>
+               <Button variant="outline">
+                <Mail className="w-4 h-4 mr-2" /> Send Message
+              </Button>
             </CardContent>
           </Card>
 

@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -116,6 +117,15 @@ service cloud.firestore {
     match /faqs/{faqId} {
       allow get, list: if true;
       allow write: if isAdmin();
+    }
+
+    /**
+     * @description Temporary signaling collection for WebRTC video calls.
+     * Only the doctor who created it or the involved patient can read/write.
+     */
+    match /video-calls/{roomId} {
+      // The patientId should be stored in the document to verify access.
+      allow read, write: if isSignedIn() && (isAuthorizedDoctorForPatient(resource.data.patientId) || isOwner(resource.data.patientId));
     }
   }
 }

@@ -271,6 +271,35 @@
         "question",
         "answer"
       ]
+    },
+    "VideoCall": {
+      "title": "VideoCall",
+      "type": "object",
+      "description": "Represents a WebRTC video call session.",
+      "properties": {
+        "offer": {
+          "type": "object",
+          "description": "The SDP offer from the calling peer."
+        },
+        "answer": {
+          "type": "object",
+          "description": "The SDP answer from the receiving peer."
+        },
+        "doctorCandidates": {
+          "type": "array",
+          "items": { "type": "object" },
+          "description": "ICE candidates from the doctor."
+        },
+        "patientCandidates": {
+          "type": "array",
+          "items": { "type": "object" },
+          "description": "ICE candidates from the patient."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "active", "completed", "declined"]
+        }
+      }
     }
   },
   "auth": {
@@ -334,6 +363,13 @@
           "$ref": "#/entities/FAQ"
         },
         "description": "Stores frequently asked questions. Publicly readable."
+      },
+       {
+        "path": "/video-calls/{roomId}",
+        "schema": {
+          "$ref": "#/entities/VideoCall"
+        },
+        "description": "Temporary collection for WebRTC signaling."
       }
     ]
   }
