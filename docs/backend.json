@@ -1,0 +1,466 @@
+{
+  "entities": {
+    "Patient": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Patient",
+      "type": "object",
+      "description": "Represents a patient in the Castillo Health & Aesthetics system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the patient."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "Patient's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Patient's last name."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "Patient's date of birth.",
+          "format": "date"
+        },
+        "email": {
+          "type": "string",
+          "description": "Patient's email address.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Patient's phone number."
+        },
+        "address": {
+          "type": "string",
+          "description": "Patient's address."
+        },
+        "medicalHistory": {
+          "type": "string",
+          "description": "Summary of the patient's medical history."
+        },
+        "aestheticGoals": {
+          "type": "string",
+          "description": "Patient's aesthetic goals."
+        },
+        "relatedPatientIds": {
+          "type": "array",
+          "description": "References to other related patients (e.g., family members). (Relationship: Patient N:N Patient)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "dateOfBirth",
+        "email",
+        "phone"
+      ]
+    },
+    "Appointment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Appointment",
+      "type": "object",
+      "description": "Represents an appointment booking.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the appointment."
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Reference to Patient. (Relationship: Patient 1:N Appointment)"
+        },
+        "doctorId": {
+          "type": "string",
+          "description": "Reference to Doctor. (Relationship: Doctor 1:N Appointment)"
+        },
+        "serviceType": {
+          "type": "string",
+          "description": "Type of service for the appointment (e.g., General Medicine, Aesthetic Treatment)."
+        },
+        "dateTime": {
+          "type": "string",
+          "description": "Date and time of the appointment.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any notes related to the appointment."
+        }
+      },
+      "required": [
+        "id",
+        "patientId",
+        "doctorId",
+        "serviceType",
+        "dateTime"
+      ]
+    },
+    "TreatmentRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TreatmentRecord",
+      "type": "object",
+      "description": "Represents a treatment record for a patient.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the treatment record."
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Reference to Patient. (Relationship: Patient 1:N TreatmentRecord)"
+        },
+        "doctorId": {
+          "type": "string",
+          "description": "Reference to Doctor. (Relationship: Doctor 1:N TreatmentRecord)"
+        },
+        "treatmentType": {
+          "type": "string",
+          "description": "Type of treatment (e.g., Botox, Consultation)."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the treatment.",
+          "format": "date"
+        },
+        "details": {
+          "type": "string",
+          "description": "Details of the treatment performed."
+        },
+        "prescriptionIds": {
+          "type": "array",
+          "description": "References to prescriptions associated with the treatment. (Relationship: TreatmentRecord 1:N Prescription)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "patientId",
+        "doctorId",
+        "treatmentType",
+        "date"
+      ]
+    },
+    "Doctor": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Doctor",
+      "type": "object",
+      "description": "Represents a doctor in the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the doctor."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "Doctor's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Doctor's last name."
+        },
+        "specialization": {
+          "type": "string",
+          "description": "Doctor's specialization."
+        },
+        "email": {
+          "type": "string",
+          "description": "Doctor's email address.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "specialization",
+        "email"
+      ]
+    },
+    "Prescription": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Prescription",
+      "type": "object",
+      "description": "Represents a prescription.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the prescription."
+        },
+        "doctorId": {
+          "type": "string",
+          "description": "Reference to Doctor. (Relationship: Doctor 1:N Prescription)"
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Reference to Patient. (Relationship: Patient 1:N Prescription)"
+        },
+        "drugName": {
+          "type": "string",
+          "description": "Name of the prescribed drug."
+        },
+        "dosage": {
+          "type": "string",
+          "description": "Dosage of the drug."
+        },
+        "frequency": {
+          "type": "string",
+          "description": "Frequency of the drug intake."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes on the prescription."
+        }
+      },
+      "required": [
+        "id",
+        "doctorId",
+        "patientId",
+        "drugName",
+        "dosage",
+        "frequency"
+      ]
+    },
+    "Lead": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Lead",
+      "type": "object",
+      "description": "Represents a lead captured through the lead capture form.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the lead."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "Lead's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Lead's last name."
+        },
+        "email": {
+          "type": "string",
+          "description": "Lead's email address.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Lead's phone number."
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the lead (e.g., Website, Messenger)."
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Reference to Patient, if the lead converted. (Relationship: Lead 1:1 Patient)"
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "source"
+      ]
+    },
+    "FAQ": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FAQ",
+      "type": "object",
+      "description": "Represents a frequently asked question for a specific treatment.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FAQ."
+        },
+        "treatmentName": {
+          "type": "string",
+          "description": "Name of the treatment the FAQ is related to."
+        },
+        "question": {
+          "type": "string",
+          "description": "The question asked."
+        },
+        "answer": {
+          "type": "string",
+          "description": "The answer to the question."
+        }
+      },
+      "required": [
+        "id",
+        "treatmentName",
+        "question",
+        "answer"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "patients/{patientId}",
+        "definition": {
+          "entityName": "Patient",
+          "schema": {
+            "$ref": "#/backend/entities/Patient"
+          },
+          "description": "Stores patient information. The `patientId` is the document ID. Includes denormalized data for authorization independence.",
+          "params": [
+            {
+              "name": "patientId",
+              "description": "The unique identifier for the patient."
+            }
+          ]
+        }
+      },
+      {
+        "path": "patients/{patientId}/appointments/{appointmentId}",
+        "definition": {
+          "entityName": "Appointment",
+          "schema": {
+            "$ref": "#/backend/entities/Appointment"
+          },
+          "description": "Stores appointment information for a specific patient.",
+          "params": [
+            {
+              "name": "patientId",
+              "description": "The unique identifier for the patient."
+            },
+            {
+              "name": "appointmentId",
+              "description": "The unique identifier for the appointment."
+            }
+          ]
+        }
+      },
+      {
+        "path": "patients/{patientId}/treatmentRecords/{treatmentRecordId}",
+        "definition": {
+          "entityName": "TreatmentRecord",
+          "schema": {
+            "$ref": "#/backend/entities/TreatmentRecord"
+          },
+          "description": "Stores treatment records for a specific patient.",
+          "params": [
+            {
+              "name": "patientId",
+              "description": "The unique identifier for the patient."
+            },
+            {
+              "name": "treatmentRecordId",
+              "description": "The unique identifier for the treatment record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "patients/{patientId}/treatmentRecords/{treatmentRecordId}/prescriptions/{prescriptionId}",
+        "definition": {
+          "entityName": "Prescription",
+          "schema": {
+            "$ref": "#/backend/entities/Prescription"
+          },
+          "description": "Stores prescriptions for a specific treatment record.",
+          "params": [
+            {
+              "name": "patientId",
+              "description": "The unique identifier for the patient."
+            },
+            {
+              "name": "treatmentRecordId",
+              "description": "The unique identifier for the treatment record."
+            },
+            {
+              "name": "prescriptionId",
+              "description": "The unique identifier for the prescription."
+            }
+          ]
+        }
+      },
+      {
+        "path": "doctors/{doctorId}",
+        "definition": {
+          "entityName": "Doctor",
+          "schema": {
+            "$ref": "#/backend/entities/Doctor"
+          },
+          "description": "Stores doctor information.",
+          "params": [
+            {
+              "name": "doctorId",
+              "description": "The unique identifier for the doctor."
+            }
+          ]
+        }
+      },
+      {
+        "path": "leads/{leadId}",
+        "definition": {
+          "entityName": "Lead",
+          "schema": {
+            "$ref": "#/backend/entities/Lead"
+          },
+          "description": "Stores lead information.",
+          "params": [
+            {
+              "name": "leadId",
+              "description": "The unique identifier for the lead."
+            }
+          ]
+        }
+      },
+      {
+        "path": "faqs/{faqId}",
+        "definition": {
+          "entityName": "FAQ",
+          "schema": {
+            "$ref": "#/backend/entities/FAQ"
+          },
+          "description": "Stores frequently asked questions.",
+          "params": [
+            {
+              "name": "faqId",
+              "description": "The unique identifier for the FAQ."
+            }
+          ]
+        }
+      },
+      {
+        "path": "doctors/{doctorId}/patients/{patientId}",
+        "definition": {
+          "entityName": "Patient",
+          "schema": {
+            "$ref": "#/backend/entities/Patient"
+          },
+          "description": "Indicates which doctors are authorized to access a specific patient's data. This is a denormalized relationship for authorization independence.",
+          "params": [
+            {
+              "name": "doctorId",
+              "description": "The unique identifier for the doctor."
+            },
+            {
+              "name": "patientId",
+              "description": "The unique identifier for the patient."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to ensure data privacy, facilitate efficient queries, and maintain data integrity. The structure incorporates path-based ownership, denormalization for authorization independence, and segregation of data based on access requirements.\n\n**Authorization Independence:**  Access to patient data is primarily controlled via path-based ownership and membership maps. For example, `patients/{patientId}` and associated subcollections like `patients/{patientId}/treatmentRecords/{treatmentRecordId}` allow straightforward security rules based on `request.auth.uid == patientId`. Doctor access to patient data is managed via the `doctors/{doctorId}/patients/{patientId}` collection, indicating authorized doctors. This denormalizes the relationship and removes the need for `get()` calls in security rules to check doctor authorization.\n\n**Segregation:**  Leads are stored separately in the `/leads/{leadId}` collection, accessible to staff for conversion to patients. FAQs are stored in the `/faqs/{faqId}` collection, publicly accessible. Doctors are stored in the `/doctors/{doctorId}` collection.\n\n**QAPs (Rules Are Not Filters):** The structure supports secure `list` operations by clearly defining ownership and roles. Listing patients is restricted to authorized doctors. Listing treatment records is restricted to the patient and authorized doctors. There are no queries that would require filtering based on user roles within the rules themselves, ensuring that rules remain simple and efficient.\n\n**Additional Considerations:**\n*   **Patient Interconnections:** The `relatedPatientIds` field in the `Patient` entity allows interconnection of patients. This is handled at the application level and does not require special security considerations within the Firestore structure.\n*   **Filtering by History:**  Filtering patients based on their treatment history is managed at the application layer by querying `treatmentRecords` and then retrieving related `patients`. The Firestore structure supports this through the `patients/{patientId}/treatmentRecords/{treatmentRecordId}` subcollection.\n*   **Doctor Access:** Doctors are granted access to patient data via the `doctors/{doctorId}/patients/{patientId}` collection. Doctors are added to the patient's authorized doctors list.\n*   **Leads Conversion:** Leads are converted into patients, and the patient ID is stored in the Lead document, this field is used to link the new patient document to the original lead."
+  }
+}

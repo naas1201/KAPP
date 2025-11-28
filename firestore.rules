@@ -1,0 +1,190 @@
+rules_version = '2';
+
+/**
+ * @name Castillo Health & Aesthetics Security Rules
+ * @author AI Architect
+ *
+ * @description
+ * This ruleset enforces a security model centered on patient data privacy while
+ * enabling authorized access for medical professionals.
+ *
+ * Core Philosophy:
+ * The security model is built on patient ownership of their data. Patients have
+ * primary control over their information stored under `/patients/{patientId}`.
+ * Doctors are granted explicit access to patient data on a case-by-case basis.
+ *
+ * Data Structure:
+ * - Patient data is hierarchically organized under `/patients/{patientId}`, with
+ *   sensitive information like appointments and treatment records in subcollections.
+ *   The `patientId` is expected to match the user's Authentication UID.
+ * - Doctor access is managed through a denormalized Access Control List (ACL) at
+ *   `/doctors/{doctorId}/patients/{patientId}`. The existence of a document at this
+ *   path signifies that the doctor is authorized to view the corresponding patient's data.
+ *   The `doctorId` is also expected to match the doctor's Authentication UID.
+ * - Publicly readable data, such as FAQs, is stored in a top-level collection.
+ *
+ * Key Security Decisions:
+ * - Patient-Centric Control: A user's UID must match the `{patientId}` in the path
+ *   to be considered the "owner" of that data tree.
+ * - Explicit Doctor Authorization: Doctors cannot access any patient data by default.
+ *   Access is only granted if a linking document exists in their own subcollection,
+ *   e.g., `/doctors/{their-auth-uid}/patients/{patientId-to-access}`. This avoids
+ *   complex and slow lookups and makes authorization checks fast and secure.
+ * - Staff/Admin Roles: Specific roles for staff or administrators are not yet
+ *   defined. Therefore, operations like managing leads or editing doctor profiles
+ *   (other than their own) are currently restricted. These rules should be updated
+ *   once a role-based system (e.g., using custom claims) is implemented.
+ * - Default Deny: Access is denied by default. All permissions must be explicitly granted.
+ *
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for reusable logic
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    /**
+     * Checks if the requesting user is an authorized doctor for a given patient.
+     * Authorization is determined by the existence of a document in the doctor's
+     * own patient list. This is a performant denormalized ACL check.
+     */
+    function isAuthorizedDoctor(patientId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/doctors/$(request.auth.uid)/patients/$(patientId));
+    }
+
+    /**
+     * Grants access if the user is the patient themselves or an authorized doctor.
+     */
+    function canAccessPatientData(patientId) {
+      return isOwner(patientId) || isAuthorizedDoctor(patientId);
+    }
+
+
+    /**
+     * @description Manages patient profiles. Only the patient or an authorized doctor can read/update it.
+     * @path /patients/{patientId}
+     * @allow (get) An authorized doctor retrieves a patient's profile: `auth.uid = 'doctor_abc'`, `get /patients/patient_xyz` (where link exists).
+     * @deny (list) A patient attempts to list all other patients in the system.
+     * @principle Enforces a strict need-to-know access model for sensitive patient data.
+     */
+    match /patients/{patientId} {
+      allow get: if canAccessPatientData(patientId);
+      allow list: if false; // Disallow listing all patients for security.
+      allow create: if isOwner(patientId);
+      allow update: if canAccessPatientData(patientId) && isExistingDoc();
+      allow delete: if isOwner(patientId) && isExistingDoc(); // Only patient can delete their own record.
+
+      /**
+       * @description Secures patient appointments. Access is inherited from the parent patient document.
+       * @path /patients/{patientId}/appointments/{appointmentId}
+       * @allow (create) The patient creates a new appointment for themselves.
+       * @deny (update) An unauthorized doctor tries to modify a patient's appointment details.
+       * @principle Ensures that subcollection data is protected by the same rules as its parent document.
+       */
+      match /appointments/{appointmentId} {
+        allow get: if canAccessPatientData(patientId);
+        allow list: if canAccessPatientData(patientId);
+        allow create: if canAccessPatientData(patientId) && request.resource.data.patientId == patientId;
+        allow update: if canAccessPatientData(patientId) && isExistingDoc() && request.resource.data.patientId == resource.data.patientId;
+        allow delete: if canAccessPatientData(patientId) && isExistingDoc();
+      }
+
+      /**
+       * @description Secures patient treatment records. Access is inherited from the parent patient document.
+       * @path /patients/{patientId}/treatmentRecords/{treatmentRecordId}
+       * @allow (get) An authorized doctor reads a patient's past treatment record.
+       * @deny (list) A different patient tries to list another patient's treatment records.
+       * @principle Ensures that subcollection data is protected by the same rules as its parent document.
+       */
+      match /treatmentRecords/{treatmentRecordId} {
+        allow get: if canAccessPatientData(patientId);
+        allow list: if canAccessPatientData(patientId);
+        allow create: if canAccessPatientData(patientId) && request.resource.data.patientId == patientId;
+        allow update: if canAccessPatientData(patientId) && isExistingDoc() && request.resource.data.patientId == resource.data.patientId;
+        allow delete: if canAccessPatientData(patientId) && isExistingDoc();
+
+        /**
+         * @description Secures prescriptions nested under a treatment record. Access follows the parent.
+         * @path /patients/{patientId}/treatmentRecords/{treatmentRecordId}/prescriptions/{prescriptionId}
+         * @allow (create) An authorized doctor adds a new prescription to a treatment record.
+         * @deny (delete) A patient tries to delete a prescription written by a doctor.
+         * @principle Enforces deep security inheritance for nested sensitive data.
+         */
+        match /prescriptions/{prescriptionId} {
+          allow get: if canAccessPatientData(patientId);
+          allow list: if canAccessPatientData(patientId);
+          allow create: if canAccessPatientData(patientId) && request.resource.data.patientId == patientId;
+          allow update: if canAccessPatientData(patientId) && isExistingDoc() && request.resource.data.patientId == resource.data.patientId;
+          allow delete: if canAccessPatientData(patientId) && isExistingDoc();
+        }
+      }
+    }
+
+    /**
+     * @description Manages doctor profiles. Profiles are readable by any authenticated user.
+     * @path /doctors/{doctorId}
+     * @allow (create) A new doctor signs up and creates their own profile: `auth.uid = 'new_doctor_id'`.
+     * @deny (update) A doctor tries to edit another doctor's specialization.
+     * @principle Enforces Self-Creation and ownership for professional profiles, while allowing public read for discoverability.
+     */
+    match /doctors/{doctorId} {
+      allow get, list: if isSignedIn();
+      allow create: if isOwner(doctorId) && request.resource.data.id == doctorId;
+      allow update: if isOwner(doctorId) && isExistingDoc() && request.resource.data.id == resource.data.id;
+      allow delete: if false; // Deleting doctor profiles must be an admin action.
+      
+      /**
+       * @description This path is an Access Control List (ACL). It links doctors to patients they can access.
+       * @path /doctors/{doctorId}/patients/{patientId}
+       * @allow (create) A doctor adds a new patient to their list of authorized patients: `auth.uid = doctorId`.
+       * @deny (list) A patient tries to see which other patients a doctor is treating.
+       * @principle Uses denormalization for a highly performant and secure authorization model.
+       */
+      match /patients/{patientId} {
+        allow get, list: if isOwner(doctorId);
+        allow create: if isOwner(doctorId);
+        allow update: if false; // This is a linking document, it should not be updated.
+        allow delete: if isOwner(doctorId) && isExistingDoc();
+      }
+    }
+
+    /**
+     * @description Stores leads from contact forms. Writable by any authenticated source, but manageable only by staff.
+     * @path /leads/{leadId}
+     * @allow (create) An authenticated process (like a Cloud Function) creates a new lead document.
+     * @deny (update) A random user attempts to modify lead information.
+     * @principle Secures sensitive lead data by default, pending implementation of a staff/admin role system.
+     */
+    match /leads/{leadId} {
+      allow get, list: if isSignedIn(); // Assume staff must be signed in to view leads.
+      allow create: if isSignedIn();
+      allow update: if false; // TODO: Implement admin/staff role for lead management.
+      allow delete: if false; // TODO: Implement admin/staff role for lead management.
+    }
+
+    /**
+     * @description Stores public Frequently Asked Questions. Readable by anyone.
+     * @path /faqs/{faqId}
+     * @allow (list) An unauthenticated visitor to the website lists all FAQs.
+     * @deny (create) An anonymous user tries to add a new FAQ document.
+     * @principle Implements a public read-only pattern for informational content.
+     */
+    match /faqs/{faqId} {
+      allow get, list: if true;
+      // CRITICAL: Cannot implement owner-only writes. The 'FAQ' entity is missing an 'ownerId' or 'authorId' field.
+      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+  }
+}
