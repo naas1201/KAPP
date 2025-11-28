@@ -168,7 +168,7 @@ export default function NewPatientPage() {
                       name="phone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
+                          <FormLabel>Phone Number (Philippines)</FormLabel>
                           <FormControl>
                             <Input
                               type="tel"
