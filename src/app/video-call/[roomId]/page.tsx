@@ -4,17 +4,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  useDoc,
   useFirebase,
   useUser,
-  updateDocumentNonBlocking,
+  setDocumentNonBlocking,
+  addDocumentNonBlocking,
 } from '@/firebase';
 import {
   doc,
   collection,
-  addDoc,
   onSnapshot,
-  setDoc,
 } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,7 +22,7 @@ import {
   Video as VideoIcon,
   VideoOff,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -38,7 +36,7 @@ interface Room {
 
 export default function VideoCallPage() {
   const { roomId } = useParams();
-  const { firestore, user } = useFirebase();
+  const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -116,7 +114,7 @@ export default function VideoCallPage() {
         // This assumes we know if we are the caller or callee
         // For simplicity, let's say doctor is caller, patient is callee
         // A more robust solution would be needed in a real app
-        addDoc(callerCandidatesCollection, event.candidate.toJSON());
+        addDocumentNonBlocking(callerCandidatesCollection, event.candidate.toJSON());
       }
     };
     
@@ -152,7 +150,7 @@ export default function VideoCallPage() {
             type: offerDescription.type,
         };
 
-        await setDoc(roomRef, { offer });
+        setDocumentNonBlocking(roomRef, { offer }, {});
       }
     });
 
