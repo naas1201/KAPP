@@ -28,7 +28,15 @@ import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
-import { Video, Users, Stethoscope, Hourglass } from 'lucide-react';
+import { Video, Users, Stethoscope, Hourglass, Star, Quote } from 'lucide-react';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export default function DoctorDashboard() {
   const { firestore } = useFirebase();
@@ -55,6 +63,16 @@ export default function DoctorDashboard() {
 
   const doctorServicesRef = user ? collection(firestore, 'doctors', user.uid, 'services') : null;
   const { data: myServices, isLoading: isLoadingMyServices } = useCollection(doctorServicesRef);
+  
+  const ratingsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+        collection(firestore, 'ratings'),
+        where('ratedId', '==', user.uid),
+        where('rating', '>=', 4)
+    );
+  }, [firestore, user]);
+  const { data: ratings, isLoading: isLoadingRatings } = useCollection(ratingsQuery);
 
 
   const handleConfirmAppointment = (appointmentId: string) => {
@@ -76,6 +94,20 @@ export default function DoctorDashboard() {
       };
     });
   }, [appointments, patients]);
+  
+  const positiveReviews = useMemo(() => {
+    if (!ratings || !patients) return [];
+    return ratings
+      .filter((r: any) => r.comment)
+      .map((review: any) => {
+        const patient = patients.find((p: any) => p.id === review.raterId);
+        return {
+          ...review,
+          patientName: patient ? `${patient.firstName} ${patient.lastName}` : 'Anonymous',
+        };
+      });
+  }, [ratings, patients]);
+
 
   const stats = useMemo(() => {
     if (!appointments || !myServices) {
@@ -101,7 +133,7 @@ export default function DoctorDashboard() {
     };
   }, [appointments, myServices]);
 
-  const isLoading = isLoadingAppointments || isLoadingPatients || isUserLoading || isLoadingMyServices;
+  const isLoading = isLoadingAppointments || isLoadingPatients || isUserLoading || isLoadingMyServices || isLoadingRatings;
 
   const renderSkeleton = () =>
     Array.from({ length: 3 }).map((_, i) => (
@@ -186,6 +218,43 @@ export default function DoctorDashboard() {
              </Card>
         )}
       </div>
+
+       {positiveReviews && positiveReviews.length > 0 && (
+         <div className="mb-6">
+            <h2 className="text-xl font-bold font-headline mb-4">Words From Your Patients</h2>
+            <Carousel opts={{ align: 'start', loop: true }} className="w-full">
+            <CarouselContent>
+                {positiveReviews.map((review: any) => (
+                <CarouselItem key={review.id} className="md:basis-1/2 lg:basis-1/3">
+                    <div className="p-1">
+                    <Card className="h-full">
+                        <CardContent className="flex flex-col h-full p-6">
+                            <Quote className="w-8 h-8 text-primary/20 mb-4" />
+                            <p className="flex-grow text-muted-foreground italic">"{review.comment}"</p>
+                             <div className="flex items-center gap-4 mt-4 pt-4 border-t">
+                                <Avatar className="h-10 w-10">
+                                    <AvatarFallback>{review.patientName.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-semibold">{review.patientName}</p>
+                                    <div className="flex items-center">
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                        <Star key={i} className={`w-4 h-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                                    ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    </div>
+                </CarouselItem>
+                ))}
+            </CarouselContent>
+            <CarouselPrevious className="hidden sm:flex" />
+            <CarouselNext className="hidden sm:flex" />
+            </Carousel>
+         </div>
+       )}
       
       <Card>
         <CardHeader>
@@ -254,3 +323,4 @@ export default function DoctorDashboard() {
   );
 
     
+}
