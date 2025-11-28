@@ -1,3 +1,4 @@
+
 'use client';
 import { useMemo } from 'react';
 import {
@@ -27,6 +28,7 @@ import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { Video, Users, Stethoscope, Hourglass } from 'lucide-react';
 
 export default function DoctorDashboard() {
   const { firestore } = useFirebase();
@@ -51,6 +53,10 @@ export default function DoctorDashboard() {
   const { data: patients, isLoading: isLoadingPatients } =
     useCollection(patientsQuery);
 
+  const doctorServicesRef = user ? collection(firestore, 'doctors', user.uid, 'services') : null;
+  const { data: myServices, isLoading: isLoadingMyServices } = useCollection(doctorServicesRef);
+
+
   const handleConfirmAppointment = (appointmentId: string) => {
     if (!firestore) return;
     const appointmentRef = doc(firestore, 'appointments', appointmentId);
@@ -70,6 +76,32 @@ export default function DoctorDashboard() {
       };
     });
   }, [appointments, patients]);
+
+  const stats = useMemo(() => {
+    if (!appointments || !myServices) {
+      return {
+        totalAppointments: 0,
+        uniquePatients: 0,
+        servicesOffered: 0,
+        consultationHours: 0,
+        showStats: false,
+      };
+    }
+    const totalAppointments = appointments.length;
+    const uniquePatients = new Set(appointments.map((a: any) => a.patientId)).size;
+    const servicesOffered = myServices.filter((s: any) => s.providesService).length;
+    const consultationHours = Math.round(totalAppointments * 0.5); // Assuming 30 mins per consultation
+    
+    return {
+      totalAppointments,
+      uniquePatients,
+      servicesOffered,
+      consultationHours,
+      showStats: totalAppointments >= 5, // Show stats after 5 appointments
+    };
+  }, [appointments, myServices]);
+
+  const isLoading = isLoadingAppointments || isLoadingPatients || isUserLoading || isLoadingMyServices;
 
   const renderSkeleton = () =>
     Array.from({ length: 3 }).map((_, i) => (
@@ -97,6 +129,64 @@ export default function DoctorDashboard() {
       <h1 className="text-2xl font-bold font-headline mb-6">
         Doctor Dashboard
       </h1>
+
+      <div className="mb-6">
+        {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card><CardContent className="p-6"><Skeleton className="h-12 w-full" /></CardContent></Card>
+                <Card><CardContent className="p-6"><Skeleton className="h-12 w-full" /></CardContent></Card>
+                <Card><CardContent className="p-6"><Skeleton className="h-12 w-full" /></CardContent></Card>
+                <Card><CardContent className="p-6"><Skeleton className="h-12 w-full" /></CardContent></Card>
+            </div>
+        ) : stats.showStats ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Appointments</CardTitle>
+                <Video className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                <div className="text-2xl font-bold">{stats.totalAppointments}</div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Unique Patients</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                <div className="text-2xl font-bold">{stats.uniquePatients}</div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Services Offered</CardTitle>
+                <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                <div className="text-2xl font-bold">{stats.servicesOffered}</div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Consultation Hours</CardTitle>
+                <Hourglass className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                <div className="text-2xl font-bold">~{stats.consultationHours}</div>
+                </CardContent>
+            </Card>
+            </div>
+        ) : (
+             <Card className="bg-muted/50 border-dashed">
+                <CardHeader className="text-center">
+                    <CardTitle className="text-base font-medium">Performance Data</CardTitle>
+                    <CardDescription>We're gathering your performance data. Check back soon!</CardDescription>
+                </CardHeader>
+             </Card>
+        )}
+      </div>
+      
       <Card>
         <CardHeader>
           <CardTitle>Upcoming Appointments</CardTitle>
@@ -116,8 +206,7 @@ export default function DoctorDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(isLoadingAppointments || isLoadingPatients || isUserLoading) &&
-                renderSkeleton()}
+              {isLoading && renderSkeleton()}
               {enrichedAppointments.map((apt: any) => (
                 <TableRow key={apt.id}>
                   <TableCell>
@@ -163,4 +252,5 @@ export default function DoctorDashboard() {
       </Card>
     </div>
   );
-}
+
+    
