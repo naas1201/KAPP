@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FileQuestion, Home } from 'lucide-react';
+import { FileQuestion, Home, Users } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -32,10 +32,22 @@ export default function AdminLayout({
               <SidebarMenuButton
                 asChild
                 isActive={pathname === '/admin'}
-                tooltip={{ children: 'Dashboard' }}
+                tooltip={{ children: 'Overview' }}
               >
                 <Link href="/admin">
                   <Home />
+                  <span>Overview</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/admin/dashboard'}
+                tooltip={{ children: 'Dashboard' }}
+              >
+                <Link href="/admin/dashboard">
+                  <Users />
                   <span>Dashboard</span>
                 </Link>
               </SidebarMenuButton>

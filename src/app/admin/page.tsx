@@ -1,12 +1,27 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileQuestion } from 'lucide-react';
+import { FileQuestion, Users } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminDashboard() {
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold font-headline mb-6">Admin Dashboard</h1>
+      <h1 className="text-2xl font-bold font-headline mb-6">Admin Overview</h1>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <Link href="/admin/dashboard">
+            <Card className="hover:bg-muted transition-colors">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">
+                        Client Dashboard
+                    </CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                        Manage leads, customers, and clients.
+                    </p>
+                </CardContent>
+            </Card>
+        </Link>
         <Link href="/admin/generate-faq">
             <Card className="hover:bg-muted transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
