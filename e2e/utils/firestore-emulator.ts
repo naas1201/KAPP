@@ -129,12 +129,12 @@ export async function seedBookingAppointment(opts: SeedOpts = {}) {
     await createAuthUser(authHost, projectId, doctorEmail, doctorPassword);
   } catch (err) {
     // non-fatal; continue if auth emulator not running
-    console.warn('createAuthUser doctor failed', err?.message || err);
+    console.warn('createAuthUser doctor failed', (err as any)?.message || err);
   }
   try {
     await createAuthUser(authHost, projectId, patientEmail, patientPassword);
   } catch (err) {
-    console.warn('createAuthUser patient failed', err?.message || err);
+    console.warn('createAuthUser patient failed', (err as any)?.message || err);
   }
 
   await postDocument(host, projectId, 'doctors', doctorId, {
