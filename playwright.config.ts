@@ -18,6 +18,8 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 120_000,
   },
+  globalSetup: require.resolve('./e2e/global-setup'),
+  globalTeardown: require.resolve('./e2e/global-teardown'),
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],

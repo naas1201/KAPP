@@ -14,6 +14,10 @@ type SeedOpts = {
   appointmentId?: string;
   serviceType?: string;
   dateTime?: string; // ISO string
+  doctorEmail?: string;
+  doctorPassword?: string;
+  patientEmail?: string;
+  patientPassword?: string;
 };
 
 function toFirestoreFields(obj: Record<string, any>) {
@@ -51,6 +55,46 @@ async function postDocument(host: string, projectId: string, collectionPath: str
   return res.json();
 }
 
+async function createAuthUser(authHost: string, projectId: string, email: string, password: string) {
+  // Auth emulator exposes the Identity Toolkit API under port 9099 by default.
+  const signUpUrl = `http://${authHost}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fakeKey`;
+  const lookupUrl = `http://${authHost}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=fakeKey`;
+  const body = {
+    email,
+    password,
+    returnSecureToken: true,
+  };
+  let res = await fetch(signUpUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    const errText = text || '';
+    // If user already exists, try lookup to get localId
+    if (errText.includes('EMAIL_EXISTS') || res.status === 400) {
+      const lookupBody = { email: [email] };
+      const lookupRes = await fetch(lookupUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lookupBody),
+      });
+      if (!lookupRes.ok) {
+        const t = await lookupRes.text();
+        throw new Error(`Failed to lookup existing auth user ${email}: ${lookupRes.status} ${t}`);
+      }
+      const json = await lookupRes.json();
+      if (json && Array.isArray(json.users) && json.users[0]) {
+        return json.users[0];
+      }
+      throw new Error(`User ${email} exists but lookup returned no users`);
+    }
+    throw new Error(`Failed to create auth user ${email}: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
 async function deleteDocument(host: string, projectId: string, docPath: string) {
   const base = `http://${host}/v1/projects/${projectId}/databases/(default)/documents`;
   const url = `${base}/${docPath}`;
@@ -65,16 +109,34 @@ async function deleteDocument(host: string, projectId: string, docPath: string) 
 
 export async function seedBookingAppointment(opts: SeedOpts = {}) {
   const host = opts.host || process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
+  const authHost = process.env.FIREBASE_AUTH_EMULATOR_HOST || 'localhost:9099';
   const projectId = opts.projectId || process.env.FIRESTORE_PROJECT || 'demo-project';
   const doctorId = opts.doctorId || 'doctor-test';
   const patientId = opts.patientId || 'patient-test';
   const appointmentId = opts.appointmentId || `apt-${Date.now()}`;
   const serviceType = opts.serviceType || 'General Consultation';
   const dateTime = opts.dateTime || new Date(Date.now() + 1000 * 60 * 60).toISOString();
+  const doctorEmail = opts.doctorEmail || process.env.DOCTOR_EMAIL || 'doctor@example.test';
+  const doctorPassword = opts.doctorPassword || process.env.DOCTOR_PASS || 'password123';
+  const patientEmail = opts.patientEmail || process.env.PATIENT_EMAIL || 'patient@example.test';
+  const patientPassword = opts.patientPassword || process.env.PATIENT_PASS || 'password123';
 
   const seeded: string[] = [];
 
   // create doctor
+  // attempt to create auth users in the Auth emulator (if present)
+  try {
+    await createAuthUser(authHost, projectId, doctorEmail, doctorPassword);
+  } catch (err) {
+    // non-fatal; continue if auth emulator not running
+    console.warn('createAuthUser doctor failed', err?.message || err);
+  }
+  try {
+    await createAuthUser(authHost, projectId, patientEmail, patientPassword);
+  } catch (err) {
+    console.warn('createAuthUser patient failed', err?.message || err);
+  }
+
   await postDocument(host, projectId, 'doctors', doctorId, {
     firstName: 'E2E',
     lastName: 'Doctor',
