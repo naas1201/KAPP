@@ -177,8 +177,9 @@ export default function MyServicesPage() {
                 key={treatment.id}
                 className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-md gap-4"
               >
-                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4">
                   <Checkbox
+                    data-testid={`service-toggle-${treatment.id}`}
                     id={`service-${treatment.id}`}
                     checked={myServices[treatment.id]?.providesService || false}
                     onCheckedChange={(checked) =>
@@ -193,6 +194,7 @@ export default function MyServicesPage() {
                 <div className="flex items-center gap-2 w-full sm:w-auto pl-8 sm:pl-0">
                     <span className="text-muted-foreground">₱</span>
                     <Input
+                        data-testid={`service-price-${treatment.id}`}
                         type="number"
                         placeholder="Price"
                         className="w-full sm:w-32"

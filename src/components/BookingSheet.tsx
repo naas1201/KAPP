@@ -258,8 +258,9 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
                   <FormLabel className="text-base font-semibold">Date</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <FormControl>
+                        <FormControl>
                         <Button
+                          data-testid="booking-date"
                           variant={'outline'}
                           className={cn(
                             'w-full pl-3 text-left font-normal',
@@ -309,6 +310,7 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
                           <RadioGroupItem value={time} id={`sheet-${time}`} className="sr-only" />
                         </FormControl>
                         <Label 
+                            data-testid={`booking-time-${time.replace(/[^a-zA-Z0-9]/g, '')}`}
                             htmlFor={`sheet-${time}`} 
                             className={cn(
                                 "flex items-center justify-center p-4 border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground",
@@ -333,8 +335,8 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
                     name="fullName"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl><Input placeholder="Juan Dela Cruz" {...field} /></FormControl>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl><Input data-testid="booking-fullname" placeholder="Juan Dela Cruz" {...field} /></FormControl>
                         <FormMessage />
                     </FormItem>
                     )}
@@ -344,8 +346,8 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
                     name="email"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Email Address</FormLabel>
-                        <FormControl><Input type="email" placeholder="juan@example.com" {...field} /></FormControl>
+                    <FormLabel>Email Address</FormLabel>
+                    <FormControl><Input data-testid="booking-email" type="email" placeholder="juan@example.com" {...field} /></FormControl>
                         <FormMessage />
                     </FormItem>
                     )}
@@ -355,8 +357,8 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
                     name="phone"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Phone Number</FormLabel>
-                        <FormControl><Input type="tel" placeholder="09171234567" {...field} /></FormControl>
+                    <FormLabel>Phone Number</FormLabel>
+                    <FormControl><Input data-testid="booking-phone" type="tel" placeholder="09171234567" {...field} /></FormControl>
                         <FormMessage />
                     </FormItem>
                     )}
@@ -364,8 +366,8 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
               </div>
             )}
              <SheetFooter>
-                <Button type="submit" size="lg" className="w-full" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? 'Booking...' : 'Confirm Booking Request'}
+                <Button data-testid="booking-submit" type="submit" size="lg" className="w-full" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? 'Booking...' : 'Confirm Booking Request'}
                 </Button>
             </SheetFooter>
           </form>

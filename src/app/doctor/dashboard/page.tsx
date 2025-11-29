@@ -25,8 +25,8 @@ import {
   useFirestore,
   useMemoFirebase,
 } from '@/firebase/hooks';
-import { updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc, collectionGroup, serverTimestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
@@ -54,6 +54,18 @@ export default function DoctorDashboard() {
 
   const { data: appointments, isLoading: isLoadingAppointments } =
     useCollection(appointmentsQuery);
+
+  // Consultation requests: find pending appointments for this doctor across top-level and patient subcollections
+  const consultationRequestsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collectionGroup(firestore, 'appointments'),
+      where('doctorId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+  }, [firestore, user]);
+
+  const { data: consultationRequests, isLoading: isLoadingConsultationRequests } = useCollection(consultationRequestsQuery);
 
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -84,6 +96,40 @@ export default function DoctorDashboard() {
     if (!firestore) return;
     const appointmentRef = doc(firestore, 'appointments', appointmentId);
     updateDocumentNonBlocking(appointmentRef, { status: 'confirmed' });
+  };
+
+  const handleApproveRequest = async (apt: any) => {
+    if (!firestore || !user) return;
+    try {
+      // mark appointment as confirmed in patient subcollection (if exists)
+      const patientAppointmentRef = doc(firestore, 'patients', apt.patientId, 'appointments', apt.id);
+      setDocumentNonBlocking(patientAppointmentRef, { status: 'confirmed', confirmedAt: serverTimestamp() }, { merge: true });
+
+      // also set a top-level appointment record for doctor's convenience
+      const topLevelRef = doc(firestore, 'appointments', apt.id);
+      setDocumentNonBlocking(topLevelRef, { ...apt, status: 'confirmed', confirmedAt: serverTimestamp() }, { merge: true });
+
+      // add patient to doctor's patient list
+      const doctorPatientRef = doc(firestore, 'doctors', user.uid, 'patients', apt.patientId);
+      setDocumentNonBlocking(doctorPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
+
+      // feedback
+      // Optionally navigate doctor to patient page
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRejectRequest = async (apt: any) => {
+    if (!firestore) return;
+    try {
+      const patientAppointmentRef = doc(firestore, 'patients', apt.patientId, 'appointments', apt.id);
+      setDocumentNonBlocking(patientAppointmentRef, { status: 'rejected', rejectedAt: serverTimestamp() }, { merge: true });
+      const topLevelRef = doc(firestore, 'appointments', apt.id);
+      setDocumentNonBlocking(topLevelRef, { status: 'rejected', rejectedAt: serverTimestamp() }, { merge: true });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const enrichedAppointments = useMemo(() => {
@@ -261,6 +307,57 @@ export default function DoctorDashboard() {
          </div>
        )}
       
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Consultation Requests</CardTitle>
+          <CardDescription>Patients requesting consultations. Approve or reject requests.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Patient</TableHead>
+                <TableHead>Service</TableHead>
+                <TableHead>Date & Time</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody data-testid="consultation-requests-table">
+              {isLoadingConsultationRequests && renderSkeleton()}
+              {!isLoadingConsultationRequests && (!consultationRequests || consultationRequests.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    No consultation requests at the moment.
+                  </TableCell>
+                </TableRow>
+              )}
+              {consultationRequests?.map((req: any) => {
+                const patient = patients ? patients.find((p: any) => p.id === req.patientId) : null;
+                const patientName = patient ? `${patient.firstName} ${patient.lastName}` : (req.patientName || 'Unknown');
+                const appointmentDate = new Date(req.dateTime || req.date || Date.now());
+                return (
+                  <TableRow key={req.id}>
+                    <TableCell>
+                      <div className="font-medium">{patientName}</div>
+                      <div className="text-sm text-muted-foreground">{patient ? patient.email : req.patientEmail}</div>
+                    </TableCell>
+                    <TableCell>{req.serviceType || req.service || req.serviceName}</TableCell>
+                    <TableCell>{format(appointmentDate, 'PPpp')}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button data-testid={`consultation-approve-${req.id}`} size="sm" onClick={() => handleApproveRequest(req)}>Approve</Button>
+                      <Button data-testid={`consultation-reject-${req.id}`} size="sm" variant="outline" onClick={() => handleRejectRequest(req)}>Reject</Button>
+                      <Button data-testid={`consultation-view-${req.id}`} size="sm" variant="ghost" asChild>
+                        <Link href={`/doctor/patient/${req.patientId}`}>View</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Upcoming Appointments</CardTitle>
