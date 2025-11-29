@@ -69,9 +69,9 @@ const formSchema = z.object({
   phone: z.string().optional(),
 }).refine(data => {
     // If any of the optional fields are provided, they must be valid
-    if (data.fullName !== undefined && data.fullName.length < 2) return false;
-    if (data.email !== undefined && !z.string().email().safeParse(data.email).success) return false;
-    if (data.phone !== undefined && data.phone.length < 10) return false;
+    if (data.fullName !== undefined && data.fullName !== null && data.fullName.length < 2) return false;
+    if (data.email !== undefined && data.email !== null && !z.string().email().safeParse(data.email).success) return false;
+    if (data.phone !== undefined && data.phone !== null && data.phone.length < 10) return false;
     return true;
 }, {
     message: "Please provide valid contact details if not logged in.",
