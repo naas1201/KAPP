@@ -12,7 +12,8 @@ import {
   updateDocumentNonBlocking,
   deleteDocumentNonBlocking,
   setDocumentNonBlocking,
-} from '@/firebase';
+  useMemoFirebase,
+} from '@/firebase/hooks';
 import {
   doc,
   collection,
@@ -20,7 +21,6 @@ import {
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Card,
@@ -90,7 +90,7 @@ const initialConsultationFormState = {
 
 export default function PatientDetailsPage() {
   const { patientId } = useParams();
-  const { user: doctor, isUserLoading } = useUser();
+  const { user: doctor, isLoading: isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
@@ -113,14 +113,14 @@ export default function PatientDetailsPage() {
     notes: '',
   });
 
-  const patientRef = useMemo(() => {
+  const patientRef = useMemoFirebase(() => {
     if (!firestore || !patientId) return null;
     return doc(firestore, 'patients', patientId as string);
   }, [firestore, patientId]);
 
   const { data: patient, isLoading: isLoadingPatient } = useDoc(patientRef);
 
-  const treatmentsQuery = useMemo(() => {
+  const treatmentsQuery = useMemoFirebase(() => {
     if (!firestore || !patientId) return null;
     return query(
       collection(firestore, 'patients', patientId as string, 'treatmentRecords'),
@@ -130,7 +130,7 @@ export default function PatientDetailsPage() {
   const { data: treatments, isLoading: isLoadingTreatments } =
     useCollection(treatmentsQuery);
 
-  const prescriptionsQuery = useMemo(() => {
+  const prescriptionsQuery = useMemoFirebase(() => {
     if (!firestore || !patientId) return null;
     return query(
       collection(
@@ -616,5 +616,3 @@ export default function PatientDetailsPage() {
     </div>
   );
 }
-
-    

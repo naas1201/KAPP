@@ -27,8 +27,7 @@ import {
 } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { useFirebase } from '@/firebase';
-import { setDocumentNonBlocking } from '@/firebase';
+import { useFirebase, setDocumentNonBlocking } from '@/firebase';
 
 const medicalConditions = [
   { id: 'hypertension', label: 'Hypertension' },
@@ -383,5 +382,3 @@ export default function NewPatientPage() {
     </>
   );
 }
-
-    

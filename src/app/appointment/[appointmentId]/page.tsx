@@ -3,9 +3,8 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
-import { useDoc, useUser } from '@/firebase';
+import { useDoc, useUser, useFirestore, useMemoFirebase } from '@/firebase/hooks';
 import { doc } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +15,7 @@ import { useWindowSize } from 'react-use';
 
 export default function AppointmentDetailsPage() {
   const { appointmentId } = useParams();
-  const { user, isUserLoading } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
   const firestore = useFirestore();
   const { width, height } = useWindowSize();
   const [showConfetti, setShowConfetti] = useState(false);
@@ -28,7 +27,7 @@ export default function AppointmentDetailsPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const appointmentRef = useMemo(() => {
+  const appointmentRef = useMemoFirebase(() => {
     if (!firestore || !user || !appointmentId) return null;
     return doc(firestore, 'patients', user.uid, 'appointments', appointmentId as string);
   }, [firestore, user, appointmentId]);

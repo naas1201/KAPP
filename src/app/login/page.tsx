@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect }from 'firebase/auth';
+import { useState, useEffect }from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -62,6 +63,7 @@ export default function LoginPage() {
   const rememberMe = form.watch('rememberMe');
 
   useEffect(() => {
+    if (!auth) return;
     const persistence = rememberMe
       ? browserLocalPersistence
       : browserSessionPersistence;
@@ -69,6 +71,7 @@ export default function LoginPage() {
   }, [rememberMe, auth]);
 
   const handleGoogleSignIn = async () => {
+    if (!auth) return;
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
@@ -88,6 +91,7 @@ export default function LoginPage() {
   };
 
   const onSubmit = async (data: FormData) => {
+    if (!auth) return;
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);

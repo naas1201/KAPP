@@ -22,9 +22,11 @@ import {
   useCollection,
   useFirebase,
   updateDocumentNonBlocking,
-} from '@/firebase';
+  useUser,
+  useFirestore,
+  useMemoFirebase,
+} from '@/firebase/hooks';
 import { collection, query, where, doc } from 'firebase/firestore';
-import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
@@ -40,7 +42,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export default function DoctorDashboard() {
   const { firestore } = useFirebase();
-  const { user, isUserLoading } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
 
   const appointmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -61,7 +63,7 @@ export default function DoctorDashboard() {
   const { data: patients, isLoading: isLoadingPatients } =
     useCollection(patientsQuery);
 
-  const doctorServicesRef = user ? collection(firestore, 'doctors', user.uid, 'services') : null;
+  const doctorServicesRef = useMemoFirebase(() => (user ? collection(firestore, 'doctors', user.uid, 'services') : null), [user, firestore]);
   const { data: myServices, isLoading: isLoadingMyServices } = useCollection(doctorServicesRef);
   
   const ratingsQuery = useMemoFirebase(() => {

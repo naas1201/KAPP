@@ -23,9 +23,8 @@ import {
   } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from '@/components/logo';
-import { useUser } from '@/firebase';
+import { useUser, useAuth } from '@/firebase/hooks';
 import { signOut } from 'firebase/auth';
-import { useAuth } from '@/firebase';
 import { BookingSheet } from './BookingSheet';
 
 
@@ -41,11 +40,12 @@ const navLinks = [
 const DOCTOR_UIDS = ['default-doctor-id'];
 
 export function Header() {
-    const { user, isUserLoading } = useUser();
+    const { user, isLoading: isUserLoading } = useUser();
     const auth = useAuth();
     const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
     
     const handleSignOut = async () => {
+        if (!auth) return;
         await signOut(auth);
     }
     

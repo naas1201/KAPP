@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -57,6 +58,7 @@ export default function SignupPage() {
   });
 
   const handleGoogleSignIn = async () => {
+    if (!auth) return;
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
@@ -75,6 +77,7 @@ export default function SignupPage() {
   };
 
   const onSubmit = async (data: FormData) => {
+    if (!auth) return;
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);

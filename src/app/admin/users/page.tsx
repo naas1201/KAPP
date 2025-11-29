@@ -33,7 +33,7 @@ import {
   setDocumentNonBlocking,
   deleteDocumentNonBlocking,
   useMemoFirebase,
-} from '@/firebase';
+} from '@/firebase/hooks';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';

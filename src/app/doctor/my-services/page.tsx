@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
+import { useMemoFirebase } from '@/firebase/hooks';
 
 interface Treatment {
   id: string;
@@ -41,10 +42,10 @@ export default function MyServicesPage() {
   const { firestore, user } = useFirebase();
   const { toast } = useToast();
   
-  const treatmentsRef = firestore ? collection(firestore, 'treatments') : null;
+  const treatmentsRef = useMemoFirebase(() => (firestore ? collection(firestore, 'treatments') : null), [firestore]);
   const { data: allTreatments, isLoading: isLoadingTreatments } = useCollection<Treatment>(treatmentsRef);
 
-  const doctorServicesRef = user ? collection(firestore, 'doctors', user.uid, 'services') : null;
+  const doctorServicesRef = useMemoFirebase(() => (user ? collection(firestore, 'doctors', user.uid, 'services') : null), [user, firestore]);
   const { data: myServicesData, isLoading: isLoadingMyServices } = useCollection(doctorServicesRef);
 
   const [myServices, setMyServices] = useState<DoctorServicesState>({});

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -49,6 +50,7 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
+      if (!auth) throw new Error("Auth service not available");
       await sendPasswordResetEmail(auth, data.email);
       toast({
         title: 'Password Reset Email Sent',

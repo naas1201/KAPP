@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -13,11 +14,10 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
-import { useUser, useDoc } from '@/firebase';
+import { useUser, useDoc, useFirestore } from '@/firebase/hooks';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { doc } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
 
 export default function DoctorLayout({
   children,
@@ -25,7 +25,7 @@ export default function DoctorLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, isUserLoading } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
 

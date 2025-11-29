@@ -8,6 +8,7 @@ import {
   useFirebase,
   setDocumentNonBlocking,
   updateDocumentNonBlocking,
+  useMemoFirebase,
 } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ export default function OnboardingPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const treatmentsRef = firestore ? collection(firestore, 'treatments') : null;
+  const treatmentsRef = useMemoFirebase(() => (firestore ? collection(firestore, 'treatments') : null), [firestore]);
   const { data: allTreatments, isLoading: isLoadingTreatments } = useCollection<Treatment>(treatmentsRef);
 
   const [myServices, setMyServices] = useState<DoctorServicesState>({});
