@@ -15,7 +15,9 @@ import {
   Clock,
   User,
   Sparkles,
-  BriefcaseMedical
+  BriefcaseMedical,
+  CreditCard,
+  Wallet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,7 +65,8 @@ const steps = [
   { id: 'Step 2', name: 'Choose Doctor', icon: <BriefcaseMedical /> },
   { id: 'Step 3', name: 'Choose Date & Time', icon: <CalendarIcon /> },
   { id: 'Step 4', name: 'Your Details', icon: <User /> },
-  { id: 'Step 5', name: 'Confirmation', icon: <CheckCircle /> },
+  { id: 'Step 5', name: 'Payment', icon: <CreditCard /> },
+  { id: 'Step 6', name: 'Confirmation', icon: <CheckCircle /> },
 ];
 
 const availableTimes = [
@@ -84,6 +87,7 @@ const formSchema = z.object({
   fullName: z.string().min(2, 'Full name is required.'),
   email: z.string().email('Invalid email address.'),
   phone: z.string().min(10, 'A valid phone number is required. eg. 09171234567'),
+  paymentMethod: z.string().min(1, 'Please select a payment method.'),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -105,6 +109,7 @@ export default function BookingPage() {
       fullName: '',
       email: '',
       phone: '',
+      paymentMethod: 'gchash'
     },
   });
 
@@ -141,7 +146,7 @@ export default function BookingPage() {
         title: "Appointment Requested!",
         description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}. We will contact you for confirmation.`,
       });
-      setCurrentStep(4);
+      setCurrentStep(5);
     } else {
         // If user is logged in, create an appointment
         const appointmentData = {
@@ -169,7 +174,7 @@ export default function BookingPage() {
             title: "Appointment Booked!",
             description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}.`,
            });
-           setCurrentStep(4);
+           setCurrentStep(5);
         }
     }
   }
@@ -183,14 +188,16 @@ export default function BookingPage() {
         ? ['doctorId']
         : currentStep === 2
         ? ['date', 'time']
-        : ['fullName', 'email', 'phone'];
+        : currentStep === 3
+        ? ['fullName', 'email', 'phone']
+        : ['paymentMethod'];
 
     const output = await form.trigger(fields as any, {
       shouldFocus: true,
     });
     if (!output) return;
     
-    if (currentStep === 3) {
+    if (currentStep === 4) {
       await form.handleSubmit(processForm)();
     } else {
       setCurrentStep((step) => step + 1);
@@ -205,6 +212,9 @@ export default function BookingPage() {
   };
 
   const selectedTime = form.watch('time');
+  const selectedPaymentMethod = form.watch('paymentMethod');
+  const selectedServiceId = form.watch('service');
+  const selectedService = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
 
   return (
     <>
@@ -443,6 +453,69 @@ export default function BookingPage() {
                 )}
 
                 {currentStep === 4 && (
+                    <CardContent className="pt-6 space-y-6">
+                        <div>
+                            <h3 className="text-lg font-semibold">Payment Details</h3>
+                            <p className="text-muted-foreground text-sm">Secure your appointment by completing the payment.</p>
+                        </div>
+                        <div className="p-4 border rounded-lg bg-muted/50 flex justify-between items-center">
+                            <div>
+                                <p className="font-semibold">{selectedService?.name}</p>
+                                <p className="text-sm text-muted-foreground">Consultation Fee</p>
+                            </div>
+                            <p className="text-lg font-bold">{selectedService?.price || '₱2,500'}</p>
+                        </div>
+                         <FormField
+                            control={form.control}
+                            name="paymentMethod"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel className="text-lg font-semibold">Select Payment Method</FormLabel>
+                                <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="grid grid-cols-1 gap-4"
+                                >
+                                    <FormItem>
+                                        <FormControl>
+                                            <RadioGroupItem value="gchash" id="gchash" className="sr-only" />
+                                        </FormControl>
+                                        <Label htmlFor="gchash" className={cn(
+                                            "flex items-center justify-between p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
+                                            selectedPaymentMethod === 'gchash' && "border-primary bg-primary/10 text-primary"
+                                            )}>
+                                            <div className="flex items-center gap-3">
+                                                <Wallet className="w-5 h-5"/>
+                                                <span>GCash</span>
+                                            </div>
+                                            <span className="text-xs font-mono">**** **** **12</span>
+                                        </Label>
+                                    </FormItem>
+                                    <FormItem>
+                                        <FormControl>
+                                            <RadioGroupItem value="creditcard" id="creditcard" className="sr-only" />
+                                        </FormControl>
+                                        <Label htmlFor="creditcard" className={cn(
+                                            "flex items-center justify-between p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
+                                            selectedPaymentMethod === 'creditcard' && "border-primary bg-primary/10 text-primary"
+                                            )}>
+                                            <div className="flex items-center gap-3">
+                                                <CreditCard className="w-5 h-5"/>
+                                                <span>Credit / Debit Card</span>
+                                            </div>
+                                            <span className="text-xs font-mono">**** **** **** 4242</span>
+                                        </Label>
+                                    </FormItem>
+                                </RadioGroup>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </CardContent>
+                )}
+
+
+                {currentStep === 5 && (
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
                         <h2 className="mt-4 text-2xl font-semibold">Appointment Request Sent!</h2>
@@ -462,20 +535,20 @@ export default function BookingPage() {
                 </motion.div>
                 
                 <CardFooter className="justify-between pt-6">
-                    {currentStep > 0 && currentStep < 4 && (
+                    {currentStep > 0 && currentStep < 5 && (
                         <Button type="button" variant="outline" onClick={prev}>
                         <ArrowLeft className="w-4 h-4 mr-2" /> Previous
                         </Button>
                     )}
                     <div/>
-                    {currentStep < 3 && (
+                    {currentStep < 4 && (
                         <Button type="button" onClick={next}>
                         Next <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                     )}
-                    {currentStep === 3 && (
+                    {currentStep === 4 && (
                         <Button type="button" onClick={next} disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? 'Booking...' : 'Confirm Booking'}
+                        {form.formState.isSubmitting ? 'Processing...' : 'Pay & Confirm Booking'}
                         </Button>
                     )}
                 </CardFooter>
@@ -487,3 +560,5 @@ export default function BookingPage() {
     </>
   );
 }
+
+    
