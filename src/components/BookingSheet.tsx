@@ -172,6 +172,8 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
     }
   }
 
+  const selectedTime = form.watch('time');
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -272,9 +274,14 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
                     {availableTimes.map((time) => (
                       <FormItem key={time}>
                         <FormControl>
-                          <RadioGroupItem value={time} id={time} className="sr-only" />
+                          <RadioGroupItem value={time} id={`sheet-${time}`} className="sr-only" />
                         </FormControl>
-                        <Label htmlFor={time} className="flex items-center justify-center p-4 border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/10 [&:has([data-state=checked])]:text-primary">
+                        <Label 
+                            htmlFor={`sheet-${time}`} 
+                            className={cn(
+                                "flex items-center justify-center p-4 border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                                selectedTime === time && "border-primary bg-primary/10 text-primary"
+                            )}>
                           <Clock className="w-4 h-4 mr-2" />
                           {time}
                         </Label>
