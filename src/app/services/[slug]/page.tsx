@@ -56,11 +56,8 @@ type Props = {
 //   }));
 // }
 
-export default function ServiceDetailPage({
-  params: { slug },
-}: {
-  params: { slug: string };
-}) {
+export default function ServiceDetailPage(props: any) {
+  const { slug } = props.params || { slug: undefined };
   const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
   const service = services.find((s) => s.slug === slug);
 

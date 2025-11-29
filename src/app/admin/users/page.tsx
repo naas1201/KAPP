@@ -30,10 +30,9 @@ import { PlusCircle, Trash2 } from 'lucide-react';
 import {
   useCollection,
   useFirebase,
-  setDocumentNonBlocking,
-  deleteDocumentNonBlocking,
   useMemoFirebase,
 } from '@/firebase/hooks';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';

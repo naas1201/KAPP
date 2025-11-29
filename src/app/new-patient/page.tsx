@@ -267,10 +267,7 @@ export default function NewPatientPage() {
                                       checked={field.value?.includes(item.id)}
                                       onCheckedChange={(checked) => {
                                         return checked
-                                          ? field.onChange([
-                                              ...field.value,
-                                              item.id,
-                                            ])
+                                          ? field.onChange([...(field.value || []), item.id])
                                           : field.onChange(
                                               field.value?.filter(
                                                 (value) => value !== item.id

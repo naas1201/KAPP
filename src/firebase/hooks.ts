@@ -54,7 +54,7 @@ export function useFirestore() {
 
 export type WithId<T> = T & { id: string };
 
-export function useDoc<T>(docRef: DocumentReference<T> | null | undefined) {
+export function useDoc<T>(docRef: DocumentReference<T> | DocumentReference<any> | null | undefined) {
   const [data, setData] = useState<WithId<T> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -90,7 +90,7 @@ export function useDoc<T>(docRef: DocumentReference<T> | null | undefined) {
   return { data, isLoading, error };
 }
 
-export function useCollection<T>(queryRef: Query<T> | CollectionReference<T> | null | undefined) {
+export function useCollection<T>(queryRef: Query<T> | Query<any> | CollectionReference<T> | CollectionReference<any> | null | undefined) {
   const [data, setData] = useState<WithId<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);

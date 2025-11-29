@@ -21,11 +21,11 @@ import {
 import {
   useCollection,
   useFirebase,
-  updateDocumentNonBlocking,
   useUser,
   useFirestore,
   useMemoFirebase,
 } from '@/firebase/hooks';
+import { updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';

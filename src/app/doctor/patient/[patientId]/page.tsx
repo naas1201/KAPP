@@ -8,10 +8,6 @@ import {
   useUser,
   useCollection,
   useFirebase,
-  addDocumentNonBlocking,
-  updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-  setDocumentNonBlocking,
   useMemoFirebase,
 } from '@/firebase/hooks';
 import {
@@ -66,6 +62,7 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import { addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import {
     DropdownMenu,
     DropdownMenuContent,

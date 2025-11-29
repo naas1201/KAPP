@@ -22,7 +22,7 @@ import {
 } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Paperclip, SendHoriz, Heart, Check, CheckCheck } from 'lucide-react';
+import { Paperclip, Send, Heart, Check, CheckCircle } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { format, isToday, isYesterday } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -176,7 +176,7 @@ export default function ChatPage() {
   const renderReadReceipt = (message: ChatMessage) => {
     if (message.senderId !== doctor?.uid) return null;
     if (message.readByPatient) {
-        return <CheckCheck className="w-4 h-4 text-blue-500" />;
+      return <CheckCircle className="w-4 h-4 text-blue-500" />;
     }
     return <Check className="w-4 h-4 text-muted-foreground" />;
   };
@@ -273,7 +273,7 @@ export default function ChatPage() {
               <Paperclip className="w-5 h-5" />
             </Button>
             <Button size="icon" onClick={handleSendMessage}>
-              <SendHoriz className="w-5 h-5" />
+              <Send className="w-5 h-5" />
             </Button>
           </div>
         </div>
