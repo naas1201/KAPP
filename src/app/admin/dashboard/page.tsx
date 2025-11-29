@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -43,11 +44,10 @@ export default function DashboardPage() {
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection(patientsQuery);
 
-  const thirtyDaysFromNow = new Date();
-  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
   const expiringPrescriptionsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     return query(
       collection(firestore, 'prescriptions'),
       where('expiresAt', '<=', thirtyDaysFromNow.toISOString()),
@@ -291,4 +291,5 @@ export default function DashboardPage() {
       </Tabs>
     </div>
   );
-}
+
+    
