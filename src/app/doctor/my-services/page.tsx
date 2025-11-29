@@ -51,6 +51,24 @@ export default function MyServicesPage() {
   const [myServices, setMyServices] = useState<DoctorServicesState>({});
   const [isSaving, setIsSaving] = useState(false);
 
+
+  useEffect(() => {
+    if (allTreatments) {
+      setMyServices((prev) => {
+        const updated = { ...prev };
+        allTreatments.forEach((treatment: Treatment) => {
+          if (!updated.hasOwnProperty(treatment.id)) {
+            updated[treatment.id] = {
+              price: 0,
+              providesService: false,
+            };
+          }
+        });
+        return updated;
+      });
+    }
+  }, [allTreatments]);
+
   useEffect(() => {
     if (myServicesData) {
       const initialServices = myServicesData.reduce((acc, service: any) => {
@@ -60,10 +78,9 @@ export default function MyServicesPage() {
         };
         return acc;
       }, {} as DoctorServicesState);
-      setMyServices(initialServices);
+      setMyServices((prev) => ({ ...prev, ...initialServices }));
     }
   }, [myServicesData]);
-
   const handleProvidesServiceChange = (treatmentId: string, checked: boolean) => {
     setMyServices((prev) => ({
       ...prev,
@@ -81,25 +98,48 @@ export default function MyServicesPage() {
     }
   };
   
+
   const handleSave = async () => {
     if (!firestore || !user) return;
     setIsSaving(true);
     
-    const promises = Object.entries(myServices).map(([treatmentId, serviceData]) => {
-      const serviceRef = doc(firestore, 'doctors', user.uid, 'services', treatmentId);
-      return setDocumentNonBlocking(serviceRef, {
-        treatmentId: treatmentId,
-        providesService: serviceData.providesService,
-        price: serviceData.providesService ? serviceData.price : 0,
-      }, { merge: true });
-    });
+    try {
+      const promises = Object.entries(myServices).map(([treatmentId, serviceData]) => {
+        const serviceRef = doc(firestore, 'doctors', user.uid, 'services', treatmentId);
+        return setDocumentNonBlocking(serviceRef, {
+          treatmentId: treatmentId,
+          providesService: serviceData.providesService,
+          price: serviceData.providesService ? serviceData.price : 0,
+        }, { merge: true });
+      });
 
-    await Promise.all(promises);
+      await Promise.all(promises);
 
-    toast({ title: 'Your services have been updated successfully.' });
-    setIsSaving(false);
+      toast({ 
+        title: 'Services Updated', 
+        description: 'Your services have been saved successfully.' 
+      });
+      // Merge saved services into local state to reflect immediately
+      setMyServices((prev) => {
+        const updated = { ...prev };
+        Object.entries(myServices).forEach(([tId, svc]) => {
+          updated[tId] = {
+            price: svc.price || 0,
+            providesService: svc.providesService || false,
+          };
+        });
+        return updated;
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to update your services. Please try again.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
-
   const hasNewTreatments = allTreatments?.some(t => !myServices.hasOwnProperty(t.id));
 
   return (
