@@ -15,7 +15,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
 } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { auth } from '@/firebase/client';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -46,7 +46,6 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 export default function LoginPage() {
-  const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -68,7 +67,7 @@ export default function LoginPage() {
       ? browserLocalPersistence
       : browserSessionPersistence;
     setPersistence(auth, persistence);
-  }, [rememberMe, auth]);
+  }, [rememberMe]);
 
   const handleGoogleSignIn = async () => {
     if (!auth) return;
