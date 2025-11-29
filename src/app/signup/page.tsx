@@ -63,7 +63,8 @@ export default function SignupPage() {
     try {
       await signInWithPopup(auth, provider);
       toast({ title: 'Signed up successfully!' });
-      router.push('/admin/dashboard');
+      // Redirect to home page - user can navigate to dashboard from there
+      router.push('/');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -80,10 +81,13 @@ export default function SignupPage() {
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      if (!userCredential?.user) throw new Error('User creation failed');
+      
       await updateProfile(userCredential.user, { displayName: data.fullName });
       
       toast({ title: 'Account created successfully!' });
-      router.push('/admin/dashboard');
+      // Redirect to home page - user can navigate to appropriate dashboard from there
+      router.push('/');
     } catch (error: any) {
         let description = 'An unexpected error occurred. Please try again.';
         if (error.code === 'auth/email-already-in-use') {

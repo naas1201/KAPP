@@ -169,15 +169,23 @@ export default function PatientDetailsPage() {
       patientId as string,
       'treatmentRecords'
     );
-    addDocumentNonBlocking(treatmentRef, {
-      patientId,
-      doctorId: doctor.uid,
-      date: new Date().toISOString(),
-      ...consultationForm
-    });
-    setTreatmentModalOpen(false);
-    setConsultationForm(initialConsultationFormState);
-    toast({ title: "Consultation record saved." });
+    try {
+      addDocumentNonBlocking(treatmentRef, {
+        patientId,
+        doctorId: doctor.uid,
+        date: new Date().toISOString(),
+        ...consultationForm
+      });
+      setTreatmentModalOpen(false);
+      setConsultationForm(initialConsultationFormState);
+      toast({ title: "Consultation record saved." });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: "Error saving consultation record",
+        description: "Failed to save the consultation record. Please try again."
+      });
+    }
   };
 
   const handleSavePrescription = () => {
@@ -189,22 +197,29 @@ export default function PatientDetailsPage() {
         doctorId: doctor.uid,
     };
 
-    if (editingPrescription) {
+    try {
+      if (editingPrescription) {
         const prescriptionRef = doc(firestore, 'patients', patientId as string, 'prescriptions', editingPrescription.id);
         updateDocumentNonBlocking(prescriptionRef, prescriptionData);
         toast({ title: "Prescription updated." });
-    } else {
+      } else {
         const prescriptionRef = collection(firestore, 'patients', patientId as string, 'prescriptions');
         addDocumentNonBlocking(prescriptionRef, {
-            ...prescriptionData,
-            createdAt: new Date().toISOString(),
-            expiresAt: add(new Date(), { days: 30 }).toISOString(), // Default 30-day expiry
+          ...prescriptionData,
+          createdAt: new Date().toISOString(),
+          expiresAt: add(new Date(), { days: 30 }).toISOString(), // Default 30-day expiry
         });
         toast({ title: "Prescription created." });
+      }
+      setPrescriptionModalOpen(false);
+      resetPrescriptionForm();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: "Error saving prescription",
+        description: "Failed to save the prescription. Please try again."
+      });
     }
-
-    setPrescriptionModalOpen(false);
-    resetPrescriptionForm();
   };
   
   const handleEditPrescription = (prescription: any) => {

@@ -68,8 +68,8 @@ export default function DashboardPage() {
   }, [expiringPrescriptions, patients]);
 
 
-  const customers = patients?.filter(p => (p as any).appointmentCount === 1);
-  const clients = patients?.filter(p => (p as any).appointmentCount > 1);
+  const customers = patients?.filter(p => ((p as any).appointmentCount ?? 0) === 1);
+  const clients = patients?.filter(p => ((p as any).appointmentCount ?? 0) > 1);
 
   const renderSkeleton = (cols = 5) => (
     Array.from({ length: 3 }).map((_, i) => (
@@ -122,6 +122,13 @@ export default function DashboardPage() {
                     </TableHeader>
                     <TableBody>
                         {isLoadingLeads && renderSkeleton()}
+                        {!isLoadingLeads && (!leads || leads.length === 0) && (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                                    No leads yet. Visitors who request appointments without an account appear here.
+                                </TableCell>
+                            </TableRow>
+                        )}
                         {leads?.map((lead: any) => (
                         <TableRow key={lead.id}>
                             <TableCell>
@@ -168,6 +175,13 @@ export default function DashboardPage() {
                     </TableHeader>
                     <TableBody>
                         {isLoadingPatients && renderSkeleton()}
+                        {!isLoadingPatients && (!customers || customers.length === 0) && (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                                    No one-time customers. Patients with exactly 1 appointment appear here.
+                                </TableCell>
+                            </TableRow>
+                        )}
                         {customers?.map((customer: any) => (
                         <TableRow key={customer.id}>
                             <TableCell>
@@ -212,6 +226,13 @@ export default function DashboardPage() {
                     </TableHeader>
                     <TableBody>
                         {isLoadingPatients && renderSkeleton()}
+                        {!isLoadingPatients && (!clients || clients.length === 0) && (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                                    No returning clients yet. Patients with 2+ appointments appear here.
+                                </TableCell>
+                            </TableRow>
+                        )}
                         {clients?.map((client: any) => (
                         <TableRow key={client.id} className="bg-accent/40">
                             <TableCell>
@@ -257,6 +278,13 @@ export default function DashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {(isLoadingPrescriptions || isLoadingPatients) && renderSkeleton(4)}
+                  {!isLoadingPrescriptions && !isLoadingPatients && (!enrichedPrescriptions || enrichedPrescriptions.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        No prescriptions expiring soon. All prescriptions are current.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {enrichedPrescriptions?.map((rx: any) => (
                     <TableRow key={rx.id}>
                       <TableCell>

@@ -56,6 +56,8 @@ export default function UsersPage() {
   const { toast } = useToast();
 
   const [isModalOpen, setModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userDetails, setUserDetails] = useState({
     email: '',
     role: 'doctor' as 'admin' | 'doctor',
@@ -99,12 +101,17 @@ export default function UsersPage() {
   };
 
   const handleDelete = (email: string) => {
-    if (!firestore) return;
-    if (window.confirm(`Are you sure you want to remove ${email}? This will revoke their access.`)) {
-        const userDocRef = doc(firestore, 'users', email);
-        deleteDocumentNonBlocking(userDocRef);
-        toast({ title: 'User removed.', variant: 'destructive' });
-    }
+    setUserToDelete(email);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (!firestore || !userToDelete) return;
+    const userDocRef = doc(firestore, 'users', userToDelete);
+    deleteDocumentNonBlocking(userDocRef);
+    toast({ title: 'User removed.', variant: 'destructive' });
+    setIsDeleteDialogOpen(false);
+    setUserToDelete(null);
   };
 
 
@@ -201,6 +208,25 @@ export default function UsersPage() {
               Cancel
             </Button>
             <Button onClick={handleInvite}>Send Invitation</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {userToDelete}? This will revoke their access to the system. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete User
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

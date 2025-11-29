@@ -59,6 +59,8 @@ export default function ProceduresPage() {
   const { toast } = useToast();
 
   const [isModalOpen, setModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [treatmentToDelete, setTreatmentToDelete] = useState<string | null>(null);
   const [editingTreatment, setEditingTreatment] = useState<Treatment | null>(
     null
   );
@@ -108,12 +110,17 @@ export default function ProceduresPage() {
   };
   
   const handleDelete = (treatmentId: string) => {
-    if (!firestore) return;
-    if (window.confirm('Are you sure you want to delete this procedure? This action cannot be undone.')) {
-        const treatmentRef = doc(firestore, 'treatments', treatmentId);
-        deleteDocumentNonBlocking(treatmentRef);
-        toast({ title: 'Procedure deleted.', variant: 'destructive' });
-    }
+    setTreatmentToDelete(treatmentId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (!firestore || !treatmentToDelete) return;
+    const treatmentRef = doc(firestore, 'treatments', treatmentToDelete);
+    deleteDocumentNonBlocking(treatmentRef);
+    toast({ title: 'Procedure deleted.', variant: 'destructive' });
+    setIsDeleteDialogOpen(false);
+    setTreatmentToDelete(null);
   };
 
 
@@ -230,6 +237,25 @@ export default function ProceduresPage() {
               Cancel
             </Button>
             <Button onClick={handleSave}>Save Procedure</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this procedure? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete Procedure
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

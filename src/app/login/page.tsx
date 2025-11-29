@@ -95,7 +95,8 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       toast({ title: 'Signed in successfully!' });
-      router.push('/admin/dashboard');
+      // Redirect to home page - app layout will handle role-based routing
+      router.push('/');
     } catch (error: any) {
       toast({
         variant: 'destructive',

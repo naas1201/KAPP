@@ -63,7 +63,10 @@ export default function DoctorDashboard() {
   const { data: patients, isLoading: isLoadingPatients } =
     useCollection(patientsQuery);
 
-  const doctorServicesRef = useMemoFirebase(() => (user ? collection(firestore, 'doctors', user.uid, 'services') : null), [user, firestore]);
+  const doctorServicesRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'doctors', user.uid, 'services');
+  }, [user, firestore]);
   const { data: myServices, isLoading: isLoadingMyServices } = useCollection(doctorServicesRef);
   
   const ratingsQuery = useMemoFirebase(() => {
@@ -278,6 +281,13 @@ export default function DoctorDashboard() {
             </TableHeader>
             <TableBody>
               {isLoading && renderSkeleton()}
+              {!isLoading && enrichedAppointments.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No appointments yet. Manage patient appointments from here when they book.
+                  </TableCell>
+                </TableRow>
+              )}
               {enrichedAppointments.map((apt: any) => (
                 <TableRow key={apt.id}>
                   <TableCell>

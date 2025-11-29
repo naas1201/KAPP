@@ -103,7 +103,14 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
   });
 
   async function processForm(data: FormData) {
-    if (!firestore) return;
+    if (!firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Firestore is not initialized. Please refresh and try again.',
+      });
+      return;
+    }
     
     const dateTime = new Date(data.date);
     const [time, period] = data.time.split(' ');
@@ -114,6 +121,15 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
 
     let patientId = user?.uid;
     const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
+    
+    if (!serviceName) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Selected service not found. Please try again.',
+      });
+      return;
+    }
 
     if (!patientId) {
       if(!data.fullName || !data.email || !data.phone) {
@@ -127,21 +143,30 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
       const [firstName, ...lastNameParts] = data.fullName.split(' ');
       const lastName = lastNameParts.join(' ');
       const leadRef = collection(firestore, 'leads');
-      addDocumentNonBlocking(leadRef, {
-        firstName,
-        lastName,
-        email: data.email,
-        phone: data.phone,
-        source: 'Booking Form',
-        serviceInterest: serviceName,
-        createdAt: serverTimestamp(),
-      });
-       toast({
-        title: "Appointment Requested!",
-        description: `We'll contact you shortly to confirm your booking for ${serviceName}.`,
-       });
-       onOpenChange(false);
-       form.reset();
+      try {
+        await addDocumentNonBlocking(leadRef, {
+          firstName,
+          lastName,
+          email: data.email,
+          phone: data.phone,
+          source: 'Booking Form',
+          serviceInterest: serviceName,
+          createdAt: serverTimestamp(),
+        });
+        toast({
+          title: "Appointment Requested!",
+          description: `We'll contact you shortly to confirm your booking for ${serviceName}.`,
+        });
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Booking Error',
+          description: 'Failed to save your booking. Please try again.',
+        });
+        return;
+      }
+      onOpenChange(false);
+      form.reset();
        // Cannot redirect guest users to a specific appointment page without auth
     } else {
         const appointmentData = {
@@ -153,22 +178,29 @@ export function BookingSheet({ open, onOpenChange }: BookingSheetProps) {
             notes: 'Booked via website.',
         };
         const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
-        const newDocPromise = addDocumentNonBlocking(appointmentRef, appointmentData);
-
-        newDocPromise.then(docRef => {
-            if(docRef) {
-                 // Redirect to the new appointment details page
-                router.push(`/appointment/${docRef.id}`);
-            }
-        });
-
-        const patientRef = doc(firestore, 'patients', patientId);
-        updateDocumentNonBlocking(patientRef, {
-            appointmentCount: increment(1)
-        });
-        
-        onOpenChange(false);
-        form.reset();
+        try {
+          const newDocRef = await addDocumentNonBlocking(appointmentRef, appointmentData);
+          
+          if (newDocRef?.id) {
+            const patientRef = doc(firestore, 'patients', patientId);
+            await updateDocumentNonBlocking(patientRef, {
+              appointmentCount: increment(1)
+            });
+            
+            onOpenChange(false);
+            form.reset();
+            // Redirect to the new appointment details page
+            router.push(`/appointment/${newDocRef.id}`);
+          } else {
+            throw new Error('Failed to create appointment');
+          }
+        } catch (error) {
+          toast({
+            variant: 'destructive',
+            title: 'Booking Error',
+            description: 'Failed to book appointment. Please try again.',
+          });
+        }
     }
   }
 

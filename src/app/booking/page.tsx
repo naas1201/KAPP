@@ -82,7 +82,14 @@ const availableTimes = [
 const formSchema = z.object({
   service: z.string().min(1, 'Please select a service.'),
   doctorId: z.string().min(1, 'Please select a doctor.'),
-  date: z.date({ required_error: 'A date is required.' }),
+  date: z.date({ required_error: 'A date is required.' }).refine(
+    (date) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return date >= today;
+    },
+    'Please select a date that is not in the past.'
+  ),
   time: z.string().min(1, 'Please select a time.'),
   fullName: z.string().min(2, 'Full name is required.'),
   email: z.string().email('Invalid email address.'),
@@ -115,7 +122,14 @@ export default function BookingPage() {
 
   async function processForm(data: FormData) {
     triggerHaptic();
-    if (!firestore) return;
+    if (!firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Firestore is not initialized. Please refresh and try again.',
+      });
+      return;
+    }
     
     // Combine date and time
     const dateTime = new Date(data.date);
@@ -127,55 +141,69 @@ export default function BookingPage() {
 
     let patientId = user?.uid;
     const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
-
-    // If user is not logged in, create a lead
-    if (!patientId) {
-      const [firstName, ...lastNameParts] = data.fullName.split(' ');
-      const lastName = lastNameParts.join(' ');
-      const leadRef = collection(firestore, 'leads');
-      addDocumentNonBlocking(leadRef, {
-        firstName,
-        lastName,
-        email: data.email,
-        phone: data.phone,
-        source: 'Booking Form',
-        serviceInterest: serviceName,
-        createdAt: serverTimestamp(),
-      });
+    
+    if (!serviceName) {
       toast({
-        title: "Appointment Requested!",
-        description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}. We will contact you for confirmation.`,
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Selected service not found. Please try again.',
       });
-      setCurrentStep(5);
-    } else {
+      return;
+    }
+
+    try {
+      // If user is not logged in, create a lead
+      if (!patientId) {
+        const [firstName, ...lastNameParts] = data.fullName.split(' ');
+        const lastName = lastNameParts.join(' ');
+        const leadRef = collection(firestore, 'leads');
+        await addDocumentNonBlocking(leadRef, {
+          firstName,
+          lastName,
+          email: data.email,
+          phone: data.phone,
+          source: 'Booking Form',
+          serviceInterest: serviceName,
+          createdAt: serverTimestamp(),
+        });
+        toast({
+          title: "Appointment Requested!",
+          description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}. We will contact you for confirmation.`,
+        });
+        setCurrentStep(5);
+      } else {
         // If user is logged in, create an appointment
         const appointmentData = {
-            patientId,
-            doctorId: data.doctorId,
-            serviceType: serviceName,
-            dateTime: dateTime.toISOString(),
-            status: 'pending',
-            notes: 'Booked via website.',
+          patientId,
+          doctorId: data.doctorId,
+          serviceType: serviceName,
+          dateTime: dateTime.toISOString(),
+          status: 'pending',
+          notes: 'Booked via website.',
         };
         const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
-        const newDocPromise = addDocumentNonBlocking(appointmentRef, appointmentData);
+        const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
 
-        const patientRef = doc(firestore, 'patients', patientId);
-        updateDocumentNonBlocking(patientRef, {
+        if (newDoc?.id) {
+          const patientRef = doc(firestore, 'patients', patientId);
+          await updateDocumentNonBlocking(patientRef, {
             appointmentCount: increment(1)
-        });
-
-        const newDoc = await newDocPromise;
-        if (newDoc) {
+          });
           router.push(`/appointment/${newDoc.id}`);
         } else {
-           // Fallback in case the redirect fails
-           toast({
-            title: "Appointment Booked!",
-            description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}.`,
-           });
-           setCurrentStep(5);
+          toast({
+            variant: 'destructive',
+            title: "Error",
+            description: `Failed to create appointment. Please try again.`,
+          });
         }
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: "Booking Error",
+        description: `Failed to book appointment. Please try again.`,
+      });
     }
   }
 
