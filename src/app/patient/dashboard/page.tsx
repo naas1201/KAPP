@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Card,
@@ -19,7 +19,7 @@ import {
   useFirebase,
   useMemoFirebase,
 } from '@/firebase/hooks';
-import { updateDocumentNonBlocking } from '@/firebase';
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { format, formatDistanceToNow, isPast, isFuture, isToday } from 'date-fns';
 import { 
@@ -34,7 +34,9 @@ import {
   FileText,
   ChevronRight,
   Edit,
-  Pill
+  Pill,
+  Trophy,
+  Star
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -48,6 +50,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { 
+  FirstVisitCelebration, 
+  BadgeDisplay, 
+  LevelProgress 
+} from '@/components/gamification/PatientGamification';
+import { PATIENT_BADGES, calculatePatientLevel, type PatientBadge } from '@/lib/gamification';
 
 export default function PatientDashboard() {
   const { firestore, user, isUserLoading } = useFirebase();
@@ -61,6 +69,7 @@ export default function PatientDashboard() {
     phone: '',
     email: '',
   });
+  const [showFirstVisitCelebration, setShowFirstVisitCelebration] = useState(false);
 
   // Fetch patient profile
   const patientRef = useMemoFirebase(() => {
@@ -130,6 +139,66 @@ export default function PatientDashboard() {
       todayAppointments: today 
     };
   }, [appointments]);
+
+  // Calculate patient badges based on their activity
+  const earnedBadges = useMemo(() => {
+    const badges: PatientBadge[] = [];
+    if (!patient) return badges;
+
+    const totalAppointments = patient.appointmentCount || 0;
+
+    // First visit badge
+    if (totalAppointments >= 1) {
+      badges.push(PATIENT_BADGES.find(b => b.id === 'first-visit')!);
+    }
+
+    // Health hero - 5 appointments
+    if (totalAppointments >= 5) {
+      badges.push(PATIENT_BADGES.find(b => b.id === 'health-hero-5')!);
+    }
+
+    // Wellness warrior - 10 appointments
+    if (totalAppointments >= 10) {
+      badges.push(PATIENT_BADGES.find(b => b.id === 'wellness-warrior-10')!);
+    }
+
+    // Profile complete badge
+    if (patient.phone && patient.email && patient.dateOfBirth) {
+      badges.push(PATIENT_BADGES.find(b => b.id === 'profile-complete')!);
+    }
+
+    // Check if any appointment has notes (prepared patient badge)
+    const hasNotes = appointments?.some((a: any) => a.patientNotes);
+    if (hasNotes) {
+      badges.push(PATIENT_BADGES.find(b => b.id === 'prepared-patient')!);
+    }
+
+    return badges.filter(Boolean);
+  }, [patient, appointments]);
+
+  // Calculate XP and level
+  const { patientXp, patientLevel } = useMemo(() => {
+    const appointmentCount = patient?.appointmentCount || 0;
+    const xp = appointmentCount * 20 + (earnedBadges.length * 10);
+    const level = calculatePatientLevel(xp);
+    return { patientXp: xp, patientLevel: level };
+  }, [patient, earnedBadges]);
+
+  // Check if first visit celebration should be shown
+  useEffect(() => {
+    if (patient && !patient.firstVisitCelebrated && user) {
+      // This is the patient's first time - show celebration
+      setShowFirstVisitCelebration(true);
+      
+      // Mark as celebrated
+      if (firestore) {
+        const patientDocRef = doc(firestore, 'patients', user.uid);
+        setDocumentNonBlocking(patientDocRef, {
+          firstVisitCelebrated: true,
+        }, { merge: true });
+      }
+    }
+  }, [patient, user, firestore]);
 
   const handleOpenPrepareAppointment = (appointment: any) => {
     setSelectedAppointment(appointment);
@@ -224,6 +293,13 @@ export default function PatientDashboard() {
 
   return (
     <div className="p-4 sm:p-6">
+      {/* First Visit Celebration Dialog */}
+      <FirstVisitCelebration 
+        isOpen={showFirstVisitCelebration} 
+        onClose={() => setShowFirstVisitCelebration(false)}
+        patientName={patient?.firstName || user?.displayName || 'there'}
+      />
+
       <div className="mb-6">
         <h1 className="text-2xl font-bold font-headline">
           Welcome back, {patient?.firstName || user?.displayName || 'Patient'}
@@ -232,6 +308,41 @@ export default function PatientDashboard() {
           Manage your appointments and health information
         </p>
       </div>
+
+      {/* Gamification Progress Card */}
+      <Card className="mb-6 bg-gradient-to-r from-purple-500/5 to-blue-500/5 border-purple-200">
+        <CardContent className="pt-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-yellow-100">
+                <Trophy className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Your Health Journey</h3>
+                <p className="text-sm text-muted-foreground">Level {patientLevel} • {patientXp} XP</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-500" />
+              <span className="font-semibold">{earnedBadges.length} Badges</span>
+            </div>
+          </div>
+          {earnedBadges.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {earnedBadges.map((badge) => (
+                <div 
+                  key={badge.id} 
+                  className="flex items-center gap-1 px-2 py-1 bg-white/50 rounded-full text-sm"
+                  title={badge.description}
+                >
+                  <span>{badge.icon}</span>
+                  <span className="font-medium">{badge.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Today's Appointments Alert */}
       {todayAppointments.length > 0 && (
@@ -360,33 +471,42 @@ export default function PatientDashboard() {
                 {upcomingAppointments.slice(0, 3).map((apt: any) => (
                   <div 
                     key={apt.id} 
-                    className="flex items-center justify-between p-4 rounded-lg border bg-card"
+                    className="flex flex-col p-4 rounded-lg border bg-card"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-full bg-primary/10">
-                        <Stethoscope className="w-5 h-5 text-primary" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-full bg-primary/10">
+                          <Stethoscope className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold">{apt.serviceType}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(new Date(apt.dateTime), 'EEEE, MMMM d, yyyy')} at {format(new Date(apt.dateTime), 'h:mm a')}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formatDistanceToNow(new Date(apt.dateTime), { addSuffix: true })}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold">{apt.serviceType}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(apt.dateTime), 'EEEE, MMMM d, yyyy')} at {format(new Date(apt.dateTime), 'h:mm a')}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDistanceToNow(new Date(apt.dateTime), { addSuffix: true })}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        {getStatusBadge(apt.status)}
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleOpenPrepareAppointment(apt)}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          {apt.patientNotes ? 'Edit Notes' : 'Add Notes'}
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {getStatusBadge(apt.status)}
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleOpenPrepareAppointment(apt)}
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        Prepare
-                      </Button>
-                    </div>
+                    {/* Show saved notes */}
+                    {apt.patientNotes && (
+                      <div className="mt-3 ml-16 p-3 bg-muted/50 rounded-md">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Your Notes:</p>
+                        <p className="text-sm">{apt.patientNotes}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

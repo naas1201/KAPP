@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, MessageSquare, Settings, Calendar, Tag } from 'lucide-react';
+import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, Stethoscope, Calendar, Tag, Settings } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -92,11 +92,23 @@ export default function AdminLayout({
               <SidebarMenuButton
                 asChild
                 isActive={pathname === '/admin/dashboard'}
-                tooltip={{ children: 'Dashboard' }}
+                tooltip={{ children: 'Patients' }}
               >
                 <Link href="/admin/dashboard">
                   <Users />
-                  <span>Clients</span>
+                  <span>Patients</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/admin/doctors'}
+                tooltip={{ children: 'Doctors' }}
+              >
+                <Link href="/admin/doctors">
+                  <Stethoscope />
+                  <span>Doctors</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -140,11 +152,11 @@ export default function AdminLayout({
               <SidebarMenuButton
                 asChild
                 isActive={pathname.startsWith('/admin/users')}
-                tooltip={{ children: 'User Management' }}
+                tooltip={{ children: 'Staff & Roles' }}
               >
                 <Link href="/admin/users">
                   <UserPlus />
-                  <span>Users</span>
+                  <span>Staff & Roles</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -169,6 +181,18 @@ export default function AdminLayout({
                 <Link href="/admin/reports">
                   <Flag />
                   <span>Reports</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/admin/settings'}
+                tooltip={{ children: 'Clinic Settings' }}
+              >
+                <Link href="/admin/settings">
+                  <Settings />
+                  <span>Settings</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
