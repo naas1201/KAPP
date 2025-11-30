@@ -15,17 +15,17 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
     
-    // Check the /users collection for the user's role
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    // Check the /users collection for the user's role (document ID is email)
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role;
     }
 
     function isDoctor() {
-      return isSignedIn() && getUserRole(request.auth.uid) == 'doctor';
+      return isSignedIn() && getUserRole() == 'doctor';
     }
 
     function isAdmin() {
-       return isSignedIn() && getUserRole(request.auth.uid) == 'admin';
+       return isSignedIn() && getUserRole() == 'admin';
     }
     
     // OWASP: Input validation - Check string length to prevent DoS

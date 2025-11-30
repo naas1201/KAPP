@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -23,16 +23,14 @@ import { Input } from '@/components/ui/input';
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Search, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useCollection,
   useFirebase,
   useMemoFirebase,
 } from '@/firebase/hooks';
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -45,26 +43,66 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 
+type UserRole = 'admin' | 'doctor' | 'patient';
+
 interface User {
   id: string;
   email: string;
-  role: 'admin' | 'doctor';
+  role: UserRole;
 }
+
+const ITEMS_PER_PAGE = 10;
 
 export default function UsersPage() {
   const { firestore } = useFirebase();
   const { toast } = useToast();
 
+  // Modal states
   const [isModalOpen, setModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  
+  // User states
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [editRoleValue, setEditRoleValue] = useState<UserRole>('patient');
   const [userDetails, setUserDetails] = useState({
     email: '',
-    role: 'doctor' as 'admin' | 'doctor',
+    role: 'doctor' as UserRole,
   });
+
+  // Search and pagination
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const usersRef = useMemoFirebase(() => (firestore ? collection(firestore, 'users') : null), [firestore]);
   const { data: users, isLoading } = useCollection<User>(usersRef);
+
+  // Filter users based on search query
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!searchQuery.trim()) return users;
+    
+    const query = searchQuery.toLowerCase().trim();
+    return users.filter(user => 
+      user.email.toLowerCase().includes(query) ||
+      user.role.toLowerCase().includes(query)
+    );
+  }, [users, searchQuery]);
+
+  // Paginated users
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredUsers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredUsers, currentPage]);
+
+  const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   const resetForm = () => {
     setUserDetails({ email: '', role: 'doctor' });
@@ -84,20 +122,61 @@ export default function UsersPage() {
       return;
     }
 
-    // In a real app, this would trigger a cloud function to create an auth user.
-    // For this prototype, we'll create a user document that pre-assigns the role.
-    // The user will then need to sign up with this exact email.
-    
-    // We use the email as the document ID to easily query it later.
-    // NOTE: This is not a secure way to do this in production. For prototyping only.
-    const userDocRef = doc(firestore, 'users', userDetails.email);
+    // Check if user already exists
+    const existingUser = users?.find(u => u.email.toLowerCase() === userDetails.email.toLowerCase());
+    if (existingUser) {
+      toast({
+        variant: 'destructive',
+        title: 'User already exists',
+        description: 'This email is already registered in the system.',
+      });
+      return;
+    }
 
+    const userDocRef = doc(firestore, 'users', userDetails.email);
     setDocumentNonBlocking(userDocRef, userDetails, {});
 
-    toast({ title: 'Invitation Sent', description: `${userDetails.email} has been invited as a ${userDetails.role}. They can now sign up.` });
+    toast({ 
+      title: 'User Added', 
+      description: `${userDetails.email} has been added as a ${userDetails.role}.` 
+    });
     
     setModalOpen(false);
     resetForm();
+  };
+
+  const handleEdit = (user: User) => {
+    setUserToEdit(user);
+    setEditRoleValue(user.role);
+    setEditModalOpen(true);
+  };
+
+  const handleUpdateRole = () => {
+    if (!firestore || !userToEdit || !editRoleValue) return;
+    if (editRoleValue === userToEdit.role) {
+      setEditModalOpen(false);
+      setUserToEdit(null);
+      return;
+    }
+
+    try {
+      const userDocRef = doc(firestore, 'users', userToEdit.email);
+      updateDocumentNonBlocking(userDocRef, { role: editRoleValue });
+
+      toast({ 
+        title: 'Role Updated', 
+        description: `${userToEdit.email} is now a ${editRoleValue}.` 
+      });
+    } catch (error) {
+      toast({ 
+        variant: 'destructive',
+        title: 'Failed to Update Role', 
+        description: 'An error occurred while updating the role. Please try again.' 
+      });
+    }
+    
+    setEditModalOpen(false);
+    setUserToEdit(null);
   };
 
   const handleDelete = (email: string) => {
@@ -114,21 +193,40 @@ export default function UsersPage() {
     setUserToDelete(null);
   };
 
+  const getRoleBadgeVariant = (role: UserRole) => {
+    switch (role) {
+      case 'admin': return 'default';
+      case 'doctor': return 'secondary';
+      case 'patient': return 'outline';
+      default: return 'outline';
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold font-headline">
             User Management
           </h1>
           <p className="text-muted-foreground">
-            Invite and manage staff and doctors.
+            Manage staff roles and permissions.
           </p>
         </div>
         <Button onClick={handleOpenModal}>
-          <PlusCircle className="w-4 h-4 mr-2" /> Invite User
+          <PlusCircle className="w-4 h-4 mr-2" /> Add User
         </Button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by email or role..."
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <Card>
@@ -149,16 +247,30 @@ export default function UsersPage() {
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                 </TableRow>
               ))}
-              {users?.map((user) => (
+              {!isLoading && paginatedUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                    {searchQuery ? 'No users found matching your search.' : 'No users found. Add your first user to get started.'}
+                  </TableCell>
+                </TableRow>
+              )}
+              {paginatedUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.email}</TableCell>
                   <TableCell>
-                    <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">
+                    <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
                       {user.role}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                     <Button
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(user)}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDelete(user.email)}
@@ -170,15 +282,46 @@ export default function UsersPage() {
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <p className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length} users
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
+      {/* Add User Modal */}
       <Dialog open={isModalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite New User</DialogTitle>
+            <DialogTitle>Add New User</DialogTitle>
             <DialogDescription>
-              Enter the user's email and assign them a role. They will be able to sign up and access the system.
+              Enter the user's email and assign them a role. If they haven't signed up yet, they will be able to sign up and access the system with this role.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -192,12 +335,13 @@ export default function UsersPage() {
             />
              <Select
               value={userDetails.role}
-              onValueChange={(value: 'admin' | 'doctor') => setUserDetails({ ...userDetails, role: value })}
+              onValueChange={(value: UserRole) => setUserDetails({ ...userDetails, role: value })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="patient">Patient</SelectItem>
                 <SelectItem value="doctor">Doctor</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
@@ -207,17 +351,53 @@ export default function UsersPage() {
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleInvite}>Send Invitation</Button>
+            <Button onClick={handleInvite}>Add User</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Edit Role Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change User Role</DialogTitle>
+            <DialogDescription>
+              Update the role for {userToEdit?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select
+              value={editRoleValue}
+              onValueChange={(value: UserRole) => setEditRoleValue(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="patient">Patient</SelectItem>
+                <SelectItem value="doctor">Doctor</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateRole}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove {userToDelete}? This will revoke their access to the system. This action cannot be undone.
+              Are you sure you want to remove {userToDelete}? This will revoke their role-based access to the system. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
