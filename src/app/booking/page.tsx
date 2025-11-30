@@ -101,6 +101,11 @@ const formSchema = z.object({
     'Please select a date that is not in the past.'
   ),
   time: z.string().min(1, 'Please select a time.'),
+  phoneNumber: z.string().min(10, 'Please enter a valid Philippine phone number.').regex(
+    /^(\+63|0)?9\d{9}$/,
+    'Please enter a valid Philippine mobile number (e.g., +639123456789 or 09123456789).'
+  ),
+  medicalCondition: z.string().optional(),
   paymentMethod: z.string().min(1, 'Please select a payment method.'),
 });
 
@@ -146,6 +151,8 @@ export default function BookingPage() {
       service: '',
       doctorId: '',
       time: '',
+      phoneNumber: patientData?.phone || '',
+      medicalCondition: '',
       paymentMethod: 'gcash'
     },
   });
@@ -196,8 +203,10 @@ export default function BookingPage() {
         paymentStatus: 'paid',
         originalPrice: originalPrice,
         finalPrice: finalPrice,
+        phoneNumber: data.phoneNumber,
+        medicalCondition: data.medicalCondition || '',
         notes: '',
-        patientNotes: '',
+        patientNotes: data.medicalCondition || '',
         attachments: [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -303,8 +312,10 @@ export default function BookingPage() {
         paymentStatus: 'pending_payment',
         originalPrice: originalPrice,
         finalPrice: finalPrice,
+        phoneNumber: data.phoneNumber,
+        medicalCondition: data.medicalCondition || '',
         notes: '',
-        patientNotes: '',
+        patientNotes: data.medicalCondition || '',
         attachments: [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -490,7 +501,7 @@ export default function BookingPage() {
         : currentStep === 1
         ? ['doctorId']
         : currentStep === 2
-        ? ['date', 'time']
+        ? ['date', 'time', 'phoneNumber']
         : ['paymentMethod'];
 
     const output = await form.trigger(fields as any, {
@@ -767,6 +778,49 @@ export default function BookingPage() {
                                 </FormItem>
                             ))}
                           </RadioGroup>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    {/* Phone Number - Philippine Format */}
+                    <FormField
+                      control={form.control}
+                      name="phoneNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-lg font-semibold">Phone Number</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="+63 9XX XXX XXXX or 09XX XXX XXXX" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Philippine mobile number for appointment reminders
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    {/* Medical Condition Note */}
+                    <FormField
+                      control={form.control}
+                      name="medicalCondition"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-lg font-semibold">Medical Condition / Notes</FormLabel>
+                          <FormControl>
+                            <textarea 
+                              className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              placeholder="Describe your symptoms or reason for visit (optional but helpful for your doctor)..."
+                              {...field} 
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            This helps the doctor prepare for your appointment
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}
