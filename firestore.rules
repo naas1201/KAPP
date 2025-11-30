@@ -212,5 +212,32 @@ service cloud.firestore {
       // Only admins can read all ratings
       allow read, list: if isAdmin();
     }
+
+    /**
+     * @description Stores name change requests from patients.
+     * Patients can create requests for their own accounts.
+     * Only admins can read all requests and process them.
+     */
+    match /nameChangeRequests/{requestId} {
+      // Patients can create their own name change requests
+      allow create: if isSignedIn() && request.resource.data.patientId == request.auth.uid;
+      // Patients can read their own requests
+      allow read: if isSignedIn() && resource.data.patientId == request.auth.uid;
+      // Only admins can list all requests and update/delete them
+      allow list, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Stores medical information filled by patients.
+     * Only visible to doctors and the patient themselves.
+     */
+    match /medicalInfo/{patientId} {
+      // Patient can read and write their own medical info
+      allow read, write: if isSignedIn() && isOwner(patientId);
+      // Authorized doctors can read medical info
+      allow read: if isAuthorizedDoctorForPatient(patientId);
+      // Admins can read but not modify medical info directly
+      allow read: if isAdmin();
+    }
   }
 }

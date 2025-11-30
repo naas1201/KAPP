@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   createUserWithEmailAndPassword,
   signInWithPopup,
@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -42,10 +43,14 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Get redirect URL from query params
+  const redirectUrl = searchParams.get('redirect') || '/';
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -63,8 +68,7 @@ export default function SignupPage() {
     try {
       await signInWithPopup(auth, provider);
       toast({ title: 'Signed up successfully!' });
-      // Redirect to home page - user can navigate to dashboard from there
-      router.push('/');
+      router.push(redirectUrl);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -86,8 +90,7 @@ export default function SignupPage() {
       await updateProfile(userCredential.user, { displayName: data.fullName });
       
       toast({ title: 'Account created successfully!' });
-      // Redirect to home page - user can navigate to appropriate dashboard from there
-      router.push('/');
+      router.push(redirectUrl);
     } catch (error: any) {
         let description = 'An unexpected error occurred. Please try again.';
         if (error.code === 'auth/email-already-in-use') {
@@ -183,12 +186,42 @@ export default function SignupPage() {
 
           <p className="mt-6 text-center text-sm">
             Already have an account?{' '}
-            <Link href="/login" className="font-semibold text-primary hover:underline">
+            <Link href={`/login${redirectUrl !== '/' ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`} className="font-semibold text-primary hover:underline">
               Sign in
             </Link>
           </p>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function SignupFormSkeleton() {
+  return (
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 w-fit">
+            <Skeleton className="h-8 w-32" />
+          </div>
+          <Skeleton className="h-6 w-40 mx-auto" />
+          <Skeleton className="h-4 w-48 mx-auto mt-2" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupFormSkeleton />}>
+      <SignupForm />
+    </Suspense>
   );
 }

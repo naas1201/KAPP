@@ -360,7 +360,10 @@ export default function PatientDetailsPage() {
           </Card>
           
            <Card>
-            <CardContent className="p-4 flex flex-col gap-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
               <Button onClick={handleStartVideoCall}>
                 <Video className="w-4 h-4 mr-2" /> Start Video Call
               </Button>
@@ -369,9 +372,27 @@ export default function PatientDetailsPage() {
                   <MessageSquare className="w-4 h-4 mr-2" /> Send Message
                 </Link>
               </Button>
+              {patient?.phone && (
+                <Button variant="outline" asChild>
+                  <a href={`tel:${patient.phone}`}>
+                    <Phone className="w-4 h-4 mr-2" /> Call Patient
+                  </a>
+                </Button>
+              )}
                <Button variant="ghost" className="text-muted-foreground" onClick={() => setReportModalOpen(true)}>
                 <Flag className="w-4 h-4 mr-2" /> Report Patient
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Privacy Notice */}
+          <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+            <CardContent className="p-4 text-sm text-blue-800 dark:text-blue-200">
+              <p className="font-medium mb-1">Privacy Notice</p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Chat sessions are automatically closed 24 hours after the last message. 
+                All chat data is deleted permanently after closing for patient privacy.
+              </p>
             </CardContent>
           </Card>
 
