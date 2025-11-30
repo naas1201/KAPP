@@ -58,7 +58,9 @@ import {
   CreditCard,
   MessageSquare,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  Stethoscope,
+  Activity
 } from 'lucide-react';
 import { format } from 'date-fns';
 import Confetti from 'react-confetti';
@@ -585,10 +587,14 @@ export default function AppointmentDetailsPage() {
 
           {/* Tabs for Additional Features */}
           <Tabs defaultValue="notes" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="notes">
                 <MessageSquare className="w-4 h-4 mr-2" />
                 Notes
+              </TabsTrigger>
+              <TabsTrigger value="medical">
+                <Stethoscope className="w-4 h-4 mr-2" />
+                Medical Info
               </TabsTrigger>
               <TabsTrigger value="documents">
                 <FileText className="w-4 h-4 mr-2" />
@@ -628,6 +634,110 @@ export default function AppointmentDetailsPage() {
                     ) : (
                       'Save Notes'
                     )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            {/* Medical Info Tab */}
+            <TabsContent value="medical">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <Stethoscope className="w-5 h-5" />
+                    Consultation Preparation
+                  </CardTitle>
+                  <CardDescription>
+                    Complete this form to help your doctor prepare for your consultation.
+                    This information is only visible to your medical team.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Quick Medical Summary */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="chiefComplaint">Chief Complaint *</Label>
+                      <Textarea
+                        id="chiefComplaint"
+                        placeholder="What brings you in today? Describe your main concern..."
+                        rows={3}
+                        className="resize-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="symptomDuration">Duration of Symptoms</Label>
+                      <Input
+                        id="symptomDuration"
+                        placeholder="e.g., 2 weeks, 3 months"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="currentMedications">Current Medications</Label>
+                      <Textarea
+                        id="currentMedications"
+                        placeholder="List all medications with dosages..."
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="allergies">Known Allergies</Label>
+                      <Textarea
+                        id="allergies"
+                        placeholder="List any allergies to medications, food, etc..."
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="medicalHistory">Relevant Medical History</Label>
+                      <Textarea
+                        id="medicalHistory"
+                        placeholder="Previous conditions, surgeries, hospitalizations..."
+                        rows={3}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="additionalQuestions">Questions for the Doctor</Label>
+                      <Textarea
+                        id="additionalQuestions"
+                        placeholder="Any specific questions you'd like answered during your consultation..."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pain Scale */}
+                  <div className="space-y-2">
+                    <Label>Pain Level (if applicable)</Label>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-muted-foreground">No Pain</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        defaultValue="0"
+                        className="flex-1"
+                      />
+                      <span className="text-sm text-muted-foreground">Severe</span>
+                    </div>
+                  </div>
+
+                  {/* Privacy Notice */}
+                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900">
+                    <div className="flex items-start gap-3">
+                      <Activity className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-blue-800 dark:text-blue-200">Medical Information Privacy</p>
+                        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                          This information is securely stored and only accessible to your assigned doctors.
+                          You can update or delete this information at any time.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button>
+                    Save Medical Information
                   </Button>
                 </CardFooter>
               </Card>
@@ -740,12 +850,65 @@ export default function AppointmentDetailsPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="lastName">Last Name</Label>
-                        <Input
-                          id="lastName"
-                          value={profile.lastName || ''}
-                          onChange={(e) => setProfile({ ...profile, lastName: e.target.value })}
-                          placeholder="Dela Cruz"
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            id="lastName"
+                            value={profile.lastName || ''}
+                            disabled
+                            className="bg-muted"
+                          />
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                Request Change
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Request Last Name Change</DialogTitle>
+                                <DialogDescription>
+                                  For security purposes, last name changes require admin approval and ID verification.
+                                  Your ID will be securely stored and deleted 6 days after your request is processed.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label>Current Last Name</Label>
+                                  <Input value={profile.lastName || ''} disabled className="bg-muted" />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="newLastName">New Last Name</Label>
+                                  <Input id="newLastName" placeholder="Enter new last name" />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="nameChangeReason">Reason for Change</Label>
+                                  <Textarea id="nameChangeReason" placeholder="e.g., Marriage, legal name change..." rows={2} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>ID Document (Required)</Label>
+                                  <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                                    <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                                    <p className="text-sm text-muted-foreground">Upload a valid government ID</p>
+                                    <p className="text-xs text-muted-foreground mt-1">JPG, PNG, PDF (max 5MB)</p>
+                                  </div>
+                                </div>
+                                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900">
+                                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                                    <strong>Privacy Notice:</strong> Your ID document will only be visible to administrators
+                                    and will be automatically deleted 6 days after your request is processed.
+                                  </p>
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline">Cancel</Button>
+                                <Button disabled>Submit Request</Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Last name changes require admin approval with ID verification
+                        </p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="email">Email</Label>
