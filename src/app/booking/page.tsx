@@ -58,7 +58,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { services, doctors } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useDoc, useMemoFirebase } from '@/firebase/hooks';
 import { collection, serverTimestamp, doc, increment, query, where, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
@@ -219,6 +219,13 @@ export default function BookingPage() {
       const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
 
       if (newDoc?.id) {
+        // Also write to top-level appointments collection for doctor/admin access
+        const topLevelRef = doc(firestore, 'appointments', newDoc.id);
+        setDocumentNonBlocking(topLevelRef, {
+          ...appointmentData,
+          id: newDoc.id,
+        }, { merge: true });
+        
         const patientRef = doc(firestore, 'patients', patientId);
         await updateDocumentNonBlocking(patientRef, {
           appointmentCount: increment(1)
@@ -319,6 +326,13 @@ export default function BookingPage() {
       const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
 
       if (newDoc?.id) {
+        // Also write to top-level appointments collection for doctor/admin access
+        const topLevelRef = doc(firestore, 'appointments', newDoc.id);
+        setDocumentNonBlocking(topLevelRef, {
+          ...appointmentData,
+          id: newDoc.id,
+        }, { merge: true });
+        
         const patientRef = doc(firestore, 'patients', patientId);
         await updateDocumentNonBlocking(patientRef, {
           appointmentCount: increment(1)

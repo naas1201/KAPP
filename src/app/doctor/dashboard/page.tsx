@@ -26,7 +26,7 @@ import {
   useMemoFirebase,
 } from '@/firebase/hooks';
 import { updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, doc, collectionGroup, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, doc, collectionGroup, serverTimestamp, orderBy } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
@@ -44,23 +44,25 @@ export default function DoctorDashboard() {
   const { firestore } = useFirebase();
   const { user, isLoading: isUserLoading } = useUser();
 
+  // Query ALL appointments from the top-level collection (for small clinic setup)
+  // This allows doctors to see all appointments regardless of doctorId matching their UID
   const appointmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'appointments'),
-      where('doctorId', '==', user.uid)
+      orderBy('dateTime', 'desc')
     );
   }, [firestore, user]);
 
   const { data: appointments, isLoading: isLoadingAppointments } =
     useCollection(appointmentsQuery);
 
-  // Consultation requests: find pending appointments for this doctor across top-level and patient subcollections
+  // Consultation requests: find ALL pending appointments using collectionGroup
+  // This queries across all patient subcollections
   const consultationRequestsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collectionGroup(firestore, 'appointments'),
-      where('doctorId', '==', user.uid),
       where('status', '==', 'pending')
     );
   }, [firestore, user]);
