@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState, useEffect }from 'react';
+import { useState, useEffect, Suspense }from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -36,6 +36,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -45,10 +46,14 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Get redirect URL from query params
+  const redirectUrl = searchParams.get('redirect') || '/';
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -77,7 +82,7 @@ export default function LoginPage() {
       await setPersistence(auth, browserLocalPersistence); // Persist Google sign-in
       await signInWithPopup(auth, provider);
       toast({ title: 'Signed in successfully!' });
-      router.push('/admin/dashboard');
+      router.push(redirectUrl);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -95,8 +100,8 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       toast({ title: 'Signed in successfully!' });
-      // Redirect to home page - app layout will handle role-based routing
-      router.push('/');
+      // Redirect to the specified URL or home page
+      router.push(redirectUrl);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -199,12 +204,41 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="font-semibold text-primary hover:underline">
+            <Link href={`/signup${redirectUrl !== '/' ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`} className="font-semibold text-primary hover:underline">
               Sign up
             </Link>
           </p>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function LoginFormSkeleton() {
+  return (
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 w-fit">
+            <Skeleton className="h-8 w-32" />
+          </div>
+          <Skeleton className="h-6 w-40 mx-auto" />
+          <Skeleton className="h-4 w-48 mx-auto mt-2" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFormSkeleton />}>
+      <LoginForm />
+    </Suspense>
   );
 }

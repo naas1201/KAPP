@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -17,7 +17,9 @@ import {
   Sparkles,
   BriefcaseMedical,
   CreditCard,
-  Wallet
+  Wallet,
+  LogIn,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -48,7 +50,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { services, doctors } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
@@ -65,9 +66,8 @@ const steps = [
   { id: 'Step 1', name: 'Select Service', icon: <Sparkles /> },
   { id: 'Step 2', name: 'Choose Doctor', icon: <BriefcaseMedical /> },
   { id: 'Step 3', name: 'Choose Date & Time', icon: <CalendarIcon /> },
-  { id: 'Step 4', name: 'Your Details', icon: <User /> },
-  { id: 'Step 5', name: 'Payment', icon: <CreditCard /> },
-  { id: 'Step 6', name: 'Confirmation', icon: <CheckCircle /> },
+  { id: 'Step 4', name: 'Payment', icon: <CreditCard /> },
+  { id: 'Step 5', name: 'Confirmation', icon: <CheckCircle /> },
 ];
 
 const availableTimes = [
@@ -92,9 +92,6 @@ const formSchema = z.object({
     'Please select a date that is not in the past.'
   ),
   time: z.string().min(1, 'Please select a time.'),
-  fullName: z.string().min(2, 'Full name is required.'),
-  email: z.string().email('Invalid email address.'),
-  phone: z.string().min(10, 'A valid phone number is required. eg. 09171234567'),
   paymentMethod: z.string().min(1, 'Please select a payment method.'),
 });
 
@@ -105,9 +102,16 @@ export default function BookingPage() {
   const [showStripePayment, setShowStripePayment] = useState(false);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const { toast } = useToast();
-  const { firestore, user } = useFirebase();
+  const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { triggerHaptic } = useHapticFeedback();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login?redirect=/booking');
+    }
+  }, [user, isUserLoading, router]);
 
 
   const form = useForm<FormData>({
@@ -116,9 +120,6 @@ export default function BookingPage() {
       service: '',
       doctorId: '',
       time: '',
-      fullName: '',
-      email: '',
-      phone: '',
       paymentMethod: 'gcash'
     },
   });
@@ -128,11 +129,11 @@ export default function BookingPage() {
     setPaymentIntentId(intentId);
     const data = form.getValues();
     
-    if (!firestore) {
+    if (!firestore || !user) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Firestore is not initialized. Please refresh and try again.',
+        description: 'Please sign in to complete your booking.',
       });
       return;
     }
@@ -145,7 +146,7 @@ export default function BookingPage() {
     if (period === 'AM' && hours === 12) hours = 0;
     dateTime.setHours(hours, minutes, 0, 0);
 
-    const patientId = user?.uid;
+    const patientId = user.uid;
     const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
     
     if (!serviceName) {
@@ -158,55 +159,36 @@ export default function BookingPage() {
     }
 
     try {
-      // If user is not logged in, create a lead with payment info
-      if (!patientId) {
-        const [firstName, ...lastNameParts] = data.fullName.split(' ');
-        const lastName = lastNameParts.join(' ');
-        const leadRef = collection(firestore, 'leads');
-        await addDocumentNonBlocking(leadRef, {
-          firstName,
-          lastName,
-          email: data.email,
-          phone: data.phone,
-          source: 'Booking Form',
-          serviceInterest: serviceName,
-          paymentIntentId: intentId,
-          paymentStatus: 'paid',
-          createdAt: serverTimestamp(),
-        });
-        toast({
-          title: "Payment Successful!",
-          description: `Your appointment for ${serviceName} has been booked successfully.`,
-        });
-        setCurrentStep(5);
-      } else {
-        // If user is logged in, create an appointment with payment info
-        const appointmentData = {
-          patientId,
-          doctorId: data.doctorId,
-          serviceType: serviceName,
-          dateTime: dateTime.toISOString(),
-          status: 'confirmed', // Payment successful means confirmed
-          paymentIntentId: intentId,
-          paymentStatus: 'paid',
-          notes: 'Booked and paid via website.',
-        };
-        const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
-        const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
+      // Create an appointment with payment info
+      const appointmentData = {
+        patientId,
+        doctorId: data.doctorId,
+        serviceType: serviceName,
+        dateTime: dateTime.toISOString(),
+        status: 'confirmed', // Payment successful means confirmed
+        paymentIntentId: intentId,
+        paymentStatus: 'paid',
+        notes: '',
+        patientNotes: '',
+        attachments: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
+      const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
 
-        if (newDoc?.id) {
-          const patientRef = doc(firestore, 'patients', patientId);
-          await updateDocumentNonBlocking(patientRef, {
-            appointmentCount: increment(1)
-          });
-          router.push(`/appointment/${newDoc.id}`);
-        } else {
-          toast({
-            variant: 'destructive',
-            title: "Error",
-            description: `Failed to create appointment. Please try again.`,
-          });
-        }
+      if (newDoc?.id) {
+        const patientRef = doc(firestore, 'patients', patientId);
+        await updateDocumentNonBlocking(patientRef, {
+          appointmentCount: increment(1)
+        });
+        router.push(`/appointment/${newDoc.id}`);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: "Error",
+          description: `Failed to create appointment. Please try again.`,
+        });
       }
     } catch (error) {
       toast({
@@ -240,8 +222,6 @@ export default function BookingPage() {
         ? ['doctorId']
         : currentStep === 2
         ? ['date', 'time']
-        : currentStep === 3
-        ? ['fullName', 'email', 'phone']
         : ['paymentMethod'];
 
     const output = await form.trigger(fields as any, {
@@ -249,11 +229,11 @@ export default function BookingPage() {
     });
     if (!output) return;
     
-    if (currentStep === 3) {
+    if (currentStep === 2) {
       // Move to payment step and show Stripe form
-      setCurrentStep(4);
+      setCurrentStep(3);
       setShowStripePayment(true);
-    } else if (currentStep === 4) {
+    } else if (currentStep === 3) {
       // Payment is handled by Stripe form, don't do anything here
       // The Stripe form will call handlePaymentSuccess on success
     } else {
@@ -272,6 +252,51 @@ export default function BookingPage() {
   const selectedPaymentMethod = form.watch('paymentMethod');
   const selectedServiceId = form.watch('service');
   const selectedService = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
+
+  // Show loading state while checking auth
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login prompt if not authenticated
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full mx-4">
+          <CardContent className="pt-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+              <LogIn className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-semibold mb-2">Sign In Required</h2>
+            <p className="text-muted-foreground mb-6">
+              Please sign in to book an appointment. This ensures the security of your medical records.
+            </p>
+            <div className="space-y-3">
+              <Button asChild className="w-full">
+                <Link href="/login?redirect=/booking">
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Sign In
+                </Link>
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Don&apos;t have an account?{' '}
+                <Link href="/signup?redirect=/booking" className="text-primary hover:underline font-medium">
+                  Sign up
+                </Link>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -472,44 +497,6 @@ export default function BookingPage() {
                 )}
 
                 {currentStep === 3 && (
-                    <CardContent className="pt-6 space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="fullName"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Full Name</FormLabel>
-                                <FormControl><Input placeholder="Juan Dela Cruz" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="email"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Email Address</FormLabel>
-                                <FormControl><Input type="email" placeholder="juan@example.com" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="phone"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Phone Number (Philippines)</FormLabel>
-                                <FormControl><Input type="tel" placeholder="09171234567" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    </CardContent>
-                )}
-
-                {currentStep === 4 && (
                     <CardContent className="pt-6 space-y-6">
                         <div>
                             <h3 className="text-lg font-semibold">Payment Details</h3>
@@ -585,8 +572,8 @@ export default function BookingPage() {
                             serviceId={form.getValues('service')}
                             serviceName={selectedService?.name || 'Medical Consultation'}
                             paymentMethod={selectedPaymentMethod as 'card' | 'gcash'}
-                            customerEmail={form.getValues('email')}
-                            customerName={form.getValues('fullName')}
+                            customerEmail={user?.email || ''}
+                            customerName={user?.displayName || ''}
                             onPaymentSuccess={handlePaymentSuccess}
                             onPaymentError={handlePaymentError}
                           />
@@ -595,7 +582,7 @@ export default function BookingPage() {
                 )}
 
 
-                {currentStep === 5 && (
+                {currentStep === 4 && (
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
                         <h2 className="mt-4 text-2xl font-semibold">Payment Successful!</h2>
@@ -604,13 +591,13 @@ export default function BookingPage() {
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
                             <p><strong>Doctor:</strong> Dr. {doctors.find(d => d.id === form.getValues('doctorId'))?.firstName} {doctors.find(d => d.id === form.getValues('doctorId'))?.lastName}</p>
-                            <p><strong>Date:</strong> {format(form.getValues('date'), 'EEEE, MMMM d, yyyy')}</p>
+                            <p><strong>Date:</strong> {form.getValues('date') ? format(form.getValues('date'), 'EEEE, MMMM d, yyyy') : 'N/A'}</p>
                             <p><strong>Time:</strong> {form.getValues('time')}</p>
                             {paymentIntentId && (
                               <p className="mt-2 text-sm text-muted-foreground"><strong>Payment Reference:</strong> {paymentIntentId}</p>
                             )}
                         </div>
-                        <p className="mt-4 text-sm text-muted-foreground">A confirmation email has been sent to {form.getValues('email')}</p>
+                        <p className="mt-4 text-sm text-muted-foreground">A confirmation email has been sent to {user?.email}</p>
                         <Button asChild className="mt-6">
                             <Link href="/">Back to Home</Link>
                         </Button>
@@ -619,18 +606,18 @@ export default function BookingPage() {
                 </motion.div>
                 
                 <CardFooter className="justify-between pt-6">
-                    {currentStep > 0 && currentStep < 5 && !showStripePayment && (
+                    {currentStep > 0 && currentStep < 4 && !showStripePayment && (
                         <Button type="button" variant="outline" onClick={prev}>
                         <ArrowLeft className="w-4 h-4 mr-2" /> Previous
                         </Button>
                     )}
-                    {currentStep === 4 && showStripePayment && (
+                    {currentStep === 3 && showStripePayment && (
                         <Button type="button" variant="outline" onClick={() => setShowStripePayment(false)}>
                         <ArrowLeft className="w-4 h-4 mr-2" /> Change Payment Method
                         </Button>
                     )}
                     <div/>
-                    {currentStep < 4 && (
+                    {currentStep < 3 && (
                         <Button type="button" onClick={next}>
                         Next <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
