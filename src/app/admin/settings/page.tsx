@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -58,7 +58,7 @@ export default function AdminSettingsPage() {
   });
 
   // Update form when settings load
-  useState(() => {
+  useEffect(() => {
     if (settings) {
       setFormData({
         clinicName: settings.clinicName || 'KAPP Medical Clinic',
@@ -75,7 +75,7 @@ export default function AdminSettingsPage() {
         patientGamificationEnabled: settings.patientGamificationEnabled ?? true,
       });
     }
-  });
+  }, [settings]);
 
   const handleSave = async () => {
     if (!firestore) return;
@@ -83,7 +83,7 @@ export default function AdminSettingsPage() {
     setIsSaving(true);
     try {
       const settingsRef = doc(firestore, 'settings', 'clinic');
-      await setDocumentNonBlocking(settingsRef, {
+      setDocumentNonBlocking(settingsRef, {
         ...formData,
         updatedAt: serverTimestamp(),
       }, { merge: true });
