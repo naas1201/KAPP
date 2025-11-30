@@ -102,6 +102,186 @@ body {
     background-size: cover;
     background-position: center;
   }
+  
+  /* Gradient text effect for headings */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary via-pink-500 to-purple-500 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-gold {
+    @apply bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-400 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-health {
+    @apply bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-400 bg-clip-text text-transparent;
+  }
+  
+  /* Animated gradient background */
+  .bg-gradient-animated {
+    background: linear-gradient(-45deg, hsl(340, 40%, 45%), hsl(280, 60%, 50%), hsl(200, 80%, 45%), hsl(340, 40%, 45%));
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+  
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  
+  /* Button click animation */
+  .btn-click-effect {
+    @apply transition-all duration-150 ease-out;
+  }
+  
+  .btn-click-effect:active {
+    @apply scale-95;
+  }
+  
+  /* Enhanced hover effects */
+  .hover-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .hover-lift:hover {
+    @apply -translate-y-1 shadow-lg;
+  }
+  
+  /* Pulse glow effect */
+  .glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes glow-pulse {
+    0%, 100% {
+      box-shadow: 0 0 5px hsl(340, 40%, 45%, 0.5), 0 0 10px hsl(340, 40%, 45%, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 20px hsl(340, 40%, 45%, 0.8), 0 0 30px hsl(340, 40%, 45%, 0.4);
+    }
+  }
+  
+  /* Shimmer text effect */
+  .shimmer-text {
+    background: linear-gradient(
+      90deg,
+      hsl(340, 40%, 45%) 0%,
+      hsl(340, 60%, 60%) 50%,
+      hsl(340, 40%, 45%) 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 3s ease-in-out infinite;
+  }
+  
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  
+  /* Card entrance animation */
+  .card-entrance {
+    animation: card-entrance 0.5s ease-out forwards;
+  }
+  
+  @keyframes card-entrance {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Smooth page transition */
+  .page-transition {
+    animation: page-fade-in 0.4s ease-out;
+  }
+  
+  @keyframes page-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Floating animation for icons */
+  .float-animation {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  /* Success checkmark animation */
+  .check-animation {
+    animation: check-bounce 0.5s ease-out;
+  }
+  
+  @keyframes check-bounce {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Subtle breathing effect for important elements */
+  .breathe {
+    animation: breathe 4s ease-in-out infinite;
+  }
+  
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+  }
+  
+  /* Staggered list item animation */
+  .stagger-item {
+    animation: stagger-fade-in 0.5s ease-out forwards;
+    opacity: 0;
+  }
+  
+  @keyframes stagger-fade-in {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  /* Interactive ripple effect */
+  .ripple-effect {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .ripple-effect::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.5s, opacity 0.5s;
+  }
+  
+  .ripple-effect:active::after {
+    transform: scale(4);
+    opacity: 1;
+    transition: transform 0s, opacity 0s;
+  }
 }
 
     

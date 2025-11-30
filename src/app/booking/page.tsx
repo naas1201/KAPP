@@ -66,6 +66,7 @@ import { Label } from '@/components/ui/label';
 import { useHapticFeedback } from '@/hooks/use-haptic-feedback';
 import { motion } from 'framer-motion';
 import { StripePaymentForm } from '@/components/StripePaymentForm';
+import { generateBookingId } from '@/lib/booking-id';
 
 
 // Default consultation fee in PHP when price cannot be parsed
@@ -192,8 +193,12 @@ export default function BookingPage() {
     }
 
     try {
+      // Generate professional booking ID
+      const bookingId = generateBookingId(dateTime);
+      
       // Create an appointment with payment info
       const appointmentData: any = {
+        bookingId,
         patientId,
         doctorId: data.doctorId,
         serviceType: serviceName,
@@ -302,8 +307,12 @@ export default function BookingPage() {
     }
 
     try {
+      // Generate professional booking ID
+      const bookingId = generateBookingId(dateTime);
+      
       // Create an appointment with pending payment status
       const appointmentData: any = {
+        bookingId,
         patientId,
         doctorId: data.doctorId,
         serviceType: serviceName,
@@ -354,7 +363,7 @@ export default function BookingPage() {
         
         toast({
           title: 'Appointment Requested',
-          description: 'Your appointment has been requested. Payment is due at the clinic.',
+          description: 'Your appointment has been requested. You can pay later.',
         });
         
         setCurrentStep(4); // Move to confirmation step
@@ -825,6 +834,35 @@ export default function BookingPage() {
                         </FormItem>
                       )}
                     />
+                    
+                    {/* Patient Confidence Message */}
+                    <div className="p-4 rounded-lg bg-gradient-to-r from-primary/5 to-purple-500/5 border border-primary/20">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-full bg-primary/10 text-primary flex-shrink-0">
+                          <Sparkles className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-sm text-foreground">What happens next?</h4>
+                          <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
+                            <li className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                              <span>Your doctor will personally review your appointment request</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                              <span>They will read your notes to better understand your needs</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                              <span>You'll receive a confirmation once your appointment is approved</span>
+                            </li>
+                          </ul>
+                          <p className="mt-3 text-xs text-primary font-medium">
+                            ✨ We're here to provide you with the best care possible!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 )}
 
@@ -832,7 +870,7 @@ export default function BookingPage() {
                     <CardContent className="pt-6 space-y-6">
                         <div>
                             <h3 className="text-lg font-semibold">Payment Details</h3>
-                            <p className="text-muted-foreground text-sm">Secure your appointment by completing the payment or choose to pay later at the clinic.</p>
+                            <p className="text-muted-foreground text-sm">Secure your appointment by completing the payment or choose to pay later.</p>
                         </div>
                         
                         {!showStripePayment ? (
@@ -977,11 +1015,40 @@ export default function BookingPage() {
                                   onClick={handlePayLater}
                                 >
                                   <Clock className="w-4 h-4 mr-2" />
-                                  Pay Later at Clinic
+                                  Pay Later
                                 </Button>
                                 <p className="text-xs text-center text-muted-foreground">
-                                  Choose "Pay Later" to pay at the clinic. Your appointment will be pending confirmation.
+                                  Choose "Pay Later" to complete payment at a later time. Your appointment will be pending confirmation.
                                 </p>
+                                
+                                {/* Coming Soon Payment Methods */}
+                                <div className="mt-4 p-4 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <Sparkles className="w-4 h-4 text-primary" />
+                                    <span className="text-sm font-medium">Coming Soon</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 opacity-60">
+                                    <div className="flex items-center gap-2 p-2 rounded bg-background border text-sm">
+                                      <span>💳</span>
+                                      <span>Maya</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 p-2 rounded bg-background border text-sm">
+                                      <span>🏦</span>
+                                      <span>Bank Transfer</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 p-2 rounded bg-background border text-sm">
+                                      <span>📱</span>
+                                      <span>GrabPay</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 p-2 rounded bg-background border text-sm">
+                                      <span>🪙</span>
+                                      <span>Coins.ph</span>
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                                    More payment options are being added soon!
+                                  </p>
+                                </div>
                             </div>
                           </>
                         ) : (
@@ -1003,15 +1070,25 @@ export default function BookingPage() {
 
                 {currentStep === 4 && (
                     <CardContent className="pt-6 text-center">
-                        <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
+                        <div className="check-animation">
+                          <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
+                        </div>
                         <h2 className="mt-4 text-2xl font-semibold">
                             {paymentIntentId?.startsWith('pay-later') ? 'Appointment Requested!' : 'Payment Successful!'}
                         </h2>
                         <p className="mt-2 text-muted-foreground">
                             {paymentIntentId?.startsWith('pay-later') 
-                                ? 'Your appointment has been requested. Please pay at the clinic on the day of your visit.'
+                                ? 'Your appointment has been requested. You can complete payment at your convenience.'
                                 : 'Your appointment has been confirmed. Thank you for booking with us!'}
                         </p>
+                        
+                        {/* Thank you message and reassurance */}
+                        <div className="p-4 mt-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-800">
+                          <p className="text-sm text-green-800 dark:text-green-200">
+                            🩺 <strong>Your health is in good hands!</strong> Our medical team is committed to providing you with personalized, compassionate care. We look forward to seeing you!
+                          </p>
+                        </div>
+                        
                         <div className="p-4 mt-6 text-left border rounded-lg bg-muted/50">
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
@@ -1022,7 +1099,7 @@ export default function BookingPage() {
                             {appliedCoupon && (
                                 <p className="text-green-600"><strong>Discount Applied:</strong> {appliedCoupon.code}</p>
                             )}
-                            <p><strong>Payment Status:</strong> {paymentIntentId?.startsWith('pay-later') ? 'Pay at Clinic' : 'Paid'}</p>
+                            <p><strong>Payment Status:</strong> {paymentIntentId?.startsWith('pay-later') ? 'Pay Later' : 'Paid'}</p>
                             {paymentIntentId && !paymentIntentId.startsWith('pay-later') && (
                               <p className="mt-2 text-sm text-muted-foreground"><strong>Payment Reference:</strong> {paymentIntentId}</p>
                             )}
