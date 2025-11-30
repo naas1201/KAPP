@@ -26,6 +26,7 @@ const SERVICE_PRICES: Record<string, number> = {
 };
 
 const DEFAULT_PRICE = 2500; // Default consultation fee in PHP
+const MINIMUM_TRANSACTION_AMOUNT = 1; // Minimum transaction amount in PHP for valid Stripe transaction
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,8 +39,8 @@ export async function POST(request: NextRequest) {
       amount = SERVICE_PRICES[serviceId] ?? DEFAULT_PRICE;
     }
     
-    // Ensure amount is never negative or zero (minimum 1 peso for valid transaction)
-    amount = Math.max(1, Math.round(amount));
+    // Ensure amount is never negative or zero
+    amount = Math.max(MINIMUM_TRANSACTION_AMOUNT, Math.round(amount));
 
     const stripe = getStripe();
 

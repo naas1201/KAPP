@@ -44,8 +44,11 @@ export default function DoctorDashboard() {
   const { firestore } = useFirebase();
   const { user, isLoading: isUserLoading } = useUser();
 
-  // Query ALL appointments from the top-level collection (for small clinic setup)
-  // This allows doctors to see all appointments regardless of doctorId matching their UID
+  // NOTE: For this small clinic setup, ALL doctors can see ALL appointments.
+  // This is intentional as the clinic operates with shared visibility among staff.
+  // For larger clinics with stricter privacy requirements, filter by:
+  // where('doctorId', '==', user.uid)
+  // and ensure doctor IDs in Firestore match their Firebase Auth UIDs.
   const appointmentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -58,7 +61,7 @@ export default function DoctorDashboard() {
     useCollection(appointmentsQuery);
 
   // Consultation requests: find ALL pending appointments using collectionGroup
-  // This queries across all patient subcollections
+  // This queries across all patient subcollections for pending appointments
   const consultationRequestsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(

@@ -68,6 +68,9 @@ import { motion } from 'framer-motion';
 import { StripePaymentForm } from '@/components/StripePaymentForm';
 
 
+// Default consultation fee in PHP when price cannot be parsed
+const DEFAULT_CONSULTATION_FEE = 2500;
+
 const steps = [
   { id: 'Step 1', name: 'Select Service', icon: <Sparkles /> },
   { id: 'Step 2', name: 'Choose Doctor', icon: <BriefcaseMedical /> },
@@ -499,10 +502,10 @@ export default function BookingPage() {
       // Move to payment step - set initial prices
       const selectedServiceId = form.getValues('service');
       const service = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
-      const priceString = service?.price || '₱2,500';
+      const priceString = service?.price || `₱${DEFAULT_CONSULTATION_FEE.toLocaleString()}`;
       // Parse price from string like "₱2,500" or "Starts at ₱5,000"
       const priceMatch = priceString.match(/[\d,]+/);
-      const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 2500;
+      const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : DEFAULT_CONSULTATION_FEE;
       setOriginalPrice(price);
       setFinalPrice(price);
       setCurrentStep(3);

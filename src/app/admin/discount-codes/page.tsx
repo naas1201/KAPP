@@ -48,7 +48,7 @@ import {
   addDocumentNonBlocking, 
   updateDocumentNonBlocking,
 } from '@/firebase';
-import { collection, query, orderBy, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, serverTimestamp, deleteDoc, deleteField } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { 
   Plus,
@@ -313,35 +313,35 @@ export default function DiscountCodesPage() {
       if (formData.criteriaType === 'service') {
         updateData.serviceId = formData.serviceId;
         // Clear other criteria fields
-        updateData.categorySlug = null;
-        updateData.minimumAmount = null;
-        updateData.requiresReturningClient = null;
-        updateData.minAppointmentCount = null;
+        updateData.categorySlug = deleteField();
+        updateData.minimumAmount = deleteField();
+        updateData.requiresReturningClient = deleteField();
+        updateData.minAppointmentCount = deleteField();
       } else if (formData.criteriaType === 'category') {
         updateData.categorySlug = formData.categorySlug;
-        updateData.serviceId = null;
-        updateData.minimumAmount = null;
-        updateData.requiresReturningClient = null;
-        updateData.minAppointmentCount = null;
+        updateData.serviceId = deleteField();
+        updateData.minimumAmount = deleteField();
+        updateData.requiresReturningClient = deleteField();
+        updateData.minAppointmentCount = deleteField();
       } else if (formData.criteriaType === 'minimum_amount') {
         updateData.minimumAmount = formData.minimumAmount;
-        updateData.serviceId = null;
-        updateData.categorySlug = null;
-        updateData.requiresReturningClient = null;
-        updateData.minAppointmentCount = null;
+        updateData.serviceId = deleteField();
+        updateData.categorySlug = deleteField();
+        updateData.requiresReturningClient = deleteField();
+        updateData.minAppointmentCount = deleteField();
       } else if (formData.criteriaType === 'returning_client') {
         updateData.requiresReturningClient = true;
         updateData.minAppointmentCount = formData.minAppointmentCount;
-        updateData.serviceId = null;
-        updateData.categorySlug = null;
-        updateData.minimumAmount = null;
+        updateData.serviceId = deleteField();
+        updateData.categorySlug = deleteField();
+        updateData.minimumAmount = deleteField();
       } else {
         // 'all' criteria - clear all specific fields
-        updateData.serviceId = null;
-        updateData.categorySlug = null;
-        updateData.minimumAmount = null;
-        updateData.requiresReturningClient = null;
-        updateData.minAppointmentCount = null;
+        updateData.serviceId = deleteField();
+        updateData.categorySlug = deleteField();
+        updateData.minimumAmount = deleteField();
+        updateData.requiresReturningClient = deleteField();
+        updateData.minAppointmentCount = deleteField();
       }
 
       await updateDocumentNonBlocking(codeRef, updateData);
