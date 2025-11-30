@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -58,6 +58,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { useHapticFeedback } from '@/hooks/use-haptic-feedback';
 import { motion } from 'framer-motion';
+import { StripePaymentForm } from '@/components/StripePaymentForm';
 
 
 const steps = [
@@ -101,6 +102,8 @@ type FormData = z.infer<typeof formSchema>;
 
 export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(0);
+  const [showStripePayment, setShowStripePayment] = useState(false);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
   const router = useRouter();
@@ -116,12 +119,15 @@ export default function BookingPage() {
       fullName: '',
       email: '',
       phone: '',
-      paymentMethod: 'gchash'
+      paymentMethod: 'gcash'
     },
   });
 
-  async function processForm(data: FormData) {
-    triggerHaptic();
+  // Called after successful Stripe payment
+  const handlePaymentSuccess = useCallback(async (intentId: string) => {
+    setPaymentIntentId(intentId);
+    const data = form.getValues();
+    
     if (!firestore) {
       toast({
         variant: 'destructive',
@@ -139,7 +145,7 @@ export default function BookingPage() {
     if (period === 'AM' && hours === 12) hours = 0;
     dateTime.setHours(hours, minutes, 0, 0);
 
-    let patientId = user?.uid;
+    const patientId = user?.uid;
     const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
     
     if (!serviceName) {
@@ -152,7 +158,7 @@ export default function BookingPage() {
     }
 
     try {
-      // If user is not logged in, create a lead
+      // If user is not logged in, create a lead with payment info
       if (!patientId) {
         const [firstName, ...lastNameParts] = data.fullName.split(' ');
         const lastName = lastNameParts.join(' ');
@@ -164,22 +170,26 @@ export default function BookingPage() {
           phone: data.phone,
           source: 'Booking Form',
           serviceInterest: serviceName,
+          paymentIntentId: intentId,
+          paymentStatus: 'paid',
           createdAt: serverTimestamp(),
         });
         toast({
-          title: "Appointment Requested!",
-          description: `We've scheduled your ${serviceName} on ${format(data.date, "PPP")} at ${data.time}. We will contact you for confirmation.`,
+          title: "Payment Successful!",
+          description: `Your appointment for ${serviceName} has been booked successfully.`,
         });
         setCurrentStep(5);
       } else {
-        // If user is logged in, create an appointment
+        // If user is logged in, create an appointment with payment info
         const appointmentData = {
           patientId,
           doctorId: data.doctorId,
           serviceType: serviceName,
           dateTime: dateTime.toISOString(),
-          status: 'pending',
-          notes: 'Booked via website.',
+          status: 'confirmed', // Payment successful means confirmed
+          paymentIntentId: intentId,
+          paymentStatus: 'paid',
+          notes: 'Booked and paid via website.',
         };
         const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
         const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
@@ -202,9 +212,23 @@ export default function BookingPage() {
       toast({
         variant: 'destructive',
         title: "Booking Error",
-        description: `Failed to book appointment. Please try again.`,
+        description: `Payment was successful but failed to save appointment. Please contact support with payment ID: ${intentId}`,
       });
     }
+  }, [firestore, user, form, toast, router]);
+
+  const handlePaymentError = useCallback((error: string) => {
+    toast({
+      variant: 'destructive',
+      title: "Payment Failed",
+      description: error,
+    });
+  }, [toast]);
+
+  async function processForm(data: FormData) {
+    triggerHaptic();
+    // This function is kept for backward compatibility but now payment is handled by Stripe
+    // The actual booking happens in handlePaymentSuccess after successful payment
   }
 
   const next = async () => {
@@ -225,8 +249,13 @@ export default function BookingPage() {
     });
     if (!output) return;
     
-    if (currentStep === 4) {
-      await form.handleSubmit(processForm)();
+    if (currentStep === 3) {
+      // Move to payment step and show Stripe form
+      setCurrentStep(4);
+      setShowStripePayment(true);
+    } else if (currentStep === 4) {
+      // Payment is handled by Stripe form, don't do anything here
+      // The Stripe form will call handlePaymentSuccess on success
     } else {
       setCurrentStep((step) => step + 1);
     }
@@ -486,59 +515,82 @@ export default function BookingPage() {
                             <h3 className="text-lg font-semibold">Payment Details</h3>
                             <p className="text-muted-foreground text-sm">Secure your appointment by completing the payment.</p>
                         </div>
-                        <div className="p-4 border rounded-lg bg-muted/50 flex justify-between items-center">
-                            <div>
-                                <p className="font-semibold">{selectedService?.name}</p>
-                                <p className="text-sm text-muted-foreground">Consultation Fee</p>
+                        
+                        {!showStripePayment ? (
+                          <>
+                            <div className="p-4 border rounded-lg bg-muted/50 flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{selectedService?.name}</p>
+                                    <p className="text-sm text-muted-foreground">Consultation Fee</p>
+                                </div>
+                                <p className="text-lg font-bold">{selectedService?.price || '₱2,500'}</p>
                             </div>
-                            <p className="text-lg font-bold">{selectedService?.price || '₱2,500'}</p>
-                        </div>
-                         <FormField
-                            control={form.control}
-                            name="paymentMethod"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel className="text-lg font-semibold">Select Payment Method</FormLabel>
-                                <RadioGroup
-                                    onValueChange={field.onChange}
-                                    defaultValue={field.value}
-                                    className="grid grid-cols-1 gap-4"
-                                >
+                            <FormField
+                                control={form.control}
+                                name="paymentMethod"
+                                render={({ field }) => (
                                     <FormItem>
-                                        <FormControl>
-                                            <RadioGroupItem value="gchash" id="gchash" className="sr-only" />
-                                        </FormControl>
-                                        <Label htmlFor="gchash" className={cn(
-                                            "flex items-center justify-between p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
-                                            selectedPaymentMethod === 'gchash' && "border-primary bg-primary/10 text-primary"
-                                            )}>
-                                            <div className="flex items-center gap-3">
-                                                <Wallet className="w-5 h-5"/>
-                                                <span>GCash</span>
-                                            </div>
-                                            <span className="text-xs font-mono">**** **** **12</span>
-                                        </Label>
+                                    <FormLabel className="text-lg font-semibold">Select Payment Method</FormLabel>
+                                    <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="grid grid-cols-1 gap-4"
+                                    >
+                                        <FormItem>
+                                            <FormControl>
+                                                <RadioGroupItem value="gcash" id="gcash" className="sr-only" />
+                                            </FormControl>
+                                            <Label htmlFor="gcash" className={cn(
+                                                "flex items-center justify-between p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
+                                                selectedPaymentMethod === 'gcash' && "border-primary bg-primary/10 text-primary"
+                                                )}>
+                                                <div className="flex items-center gap-3">
+                                                    <Wallet className="w-5 h-5"/>
+                                                    <span>GCash</span>
+                                                </div>
+                                                <span className="text-xs text-muted-foreground">Pay with your GCash wallet</span>
+                                            </Label>
+                                        </FormItem>
+                                        <FormItem>
+                                            <FormControl>
+                                                <RadioGroupItem value="card" id="card" className="sr-only" />
+                                            </FormControl>
+                                            <Label htmlFor="card" className={cn(
+                                                "flex items-center justify-between p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
+                                                selectedPaymentMethod === 'card' && "border-primary bg-primary/10 text-primary"
+                                                )}>
+                                                <div className="flex items-center gap-3">
+                                                    <CreditCard className="w-5 h-5"/>
+                                                    <span>Credit / Debit Card</span>
+                                                </div>
+                                                <span className="text-xs text-muted-foreground">Visa, Mastercard, etc.</span>
+                                            </Label>
+                                        </FormItem>
+                                    </RadioGroup>
+                                    <FormMessage />
                                     </FormItem>
-                                    <FormItem>
-                                        <FormControl>
-                                            <RadioGroupItem value="creditcard" id="creditcard" className="sr-only" />
-                                        </FormControl>
-                                        <Label htmlFor="creditcard" className={cn(
-                                            "flex items-center justify-between p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
-                                            selectedPaymentMethod === 'creditcard' && "border-primary bg-primary/10 text-primary"
-                                            )}>
-                                            <div className="flex items-center gap-3">
-                                                <CreditCard className="w-5 h-5"/>
-                                                <span>Credit / Debit Card</span>
-                                            </div>
-                                            <span className="text-xs font-mono">**** **** **** 4242</span>
-                                        </Label>
-                                    </FormItem>
-                                </RadioGroup>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                                )}
+                            />
+                            <Button 
+                              type="button" 
+                              className="w-full" 
+                              size="lg"
+                              onClick={() => setShowStripePayment(true)}
+                            >
+                              Continue to Payment
+                            </Button>
+                          </>
+                        ) : (
+                          <StripePaymentForm
+                            serviceId={form.getValues('service')}
+                            serviceName={selectedService?.name || 'Medical Consultation'}
+                            paymentMethod={selectedPaymentMethod as 'card' | 'gcash'}
+                            customerEmail={form.getValues('email')}
+                            customerName={form.getValues('fullName')}
+                            onPaymentSuccess={handlePaymentSuccess}
+                            onPaymentError={handlePaymentError}
+                          />
+                        )}
                     </CardContent>
                 )}
 
@@ -546,15 +598,19 @@ export default function BookingPage() {
                 {currentStep === 5 && (
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
-                        <h2 className="mt-4 text-2xl font-semibold">Appointment Request Sent!</h2>
-                        <p className="mt-2 text-muted-foreground">Thank you for booking with us. We will notify you once the doctor confirms your appointment.</p>
+                        <h2 className="mt-4 text-2xl font-semibold">Payment Successful!</h2>
+                        <p className="mt-2 text-muted-foreground">Your appointment has been confirmed. Thank you for booking with us!</p>
                         <div className="p-4 mt-6 text-left border rounded-lg bg-muted/50">
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
                             <p><strong>Doctor:</strong> Dr. {doctors.find(d => d.id === form.getValues('doctorId'))?.firstName} {doctors.find(d => d.id === form.getValues('doctorId'))?.lastName}</p>
                             <p><strong>Date:</strong> {format(form.getValues('date'), 'EEEE, MMMM d, yyyy')}</p>
                             <p><strong>Time:</strong> {form.getValues('time')}</p>
+                            {paymentIntentId && (
+                              <p className="mt-2 text-sm text-muted-foreground"><strong>Payment Reference:</strong> {paymentIntentId}</p>
+                            )}
                         </div>
+                        <p className="mt-4 text-sm text-muted-foreground">A confirmation email has been sent to {form.getValues('email')}</p>
                         <Button asChild className="mt-6">
                             <Link href="/">Back to Home</Link>
                         </Button>
@@ -563,20 +619,20 @@ export default function BookingPage() {
                 </motion.div>
                 
                 <CardFooter className="justify-between pt-6">
-                    {currentStep > 0 && currentStep < 5 && (
+                    {currentStep > 0 && currentStep < 5 && !showStripePayment && (
                         <Button type="button" variant="outline" onClick={prev}>
                         <ArrowLeft className="w-4 h-4 mr-2" /> Previous
+                        </Button>
+                    )}
+                    {currentStep === 4 && showStripePayment && (
+                        <Button type="button" variant="outline" onClick={() => setShowStripePayment(false)}>
+                        <ArrowLeft className="w-4 h-4 mr-2" /> Change Payment Method
                         </Button>
                     )}
                     <div/>
                     {currentStep < 4 && (
                         <Button type="button" onClick={next}>
                         Next <ArrowRight className="w-4 h-4 ml-2" />
-                        </Button>
-                    )}
-                    {currentStep === 4 && (
-                        <Button type="button" onClick={next} disabled={form.formState.isSubmitting}>
-                        {form.formState.isSubmitting ? 'Processing...' : 'Pay & Confirm Booking'}
                         </Button>
                     )}
                 </CardFooter>

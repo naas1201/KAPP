@@ -130,6 +130,14 @@ RUN_FULL_E2E=1 DOCTOR_EMAIL=info@lpp.ovh DOCTOR_PASS=1q2w3e4r5t6y pnpm test:e2e
 - Automatic consultation request creation for doctors
 - Validation: past dates prevented, required fields enforced
 
+### **Payment Integration** ✨ NEW
+- **Stripe integration** for secure payments
+- **Credit/Debit cards** - Visa, Mastercard, etc.
+- **GCash support** - Philippine e-wallet via Stripe
+- Automatic appointment confirmation on successful payment
+- Payment reference stored with appointment records
+- Secure payment form with Stripe Elements
+
 ### **Doctor Dashboard**
 - View consultation requests (pending appointments)
 - Approve / reject requests in-place
@@ -156,16 +164,27 @@ RUN_FULL_E2E=1 DOCTOR_EMAIL=info@lpp.ovh DOCTOR_PASS=1q2w3e4r5t6y pnpm test:e2e
 
 - [ ] **Environment Variables Set**:
   ```bash
+  # Firebase Configuration
   NEXT_PUBLIC_FIREBASE_API_KEY=...
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
   NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
   # (see src/firebase/config.ts for full list)
+  
+  # Stripe Payment Configuration (Required for payments)
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_your_key_here
+  STRIPE_SECRET_KEY=sk_live_your_secret_key_here
   ```
 
 - [ ] **Firebase Project Configured** (not emulator):
   - Cloud Firestore database with security rules (`firestore.rules`)
   - Authentication enabled
   - Collections initialized: `patients`, `doctors`, `treatments`, `appointments`, etc.
+
+- [ ] **Stripe Account Configured** (for payments):
+  - Create account at https://dashboard.stripe.com
+  - Enable GCash payment method (for Philippines)
+  - Complete business verification for live payments
+  - See `docs/STRIPE_SETUP.md` for detailed instructions
 
 - [ ] **Run Build Test**:
   ```bash
@@ -183,18 +202,22 @@ RUN_FULL_E2E=1 DOCTOR_EMAIL=info@lpp.ovh DOCTOR_PASS=1q2w3e4r5t6y pnpm test:e2e
 
 - [ ] **Deploy**:
   ```bash
-  # Vercel (recommended)
+  # Firebase App Hosting (recommended)
+  firebase deploy --only hosting
+  
+  # Or Vercel
   vercel deploy --prod
 
   # Or Docker/self-hosted
   docker build -t kapp .
-  docker run -e NEXT_PUBLIC_FIREBASE_API_KEY=... kapp
+  docker run -e NEXT_PUBLIC_FIREBASE_API_KEY=... -e STRIPE_SECRET_KEY=... kapp
   ```
 
 ---
 
 ## Documentation
 
+- **Stripe Setup**: See `docs/STRIPE_SETUP.md` for payment integration guide
 - **E2E Testing**: See `E2E_TESTING.md` for detailed testing guide
 - **Development**: `pnpm dev` (includes hot-reload, Turbopack)
 - **AI Flows**: `pnpm genkit:dev` (GenKit development server)
@@ -211,7 +234,7 @@ RUN_FULL_E2E=1 DOCTOR_EMAIL=info@lpp.ovh DOCTOR_PASS=1q2w3e4r5t6y pnpm test:e2e
 
 ### Recommended Future Enhancements
 1. **Notification System**: Real-time alerts when consultation requests arrive (Firestore listeners)
-2. **Payment Integration**: Stripe/PayPal for appointment deposits
+2. ~~**Payment Integration**: Stripe/PayPal for appointment deposits~~ ✅ **DONE** - Stripe integrated with Card + GCash
 3. **Telemedicine**: Video call integration (WebRTC or Firebase Real-time Database for signaling)
 4. **Appointment Rescheduling**: Allow doctors/patients to modify dates/times
 5. **SMS/Email Reminders**: Cron job for appointment confirmations
