@@ -15,7 +15,8 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
 } from 'firebase/auth';
-import { auth } from '@/firebase/client';
+import { auth, firestore } from '@/firebase/client';
+import { doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -37,6 +38,25 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// Helper function to get role-based redirect URL
+async function getRoleBasedRedirectUrl(userEmail: string, defaultRedirect: string): Promise<string> {
+  if (!firestore || !userEmail) return defaultRedirect;
+  
+  try {
+    const userRoleDoc = await getDoc(doc(firestore, 'users', userEmail));
+    if (userRoleDoc.exists()) {
+      const role = userRoleDoc.data()?.role;
+      if (role === 'admin') return '/admin';
+      if (role === 'doctor') return '/doctor/dashboard';
+    }
+    // Default to patient dashboard for regular users
+    return defaultRedirect === '/' ? '/patient/dashboard' : defaultRedirect;
+  } catch (error) {
+    console.error('Error fetching user role:', error);
+    return defaultRedirect;
+  }
+}
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -80,9 +100,11 @@ function LoginForm() {
     const provider = new GoogleAuthProvider();
     try {
       await setPersistence(auth, browserLocalPersistence); // Persist Google sign-in
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
       toast({ title: 'Signed in successfully!' });
-      router.push(redirectUrl);
+      // Get role-based redirect URL
+      const finalRedirectUrl = await getRoleBasedRedirectUrl(result.user.email || '', redirectUrl);
+      router.push(finalRedirectUrl);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -98,10 +120,11 @@ function LoginForm() {
     if (!auth) return;
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      const result = await signInWithEmailAndPassword(auth, data.email, data.password);
       toast({ title: 'Signed in successfully!' });
-      // Redirect to the specified URL or home page
-      router.push(redirectUrl);
+      // Get role-based redirect URL
+      const finalRedirectUrl = await getRoleBasedRedirectUrl(result.user.email || '', redirectUrl);
+      router.push(finalRedirectUrl);
     } catch (error: any) {
       toast({
         variant: 'destructive',

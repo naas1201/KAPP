@@ -21,6 +21,8 @@ interface PaymentFormProps {
   customerName: string;
   onPaymentSuccess: (paymentIntentId: string) => void;
   onPaymentError: (error: string) => void;
+  couponCode?: string;
+  finalAmount?: number;
 }
 
 function PaymentFormContent({
@@ -140,6 +142,8 @@ export function StripePaymentForm({
   customerName,
   onPaymentSuccess,
   onPaymentError,
+  couponCode,
+  finalAmount,
 }: PaymentFormProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -162,6 +166,8 @@ export function StripePaymentForm({
           paymentMethod,
           customerEmail,
           customerName,
+          couponCode,
+          finalAmount,
         }),
       });
 
@@ -180,7 +186,7 @@ export function StripePaymentForm({
     } finally {
       setIsLoading(false);
     }
-  }, [serviceId, serviceName, paymentMethod, customerEmail, customerName, onPaymentError]);
+  }, [serviceId, serviceName, paymentMethod, customerEmail, customerName, couponCode, finalAmount, onPaymentError]);
 
   useEffect(() => {
     createPaymentIntent();

@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, MessageSquare, Settings, Calendar } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, MessageSquare, Settings, Calendar, Tag } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -13,6 +14,8 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase/hooks';
+import { doc } from 'firebase/firestore';
 
 export default function AdminLayout({
   children,
@@ -20,6 +23,51 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, isLoading: isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  // Check if the user has admin role
+  const userRoleRef = useMemoFirebase(() => {
+    if (!firestore || !user?.email) return null;
+    return doc(firestore, 'users', user.email);
+  }, [firestore, user?.email]);
+  
+  const { data: userRoleData, isLoading: isLoadingRole } = useDoc(userRoleRef);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login');
+      return;
+    }
+
+    if (!isLoadingRole && userRoleData && userRoleData.role !== 'admin') {
+      // Not an admin, redirect to appropriate dashboard
+      if (userRoleData.role === 'doctor') {
+        router.push('/doctor/dashboard');
+      } else {
+        router.push('/patient/dashboard');
+      }
+    }
+  }, [user, isUserLoading, userRoleData, isLoadingRole, router]);
+
+  if (isUserLoading || isLoadingRole || !user) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Only render if user is admin
+  if (userRoleData?.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Redirecting...</p>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -73,6 +121,18 @@ export default function AdminLayout({
                 <Link href="/admin/procedures">
                   <ClipboardList />
                   <span>Procedures</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/admin/discount-codes'}
+                tooltip={{ children: 'Discount Codes' }}
+              >
+                <Link href="/admin/discount-codes">
+                  <Tag />
+                  <span>Discount Codes</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

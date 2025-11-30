@@ -30,10 +30,16 @@ const DEFAULT_PRICE = 2500; // Default consultation fee in PHP
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { serviceId, serviceName, paymentMethod, customerEmail, customerName } = body;
+    const { serviceId, serviceName, paymentMethod, customerEmail, customerName, couponCode, finalAmount } = body;
 
-    // Get the price for the service
-    const amount = SERVICE_PRICES[serviceId] ?? DEFAULT_PRICE;
+    // Use finalAmount if provided (when coupon is applied), otherwise calculate from serviceId
+    let amount = finalAmount;
+    if (amount === undefined || amount === null) {
+      amount = SERVICE_PRICES[serviceId] ?? DEFAULT_PRICE;
+    }
+    
+    // Ensure amount is never negative or zero (minimum 1 peso for valid transaction)
+    amount = Math.max(1, Math.round(amount));
 
     const stripe = getStripe();
 
@@ -60,8 +66,9 @@ export async function POST(request: NextRequest) {
         serviceName: serviceName || 'Medical Consultation',
         customerEmail: customerEmail || '',
         customerName: customerName || '',
+        couponCode: couponCode || '',
       },
-      description: `Payment for ${serviceName || 'Medical Consultation'}`,
+      description: `Payment for ${serviceName || 'Medical Consultation'}${couponCode ? ` (Coupon: ${couponCode})` : ''}`,
       receipt_email: customerEmail || undefined,
     });
 

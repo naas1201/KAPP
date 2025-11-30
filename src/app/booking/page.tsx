@@ -19,7 +19,10 @@ import {
   CreditCard,
   Wallet,
   LogIn,
-  Loader2
+  Loader2,
+  Tag,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,11 +53,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { services, doctors } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp, doc, increment } from 'firebase/firestore';
+import { useDoc, useMemoFirebase } from '@/firebase/hooks';
+import { collection, serverTimestamp, doc, increment, query, where, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { useHapticFeedback } from '@/hooks/use-haptic-feedback';
@@ -101,10 +107,27 @@ export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [showStripePayment, setShowStripePayment] = useState(false);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  
+  // Coupon code state
+  const [couponCode, setCouponCode] = useState('');
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [originalPrice, setOriginalPrice] = useState<number>(0);
+  const [finalPrice, setFinalPrice] = useState<number>(0);
+  
   const { toast } = useToast();
   const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { triggerHaptic } = useHapticFeedback();
+
+  // Fetch patient data to check appointment count for returning client discounts
+  const patientRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'patients', user.uid);
+  }, [firestore, user]);
+  
+  const { data: patientData } = useDoc(patientRef);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -160,7 +183,7 @@ export default function BookingPage() {
 
     try {
       // Create an appointment with payment info
-      const appointmentData = {
+      const appointmentData: any = {
         patientId,
         doctorId: data.doctorId,
         serviceType: serviceName,
@@ -168,12 +191,30 @@ export default function BookingPage() {
         status: 'confirmed', // Payment successful means confirmed
         paymentIntentId: intentId,
         paymentStatus: 'paid',
+        originalPrice: originalPrice,
+        finalPrice: finalPrice,
         notes: '',
         patientNotes: '',
         attachments: [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+      
+      // Add coupon info if applied
+      if (appliedCoupon) {
+        appointmentData.couponCode = appliedCoupon.code;
+        appointmentData.couponDiscount = appliedCoupon.discountType === 'percentage' 
+          ? (originalPrice * appliedCoupon.discountValue / 100) 
+          : appliedCoupon.discountValue;
+          
+        // Increment coupon usage count
+        const couponRef = doc(firestore, 'discountCodes', appliedCoupon.id);
+        await updateDocumentNonBlocking(couponRef, {
+          usageCount: increment(1),
+          updatedAt: serverTimestamp()
+        });
+      }
+      
       const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
       const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
 
@@ -197,7 +238,7 @@ export default function BookingPage() {
         description: `Payment was successful but failed to save appointment. Please contact support with payment ID: ${intentId}`,
       });
     }
-  }, [firestore, user, form, toast, router]);
+  }, [firestore, user, form, toast, router, originalPrice, finalPrice, appliedCoupon]);
 
   const handlePaymentError = useCallback((error: string) => {
     toast({
@@ -206,6 +247,217 @@ export default function BookingPage() {
       description: error,
     });
   }, [toast]);
+  
+  // Handle Pay Later functionality
+  const handlePayLater = async () => {
+    triggerHaptic();
+    const data = form.getValues();
+    
+    if (!firestore || !user) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Please sign in to complete your booking.',
+      });
+      return;
+    }
+    
+    // Combine date and time
+    const dateTime = new Date(data.date);
+    const [time, period] = data.time.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    if (period === 'PM' && hours < 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    dateTime.setHours(hours, minutes, 0, 0);
+
+    const patientId = user.uid;
+    const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
+    
+    if (!serviceName) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Selected service not found. Please try again.',
+      });
+      return;
+    }
+
+    try {
+      // Create an appointment with pending payment status
+      const appointmentData: any = {
+        patientId,
+        doctorId: data.doctorId,
+        serviceType: serviceName,
+        dateTime: dateTime.toISOString(),
+        status: 'pending', // Pending until payment is made or confirmed by clinic
+        paymentStatus: 'pending_payment',
+        originalPrice: originalPrice,
+        finalPrice: finalPrice,
+        notes: '',
+        patientNotes: '',
+        attachments: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      // Add coupon info if applied
+      if (appliedCoupon) {
+        appointmentData.couponCode = appliedCoupon.code;
+        appointmentData.couponDiscount = appliedCoupon.discountType === 'percentage' 
+          ? (originalPrice * appliedCoupon.discountValue / 100) 
+          : appliedCoupon.discountValue;
+          
+        // Increment coupon usage count
+        const couponRef = doc(firestore, 'discountCodes', appliedCoupon.id);
+        await updateDocumentNonBlocking(couponRef, {
+          usageCount: increment(1),
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      const appointmentRef = collection(firestore, 'patients', patientId, 'appointments');
+      const newDoc = await addDocumentNonBlocking(appointmentRef, appointmentData);
+
+      if (newDoc?.id) {
+        const patientRef = doc(firestore, 'patients', patientId);
+        await updateDocumentNonBlocking(patientRef, {
+          appointmentCount: increment(1)
+        });
+        
+        toast({
+          title: 'Appointment Requested',
+          description: 'Your appointment has been requested. Payment is due at the clinic.',
+        });
+        
+        setCurrentStep(4); // Move to confirmation step
+        setPaymentIntentId('pay-later-' + newDoc.id);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: "Error",
+          description: `Failed to create appointment. Please try again.`,
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: "Booking Error",
+        description: `Failed to save appointment. Please try again.`,
+      });
+    }
+  };
+  
+  // Validate and apply coupon code
+  const validateCoupon = async () => {
+    if (!couponCode.trim() || !firestore) return;
+    
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+    
+    try {
+      const selectedServiceId = form.getValues('service');
+      const selectedService = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
+      const serviceCategory = services.find(s => s.treatments.some(t => t.id === selectedServiceId))?.slug;
+      
+      // Query for the coupon code
+      const couponsRef = collection(firestore, 'discountCodes');
+      const q = query(couponsRef, where('code', '==', couponCode.toUpperCase().trim()));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        setCouponError('Invalid coupon code.');
+        setIsValidatingCoupon(false);
+        return;
+      }
+      
+      const couponDoc = snapshot.docs[0];
+      const coupon = { id: couponDoc.id, ...couponDoc.data() } as any;
+      
+      // Check if coupon is active
+      if (!coupon.isActive) {
+        setCouponError('This coupon is no longer active.');
+        setIsValidatingCoupon(false);
+        return;
+      }
+      
+      // Check if coupon is expired
+      if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+        setCouponError('This coupon has expired.');
+        setIsValidatingCoupon(false);
+        return;
+      }
+      
+      // Check usage limit
+      if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+        setCouponError('This coupon has reached its usage limit.');
+        setIsValidatingCoupon(false);
+        return;
+      }
+      
+      // Check criteria
+      if (coupon.criteriaType === 'service' && coupon.serviceId !== selectedServiceId) {
+        const requiredService = services.flatMap(s => s.treatments).find(t => t.id === coupon.serviceId);
+        setCouponError(`This coupon is only valid for "${requiredService?.name || 'a specific service'}".`);
+        setIsValidatingCoupon(false);
+        return;
+      }
+      
+      if (coupon.criteriaType === 'category' && coupon.categorySlug !== serviceCategory) {
+        const requiredCategory = services.find(s => s.slug === coupon.categorySlug);
+        setCouponError(`This coupon is only valid for "${requiredCategory?.title || 'a specific category'}".`);
+        setIsValidatingCoupon(false);
+        return;
+      }
+      
+      if (coupon.criteriaType === 'minimum_amount' && originalPrice < coupon.minimumAmount) {
+        setCouponError(`This coupon requires a minimum order of ₱${coupon.minimumAmount.toLocaleString()}.`);
+        setIsValidatingCoupon(false);
+        return;
+      }
+      
+      if (coupon.criteriaType === 'returning_client') {
+        const patientAppointmentCount = patientData?.appointmentCount || 0;
+        if (patientAppointmentCount < (coupon.minAppointmentCount || 1)) {
+          setCouponError(`This coupon is only for returning clients with ${coupon.minAppointmentCount || 1}+ previous appointments.`);
+          setIsValidatingCoupon(false);
+          return;
+        }
+      }
+      
+      // Coupon is valid - calculate discount
+      let discount = 0;
+      if (coupon.discountType === 'percentage') {
+        discount = (originalPrice * coupon.discountValue) / 100;
+      } else {
+        discount = coupon.discountValue;
+      }
+      
+      // Ensure final price is never negative
+      const newFinalPrice = Math.max(0, originalPrice - discount);
+      
+      setAppliedCoupon(coupon);
+      setFinalPrice(newFinalPrice);
+      
+      toast({
+        title: 'Coupon Applied!',
+        description: `You saved ₱${discount.toLocaleString()} with code "${coupon.code}".`,
+      });
+      
+    } catch (error) {
+      console.error('Error validating coupon:', error);
+      setCouponError('Failed to validate coupon. Please try again.');
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+  
+  // Remove applied coupon
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError(null);
+    setFinalPrice(originalPrice);
+  };
 
   async function processForm(data: FormData) {
     triggerHaptic();
@@ -230,9 +482,18 @@ export default function BookingPage() {
     if (!output) return;
     
     if (currentStep === 2) {
-      // Move to payment step and show Stripe form
+      // Move to payment step - set initial prices
+      const selectedServiceId = form.getValues('service');
+      const service = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
+      const priceString = service?.price || '₱2,500';
+      // Parse price from string like "₱2,500" or "Starts at ₱5,000"
+      const priceMatch = priceString.match(/[\d,]+/);
+      const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 2500;
+      setOriginalPrice(price);
+      setFinalPrice(price);
       setCurrentStep(3);
-      setShowStripePayment(true);
+      // Don't show Stripe payment yet - let user choose payment method first
+      setShowStripePayment(false);
     } else if (currentStep === 3) {
       // Payment is handled by Stripe form, don't do anything here
       // The Stripe form will call handlePaymentSuccess on success
@@ -500,18 +761,88 @@ export default function BookingPage() {
                     <CardContent className="pt-6 space-y-6">
                         <div>
                             <h3 className="text-lg font-semibold">Payment Details</h3>
-                            <p className="text-muted-foreground text-sm">Secure your appointment by completing the payment.</p>
+                            <p className="text-muted-foreground text-sm">Secure your appointment by completing the payment or choose to pay later at the clinic.</p>
                         </div>
                         
                         {!showStripePayment ? (
                           <>
-                            <div className="p-4 border rounded-lg bg-muted/50 flex justify-between items-center">
-                                <div>
-                                    <p className="font-semibold">{selectedService?.name}</p>
-                                    <p className="text-sm text-muted-foreground">Consultation Fee</p>
+                            {/* Price Summary */}
+                            <div className="p-4 border rounded-lg bg-muted/50 space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold">{selectedService?.name}</p>
+                                        <p className="text-sm text-muted-foreground">Consultation Fee</p>
+                                    </div>
+                                    <p className={cn("text-lg font-bold", appliedCoupon && "line-through text-muted-foreground")}>
+                                        ₱{originalPrice.toLocaleString()}
+                                    </p>
                                 </div>
-                                <p className="text-lg font-bold">{selectedService?.price || '₱2,500'}</p>
+                                {appliedCoupon && (
+                                    <>
+                                        <div className="flex justify-between items-center text-green-600">
+                                            <div className="flex items-center gap-2">
+                                                <Tag className="w-4 h-4" />
+                                                <span className="text-sm">Discount ({appliedCoupon.code})</span>
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="h-5 w-5 p-0"
+                                                    onClick={removeCoupon}
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </Button>
+                                            </div>
+                                            <span className="text-sm">
+                                                -{appliedCoupon.discountType === 'percentage' 
+                                                    ? `${appliedCoupon.discountValue}%` 
+                                                    : `₱${appliedCoupon.discountValue.toLocaleString()}`}
+                                            </span>
+                                        </div>
+                                        <div className="border-t pt-2 flex justify-between items-center">
+                                            <p className="font-semibold">Total</p>
+                                            <p className="text-lg font-bold text-green-600">₱{finalPrice.toLocaleString()}</p>
+                                        </div>
+                                    </>
+                                )}
                             </div>
+                            
+                            {/* Coupon Code Input */}
+                            {!appliedCoupon && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="couponCode">Have a discount code?</Label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            id="couponCode"
+                                            placeholder="Enter code"
+                                            value={couponCode}
+                                            onChange={(e) => {
+                                                setCouponCode(e.target.value.toUpperCase());
+                                                setCouponError(null);
+                                            }}
+                                            className="uppercase"
+                                        />
+                                        <Button 
+                                            type="button" 
+                                            variant="outline"
+                                            onClick={validateCoupon}
+                                            disabled={isValidatingCoupon || !couponCode.trim()}
+                                        >
+                                            {isValidatingCoupon ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                'Apply'
+                                            )}
+                                        </Button>
+                                    </div>
+                                    {couponError && (
+                                        <Alert variant="destructive" className="py-2">
+                                            <AlertCircle className="h-4 w-4" />
+                                            <AlertDescription>{couponError}</AlertDescription>
+                                        </Alert>
+                                    )}
+                                </div>
+                            )}
+                            
                             <FormField
                                 control={form.control}
                                 name="paymentMethod"
@@ -558,14 +889,29 @@ export default function BookingPage() {
                                     </FormItem>
                                 )}
                             />
-                            <Button 
-                              type="button" 
-                              className="w-full" 
-                              size="lg"
-                              onClick={() => setShowStripePayment(true)}
-                            >
-                              Continue to Payment
-                            </Button>
+                            <div className="flex flex-col gap-3">
+                                <Button 
+                                  type="button" 
+                                  className="w-full" 
+                                  size="lg"
+                                  onClick={() => setShowStripePayment(true)}
+                                >
+                                  Pay Now - ₱{finalPrice.toLocaleString()}
+                                </Button>
+                                <Button 
+                                  type="button" 
+                                  variant="outline"
+                                  className="w-full" 
+                                  size="lg"
+                                  onClick={handlePayLater}
+                                >
+                                  <Clock className="w-4 h-4 mr-2" />
+                                  Pay Later at Clinic
+                                </Button>
+                                <p className="text-xs text-center text-muted-foreground">
+                                  Choose "Pay Later" to pay at the clinic. Your appointment will be pending confirmation.
+                                </p>
+                            </div>
                           </>
                         ) : (
                           <StripePaymentForm
@@ -576,6 +922,8 @@ export default function BookingPage() {
                             customerName={user?.displayName || ''}
                             onPaymentSuccess={handlePaymentSuccess}
                             onPaymentError={handlePaymentError}
+                            couponCode={appliedCoupon?.code}
+                            finalAmount={finalPrice}
                           />
                         )}
                     </CardContent>
@@ -585,15 +933,26 @@ export default function BookingPage() {
                 {currentStep === 4 && (
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
-                        <h2 className="mt-4 text-2xl font-semibold">Payment Successful!</h2>
-                        <p className="mt-2 text-muted-foreground">Your appointment has been confirmed. Thank you for booking with us!</p>
+                        <h2 className="mt-4 text-2xl font-semibold">
+                            {paymentIntentId?.startsWith('pay-later') ? 'Appointment Requested!' : 'Payment Successful!'}
+                        </h2>
+                        <p className="mt-2 text-muted-foreground">
+                            {paymentIntentId?.startsWith('pay-later') 
+                                ? 'Your appointment has been requested. Please pay at the clinic on the day of your visit.'
+                                : 'Your appointment has been confirmed. Thank you for booking with us!'}
+                        </p>
                         <div className="p-4 mt-6 text-left border rounded-lg bg-muted/50">
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
                             <p><strong>Doctor:</strong> Dr. {doctors.find(d => d.id === form.getValues('doctorId'))?.firstName} {doctors.find(d => d.id === form.getValues('doctorId'))?.lastName}</p>
                             <p><strong>Date:</strong> {form.getValues('date') instanceof Date ? format(form.getValues('date'), 'EEEE, MMMM d, yyyy') : 'N/A'}</p>
                             <p><strong>Time:</strong> {form.getValues('time')}</p>
-                            {paymentIntentId && (
+                            <p><strong>Amount:</strong> ₱{finalPrice.toLocaleString()}</p>
+                            {appliedCoupon && (
+                                <p className="text-green-600"><strong>Discount Applied:</strong> {appliedCoupon.code}</p>
+                            )}
+                            <p><strong>Payment Status:</strong> {paymentIntentId?.startsWith('pay-later') ? 'Pay at Clinic' : 'Paid'}</p>
+                            {paymentIntentId && !paymentIntentId.startsWith('pay-later') && (
                               <p className="mt-2 text-sm text-muted-foreground"><strong>Payment Reference:</strong> {paymentIntentId}</p>
                             )}
                         </div>
