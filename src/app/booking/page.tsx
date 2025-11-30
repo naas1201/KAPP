@@ -591,7 +591,7 @@ export default function BookingPage() {
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
                             <p><strong>Doctor:</strong> Dr. {doctors.find(d => d.id === form.getValues('doctorId'))?.firstName} {doctors.find(d => d.id === form.getValues('doctorId'))?.lastName}</p>
-                            <p><strong>Date:</strong> {form.getValues('date') ? format(form.getValues('date'), 'EEEE, MMMM d, yyyy') : 'N/A'}</p>
+                            <p><strong>Date:</strong> {form.getValues('date') instanceof Date ? format(form.getValues('date'), 'EEEE, MMMM d, yyyy') : 'N/A'}</p>
                             <p><strong>Time:</strong> {form.getValues('time')}</p>
                             {paymentIntentId && (
                               <p className="mt-2 text-sm text-muted-foreground"><strong>Payment Reference:</strong> {paymentIntentId}</p>

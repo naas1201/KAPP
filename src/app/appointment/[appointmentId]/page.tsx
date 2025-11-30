@@ -673,7 +673,14 @@ export default function AppointmentDetailsPage() {
                         <h4 className="font-medium text-amber-800 dark:text-amber-200">Storage Setup Required</h4>
                         <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
                           File upload requires Firebase Storage to be configured. Please refer to the 
-                          <Link href="/docs/STORAGE_SETUP.md" className="underline ml-1">Storage Setup Guide</Link> 
+                          <a 
+                            href="https://github.com/naas1201/KAPP/blob/main/docs/STORAGE_SETUP.md" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="underline ml-1"
+                          >
+                            Storage Setup Guide
+                          </a> 
                           for instructions on enabling this feature.
                         </p>
                       </div>
