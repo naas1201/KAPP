@@ -18,6 +18,8 @@ type SeedOpts = {
   doctorPassword?: string;
   patientEmail?: string;
   patientPassword?: string;
+  adminEmail?: string;
+  adminPassword?: string;
 };
 
 function toFirestoreFields(obj: Record<string, any>) {
@@ -120,6 +122,8 @@ export async function seedBookingAppointment(opts: SeedOpts = {}) {
   const doctorPassword = opts.doctorPassword || process.env.DOCTOR_PASS || 'password123';
   const patientEmail = opts.patientEmail || process.env.PATIENT_EMAIL || 'patient@example.test';
   const patientPassword = opts.patientPassword || process.env.PATIENT_PASS || 'password123';
+  const adminEmail = opts.adminEmail || process.env.ADMIN_EMAIL || 'admin@example.test';
+  const adminPassword = opts.adminPassword || process.env.ADMIN_PASS || 'password123';
 
   const seeded: string[] = [];
 
@@ -136,24 +140,55 @@ export async function seedBookingAppointment(opts: SeedOpts = {}) {
   } catch (err) {
     console.warn('createAuthUser patient failed', (err as any)?.message || err);
   }
+  try {
+    await createAuthUser(authHost, projectId, adminEmail, adminPassword);
+  } catch (err) {
+    console.warn('createAuthUser admin failed', (err as any)?.message || err);
+  }
+
+  // Create admin role document in users collection
+  await postDocument(host, projectId, 'users', adminEmail, {
+    email: adminEmail,
+    role: 'admin',
+    createdAt: new Date().toISOString(),
+  });
+  seeded.push(`users/${adminEmail}`);
 
   await postDocument(host, projectId, 'doctors', doctorId, {
     firstName: 'E2E',
     lastName: 'Doctor',
-    email: 'doctor@example.test',
+    email: doctorEmail,
     role: 'doctor',
+    onboardingCompleted: true,
     createdAt: new Date().toISOString(),
   });
   seeded.push(`doctors/${doctorId}`);
+
+  // Create role document in users collection (document ID is email)
+  // This is required for role-based authentication to work
+  await postDocument(host, projectId, 'users', doctorEmail, {
+    email: doctorEmail,
+    role: 'doctor',
+    createdAt: new Date().toISOString(),
+  });
+  seeded.push(`users/${doctorEmail}`);
 
   // create patient
   await postDocument(host, projectId, 'patients', patientId, {
     firstName: 'E2E',
     lastName: 'Patient',
-    email: 'patient@example.test',
+    email: patientEmail,
     createdAt: new Date().toISOString(),
   });
   seeded.push(`patients/${patientId}`);
+
+  // Create role document in users collection for patient
+  await postDocument(host, projectId, 'users', patientEmail, {
+    email: patientEmail,
+    role: 'patient',
+    createdAt: new Date().toISOString(),
+  });
+  seeded.push(`users/${patientEmail}`);
 
   // create appointment in patient subcollection
   await postDocument(host, projectId, `patients/${patientId}/appointments`, appointmentId, {
@@ -179,7 +214,7 @@ export async function seedBookingAppointment(opts: SeedOpts = {}) {
   });
   seeded.push(`appointments/${appointmentId}`);
 
-  return { host, projectId, seeded, doctorId, patientId, appointmentId };
+  return { host, projectId, seeded, doctorId, patientId, appointmentId, adminEmail, doctorEmail, patientEmail };
 }
 
 export async function teardownSeeded(paths: string[], opts: { host?: string; projectId?: string } = {}) {
