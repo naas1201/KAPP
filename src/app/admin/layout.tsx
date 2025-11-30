@@ -30,31 +30,78 @@ export default function AdminLayout({
   // Check if the user has admin role
   const userRoleRef = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
+    console.log('[AdminLayout] Creating doc ref for user:', user.email);
     return doc(firestore, 'users', user.email);
   }, [firestore, user?.email]);
   
-  const { data: userRoleData, isLoading: isLoadingRole } = useDoc(userRoleRef);
+  const { data: userRoleData, isLoading: isLoadingRole, error: roleError } = useDoc(userRoleRef);
+
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log('[AdminLayout] State:', {
+      isUserLoading,
+      isLoadingRole,
+      user: user?.email,
+      userRoleData,
+      roleError: roleError?.message
+    });
+  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
+      console.log('[AdminLayout] No user, redirecting to login');
       router.push('/login');
       return;
     }
 
-    if (!isLoadingRole && userRoleData && userRoleData.role !== 'admin') {
-      // Not an admin, redirect to appropriate dashboard
-      if (userRoleData.role === 'doctor') {
-        router.push('/doctor/dashboard');
-      } else {
+    // If there's an error fetching the role, log it
+    if (roleError) {
+      console.error('[AdminLayout] Error fetching role:', roleError);
+    }
+
+    // Check role after loading is complete
+    if (!isLoadingRole && user) {
+      if (!userRoleData) {
+        // No role document exists - treat as patient
+        console.log('[AdminLayout] No role document found for user:', user.email, '- redirecting to patient dashboard');
         router.push('/patient/dashboard');
+        return;
+      }
+      
+      if (userRoleData.role !== 'admin') {
+        // Not an admin, redirect to appropriate dashboard
+        console.log('[AdminLayout] User role is:', userRoleData.role, '- redirecting appropriately');
+        if (userRoleData.role === 'doctor') {
+          router.push('/doctor/dashboard');
+        } else {
+          router.push('/patient/dashboard');
+        }
+      } else {
+        console.log('[AdminLayout] User is admin, rendering admin layout');
       }
     }
-  }, [user, isUserLoading, userRoleData, isLoadingRole, router]);
+  }, [user, isUserLoading, userRoleData, isLoadingRole, router, roleError]);
 
   if (isUserLoading || isLoadingRole || !user) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Show error if there was a problem fetching the role
+  if (roleError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-4">
+        <p className="text-red-500">Error loading user role</p>
+        <p className="text-sm text-muted-foreground">{roleError.message}</p>
+        <button 
+          onClick={() => router.push('/login')}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded"
+        >
+          Back to Login
+        </button>
       </div>
     );
   }
