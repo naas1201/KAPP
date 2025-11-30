@@ -92,17 +92,17 @@ export default function PatientChatPage() {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
       setMessages(msgs);
 
-      // Mark messages as read by patient
+      // Mark messages as read by patient - only if there are unread messages
       if (user) {
-        const batch = writeBatch(firestore);
-        let hasUnread = false;
-        snapshot.docs.forEach(docSnap => {
-          if (docSnap.data().senderId !== user.uid && !docSnap.data().readByPatient) {
+        const unreadDocs = snapshot.docs.filter(
+          docSnap => docSnap.data().senderId !== user.uid && !docSnap.data().readByPatient
+        );
+        
+        if (unreadDocs.length > 0) {
+          const batch = writeBatch(firestore);
+          unreadDocs.forEach(docSnap => {
             batch.update(docSnap.ref, { readByPatient: true });
-            hasUnread = true;
-          }
-        });
-        if (hasUnread) {
+          });
           batch.update(doc(firestore, 'chatRooms', roomId as string), { patientUnreadCount: 0 });
           await batch.commit();
         }
