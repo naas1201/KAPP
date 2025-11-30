@@ -49,6 +49,9 @@ import {
   Shield
 } from 'lucide-react';
 
+// Number of days to retain ID documents after request is processed
+const ID_DOCUMENT_RETENTION_DAYS = 6;
+
 interface NameChangeRequest {
   id: string;
   patientId: string;
@@ -112,7 +115,7 @@ export default function NameRequestsPage() {
         reviewedAt: serverTimestamp(),
         reviewedBy: user.uid,
         adminNotes,
-        idDocumentDeleteAt: addDays(new Date(), 6).toISOString(), // Schedule deletion
+        idDocumentDeleteAt: addDays(new Date(), ID_DOCUMENT_RETENTION_DAYS).toISOString(),
       });
 
       // Update the patient's last name
@@ -160,7 +163,7 @@ export default function NameRequestsPage() {
         reviewedAt: serverTimestamp(),
         reviewedBy: user.uid,
         adminNotes,
-        idDocumentDeleteAt: addDays(new Date(), 6).toISOString(), // Schedule deletion
+        idDocumentDeleteAt: addDays(new Date(), ID_DOCUMENT_RETENTION_DAYS).toISOString(),
       });
 
       toast({

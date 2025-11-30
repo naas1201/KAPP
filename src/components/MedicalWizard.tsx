@@ -126,7 +126,7 @@ export function MedicalWizard({ onComplete, onSkip, initialData }: MedicalWizard
     }
   };
   
-  const updateForm = (field: keyof MedicalFormData, value: any) => {
+  const updateForm = (field: keyof MedicalFormData, value: MedicalFormData[keyof MedicalFormData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
   

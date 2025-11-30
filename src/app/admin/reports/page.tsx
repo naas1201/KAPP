@@ -59,6 +59,18 @@ interface Report {
   adminNotes?: string;
 }
 
+interface Doctor {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface Patient {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 export default function ReportsPage() {
   const { firestore, user } = useFirebase();
   const { toast } = useToast();
@@ -87,18 +99,18 @@ export default function ReportsPage() {
   }, [firestore]);
 
   const { data: reports, isLoading } = useCollection<Report>(reportsRef);
-  const { data: patients } = useCollection(patientsRef);
-  const { data: doctors } = useCollection(doctorsRef);
+  const { data: patients } = useCollection<Patient>(patientsRef);
+  const { data: doctors } = useCollection<Doctor>(doctorsRef);
 
   const getReporterName = (reporterId: string) => {
-    const doctor = doctors?.find((d: any) => d.id === reporterId);
-    if (doctor) return `Dr. ${(doctor as any).firstName} ${(doctor as any).lastName}`;
+    const doctor = doctors?.find((d) => d.id === reporterId);
+    if (doctor) return `Dr. ${doctor.firstName} ${doctor.lastName}`;
     return 'Unknown Doctor';
   };
 
   const getReportedName = (reportedId: string) => {
-    const patient = patients?.find((p: any) => p.id === reportedId);
-    if (patient) return `${(patient as any).firstName} ${(patient as any).lastName}`;
+    const patient = patients?.find((p) => p.id === reportedId);
+    if (patient) return `${patient.firstName} ${patient.lastName}`;
     return 'Unknown Patient';
   };
 
