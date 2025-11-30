@@ -47,8 +47,10 @@ async function getRoleBasedRedirectUrl(userEmail: string, defaultRedirect: strin
   }
   
   try {
-    console.log('Fetching user role for:', userEmail);
-    const userDocRef = doc(firestore, 'users', userEmail);
+    // Use lowercase email to match Firestore document ID
+    const normalizedEmail = userEmail.toLowerCase();
+    console.log('Fetching user role for:', normalizedEmail);
+    const userDocRef = doc(firestore, 'users', normalizedEmail);
     console.log('Document path:', userDocRef.path);
     const userRoleDoc = await getDoc(userDocRef);
     console.log('Document exists:', userRoleDoc.exists());

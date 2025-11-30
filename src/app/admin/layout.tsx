@@ -30,8 +30,10 @@ export default function AdminLayout({
   // Check if the user has admin role
   const userRoleRef = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
-    console.log('[AdminLayout] Creating doc ref for user:', user.email);
-    return doc(firestore, 'users', user.email);
+    // Use lowercase email to match Firestore document ID
+    const normalizedEmail = user.email.toLowerCase();
+    console.log('[AdminLayout] Creating doc ref for user:', normalizedEmail);
+    return doc(firestore, 'users', normalizedEmail);
   }, [firestore, user?.email]);
   
   const { data: userRoleData, isLoading: isLoadingRole, error: roleError } = useDoc(userRoleRef);

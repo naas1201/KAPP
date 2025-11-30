@@ -32,10 +32,13 @@ export default function DoctorLayout({
   // Check if the user has doctor role in users collection (by email)
   const userRoleRef = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
-    return doc(firestore, 'users', user.email);
+    // Use lowercase email to match Firestore document ID
+    const normalizedEmail = user.email.toLowerCase();
+    console.log('[DoctorLayout] Creating doc ref for user:', normalizedEmail);
+    return doc(firestore, 'users', normalizedEmail);
   }, [firestore, user?.email]);
   
-  const { data: userRoleData, isLoading: isLoadingRole } = useDoc(userRoleRef);
+  const { data: userRoleData, isLoading: isLoadingRole, error: roleError } = useDoc(userRoleRef);
 
   // Also check for doctor-specific data (onboarding status, etc.)
   const doctorRef = useMemoFirebase(() => {
@@ -45,14 +48,32 @@ export default function DoctorLayout({
   
   const { data: doctorData, isLoading: isDoctorLoading } = useDoc(doctorRef);
 
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log('[DoctorLayout] State:', {
+      isUserLoading,
+      isLoadingRole,
+      user: user?.email,
+      userRoleData,
+      roleError: roleError?.message
+    });
+  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError]);
+
   useEffect(() => {
     if (!isUserLoading && !user) {
+      console.log('[DoctorLayout] No user, redirecting to login');
       router.push('/login');
       return;
     }
 
+    // If there's an error fetching the role, log it
+    if (roleError) {
+      console.error('[DoctorLayout] Error fetching role:', roleError);
+    }
+
     // Check role from users collection - redirect if not a doctor
     if (!isLoadingRole && userRoleData && userRoleData.role !== 'doctor') {
+      console.log('[DoctorLayout] User role is:', userRoleData.role, '- redirecting');
       if (userRoleData.role === 'admin') {
         router.push('/admin');
       } else {
@@ -63,6 +84,7 @@ export default function DoctorLayout({
 
     // If no role document exists but user is logged in, they might be a patient
     if (!isLoadingRole && !userRoleData && user) {
+      console.log('[DoctorLayout] No role document, redirecting to patient dashboard');
       router.push('/patient/dashboard');
       return;
     }
@@ -70,15 +92,32 @@ export default function DoctorLayout({
     // Check onboarding status
     if (!isDoctorLoading && doctorData) {
       if (!(doctorData as any).onboardingCompleted && pathname !== '/doctor/onboarding') {
+        console.log('[DoctorLayout] Doctor not onboarded, redirecting to onboarding');
         router.push('/doctor/onboarding');
       }
     }
-  }, [user, isUserLoading, router, doctorData, isDoctorLoading, pathname, userRoleData, isLoadingRole]);
+  }, [user, isUserLoading, router, doctorData, isDoctorLoading, pathname, userRoleData, isLoadingRole, roleError]);
 
   if (isUserLoading || isLoadingRole || !user) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Show error if there was a problem fetching the role
+  if (roleError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-4">
+        <p className="text-red-500">Error loading user role</p>
+        <p className="text-sm text-muted-foreground">{roleError.message}</p>
+        <button 
+          onClick={() => router.push('/login')}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded"
+        >
+          Back to Login
+        </button>
       </div>
     );
   }

@@ -45,7 +45,8 @@ export function Header() {
     // Fetch user role from Firestore - uses email as document ID
     const userRoleRef = useMemoFirebase(() => {
         if (!firestore || !user?.email) return null;
-        return doc(firestore, 'users', user.email);
+        // Use lowercase email to match Firestore document ID
+        return doc(firestore, 'users', user.email.toLowerCase());
     }, [firestore, user?.email]);
     
     const { data: userRoleData, isLoading: isLoadingRole } = useDoc(userRoleRef);
