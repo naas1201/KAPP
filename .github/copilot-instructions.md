@@ -11,7 +11,9 @@
 - Run app locally: `pnpm dev` (starts Next dev server on port 9002 by default).
 - Run GenKit AI dev server: `pnpm genkit:dev` (runs `src/ai/dev.ts` — hot-reloads GenKit flows when used with `genkit:watch`).
 - Typecheck: `pnpm typecheck` (runs `tsc --noEmit`).
+- Lint: `pnpm lint` (runs `next lint`).
 - Build: `pnpm build` (runs `pnpm typecheck && next build`).
+- E2E tests: `pnpm test:e2e` (runs Playwright tests; see `E2E_TESTING.md` for setup details).
 
 ## AI-specific patterns (very important)
 
@@ -57,6 +59,15 @@ Example: `src/ai/flows/generate-treatment-faq.ts` — follow its structure when 
 ## Security & secrets
 
 - The repo contains a `src/firebase/config.ts` file with API keys; avoid adding or hardcoding additional secrets. Use environment variables for new secrets and load them via `dotenv` (already used in `src/ai/dev.ts`).
+- See `env.example` for a template of required environment variables.
+- Firestore security rules are defined in `firestore.rules` — update them when adding new collections.
+
+## Testing
+
+- E2E tests use Playwright and run against Firebase emulators.
+- Tests are located in `e2e/tests/` (e.g., `smoke.spec.ts`, `booking-and-approve.spec.ts`).
+- Run `pnpm test:e2e` after setting up emulators (see `E2E_TESTING.md`).
+- Use `data-testid` attributes for stable Playwright selectors — see existing conventions in `E2E_TESTING.md`.
 
 ## When in doubt
 
@@ -65,3 +76,11 @@ Example: `src/ai/flows/generate-treatment-faq.ts` — follow its structure when 
 - Confirm local commands with `package.json` scripts; the dev environment expects `pnpm`.
 
 If anything here is unclear or you want the instructions to emphasize additional workflows (CI, test commands, or specific conventions), tell me what to expand and I will update this file.
+
+## Additional documentation
+
+- `docs/DEVELOPMENT_GUIDE.md` — Detailed guide for adding pages, components, and Firestore collections.
+- `docs/STRIPE_SETUP.md` — Stripe payment integration instructions.
+- `docs/STORAGE_SETUP.md` — Firebase Storage configuration.
+- `docs/ADMIN_DOCTOR_SETUP.md` — Admin and doctor account setup.
+- `E2E_TESTING.md` — End-to-end testing with Playwright and Firebase emulators.
