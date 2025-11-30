@@ -16,13 +16,16 @@ const SAFE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
  */
 function generateSecureRandom(length: number): string {
   const array = new Uint32Array(length);
-  if (typeof window !== 'undefined' && window.crypto) {
+  
+  // Try browser crypto API first
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
     window.crypto.getRandomValues(array);
+  } else if (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.getRandomValues) {
+    // Node.js 19+ or edge runtimes
+    globalThis.crypto.getRandomValues(array);
   } else {
-    // Fallback for server-side or non-crypto environments
-    for (let i = 0; i < length; i++) {
-      array[i] = Math.floor(Math.random() * SAFE_CHARS.length);
-    }
+    // Throw error if no secure random available - booking IDs require cryptographic security
+    throw new Error('Secure random generation not available. Booking IDs require cryptographic security.');
   }
   
   let result = '';

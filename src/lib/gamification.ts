@@ -140,7 +140,7 @@ export const DOCTOR_LEVELS = [
   { level: 27, minXp: 175000, title: 'Celestial Physician', color: 'bg-gradient-to-r from-sky-300 via-blue-500 to-indigo-600' },
   { level: 28, minXp: 210000, title: 'Immortal Doctor', color: 'bg-gradient-to-r from-amber-200 via-yellow-500 to-orange-600' },
   { level: 29, minXp: 250000, title: 'Eternal Guardian', color: 'bg-gradient-to-r from-rose-200 via-pink-500 to-red-600' },
-  { level: 30, minXp: 300000, title: 'Supreme Healer', color: 'bg-gradient-to-r from-yellow-200 via-amber-400 to-yellow-600 animate-pulse' },
+  { level: 30, minXp: 300000, title: 'Supreme Healer', color: 'bg-gradient-to-r from-yellow-200 via-amber-400 to-yellow-600' },
 ];
 
 export const DOCTOR_ACHIEVEMENTS: DoctorAchievement[] = [

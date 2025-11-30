@@ -332,18 +332,18 @@ export function sanitizeFileName(fileName: string): string {
 }
 
 /**
- * Validates file type based on magic numbers (not just extension)
- * Basic implementation - extend as needed
+ * Validates file type based on extension and MIME type
+ * Uses exact matching for security
  */
-export async function validateFileType(file: File, allowedTypes: string[]): Promise<boolean> {
+export async function validateFileType(file: File, allowedExtensions: string[], allowedMimeTypes: string[]): Promise<boolean> {
   // Check extension first
   const extension = file.name.split('.').pop()?.toLowerCase();
-  if (!extension || !allowedTypes.includes(extension)) {
+  if (!extension || !allowedExtensions.includes(extension)) {
     return false;
   }
   
-  // Check MIME type
-  if (!allowedTypes.some(type => file.type.includes(type))) {
+  // Check MIME type with exact matching for security
+  if (!allowedMimeTypes.includes(file.type)) {
     return false;
   }
   

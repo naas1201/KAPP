@@ -83,6 +83,7 @@ import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   exportMedicalRecordToXml, 
   downloadXmlFile, 
@@ -223,7 +224,8 @@ export default function PatientDetailsPage() {
     };
     
     const doctorName = doctor.displayName || 'Doctor';
-    const xml = exportMedicalRecordToXml(medicalRecord, doctorName);
+    const clinicName = 'Castillo Health & Aesthetics'; // Clinic name for documentation
+    const xml = exportMedicalRecordToXml(medicalRecord, doctorName, clinicName);
     const filename = generateMedicalRecordFilename(`${patient.firstName}_${patient.lastName}`, record.id);
     downloadXmlFile(xml, filename);
     
@@ -877,17 +879,16 @@ export default function PatientDetailsPage() {
               </div>
               <div className="space-y-2 flex items-end">
                 <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="isControlled"
                     checked={prescriptionDetails.isControlled}
-                    onChange={(e) => {
-                      setPrescriptionDetails({...prescriptionDetails, isControlled: e.target.checked});
-                      if (e.target.checked) setValidityDays(7); // S2 substances have 7-day validity
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setPrescriptionDetails({...prescriptionDetails, isControlled: isChecked});
+                      if (isChecked) setValidityDays(7); // S2 substances have 7-day validity
                     }}
-                    className="rounded border-gray-300"
                   />
-                  <Label htmlFor="isControlled" className="text-sm font-normal">
+                  <Label htmlFor="isControlled" className="text-sm font-normal cursor-pointer">
                     Controlled Substance (S2)
                   </Label>
                 </div>

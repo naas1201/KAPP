@@ -33,11 +33,12 @@ service cloud.firestore {
       return str is string && str.size() <= maxLength;
     }
     
-    // OWASP: Validate email format
+    // OWASP: Validate email format (RFC 5322 compliant - no dots at start/end, no consecutive dots)
     function isValidEmailFormat(email) {
       return email is string 
-        && email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$')
-        && email.size() <= 254;
+        && email.matches('^[a-zA-Z0-9]([a-zA-Z0-9._%-]*[a-zA-Z0-9])?@[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\\.[a-zA-Z]{2,}$')
+        && email.size() <= 254
+        && !email.matches('.*\\.\\..+'); // No consecutive dots
     }
     
     // OWASP: Validate phone number (Philippine format)

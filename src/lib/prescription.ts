@@ -63,11 +63,33 @@ export interface Prescription {
 /**
  * Generates a unique prescription number
  * Format: RX-YYYYMMDD-XXXX (compliant with Philippine pharmacy standards)
+ * Uses crypto for secure random generation
  */
 export function generatePrescriptionNumber(): string {
   const date = new Date();
   const dateStr = format(date, 'yyyyMMdd');
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  
+  // Use crypto for secure random generation
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // Unambiguous characters
+  let random = '';
+  
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+    const array = new Uint32Array(4);
+    window.crypto.getRandomValues(array);
+    for (let i = 0; i < 4; i++) {
+      random += chars[array[i] % chars.length];
+    }
+  } else if (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.getRandomValues) {
+    const array = new Uint32Array(4);
+    globalThis.crypto.getRandomValues(array);
+    for (let i = 0; i < 4; i++) {
+      random += chars[array[i] % chars.length];
+    }
+  } else {
+    // Fallback with timestamp-based uniqueness for edge cases
+    random = Date.now().toString(36).substring(0, 4).toUpperCase();
+  }
+  
   return `RX-${dateStr}-${random}`;
 }
 

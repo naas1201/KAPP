@@ -73,8 +73,9 @@ function escapeXml(str: string | undefined | null): string {
 /**
  * Converts a MedicalRecord to XML format
  * Philippines DOH-compliant format with standard medical documentation structure
+ * @param clinicName - Clinic name (required for proper documentation)
  */
-export function exportMedicalRecordToXml(record: MedicalRecord, doctorName: string, clinicName: string = 'Castillo Health & Aesthetics'): string {
+export function exportMedicalRecordToXml(record: MedicalRecord, doctorName: string, clinicName: string): string {
   const now = new Date().toISOString();
   
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
