@@ -250,7 +250,7 @@ export default function AdminSettingsPage() {
               <div className="space-y-0.5">
                 <Label>Require Payment Upfront</Label>
                 <p className="text-sm text-muted-foreground">
-                  Patients must pay when booking (otherwise can pay at clinic)
+                  Patients must pay when booking (otherwise can pay later)
                 </p>
               </div>
               <Switch
