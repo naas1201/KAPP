@@ -211,6 +211,8 @@ service cloud.firestore {
       allow create: if isSignedIn();
       // Only admins can read all ratings
       allow read, list: if isAdmin();
+      // Doctors can read ratings for themselves
+      allow read: if isDoctor() && resource.data.ratedId == request.auth.uid;
     }
 
     /**
@@ -238,6 +240,21 @@ service cloud.firestore {
       allow read: if isAuthorizedDoctorForPatient(patientId);
       // Admins can read but not modify medical info directly
       allow read: if isAdmin();
+    }
+
+    /**
+     * @description Stores notifications for doctors about appointment changes.
+     * Admins can create, doctors can read and update their own notifications.
+     */
+    match /notifications/{notificationId} {
+      // Admins can create notifications
+      allow create: if isAdmin();
+      // Doctors can read notifications addressed to them
+      allow read: if isDoctor() && resource.data.doctorId == request.auth.uid;
+      // Doctors can mark their own notifications as read
+      allow update: if isDoctor() && resource.data.doctorId == request.auth.uid;
+      // Admins can read and delete any notification
+      allow read, delete: if isAdmin();
     }
   }
 }

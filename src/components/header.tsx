@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Menu, User, LogOut, LayoutDashboard, Stethoscope } from 'lucide-react';
+import { Menu, User, LogOut, LayoutDashboard, Stethoscope, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -23,9 +23,10 @@ import {
   } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from '@/components/logo';
-import { useUser, useAuth } from '@/firebase/hooks';
+import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase/hooks';
 import { signOut } from 'firebase/auth';
 import { BookingSheet } from './BookingSheet';
+import { doc } from 'firebase/firestore';
 
 
 const navLinks = [
@@ -35,22 +36,34 @@ const navLinks = [
   { href: '/#contact', label: 'Contact' },
 ];
 
-// This is a placeholder. In a real app, you'd fetch this from a 'doctors' collection
-// or check a custom claim on the user object.
-const DOCTOR_UIDS = ['default-doctor-id'];
-
 export function Header() {
     const { user, isLoading: isUserLoading } = useUser();
     const auth = useAuth();
+    const firestore = useFirestore();
     const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
+    
+    // Fetch user role from Firestore - uses email as document ID
+    const userRoleRef = useMemoFirebase(() => {
+        if (!firestore || !user?.email) return null;
+        return doc(firestore, 'users', user.email);
+    }, [firestore, user?.email]);
+    
+    const { data: userRoleData, isLoading: isLoadingRole } = useDoc(userRoleRef);
+    
+    // Determine user role
+    const userRole = useMemo(() => {
+        if (!user) return null;
+        if (userRoleData?.role === 'admin') return 'admin';
+        if (userRoleData?.role === 'doctor') return 'doctor';
+        return 'patient'; // Default role for signed-in users without explicit role
+    }, [user, userRoleData]);
+    
+    const isStaff = userRole === 'admin' || userRole === 'doctor';
     
     const handleSignOut = async () => {
         if (!auth) return;
         await signOut(auth);
     }
-    
-    // Placeholder logic to determine if the user is a doctor
-    const isDoctor = user && DOCTOR_UIDS.includes(user.uid);
 
   return (
     <>
@@ -94,13 +107,19 @@ export function Header() {
                          </div>
                        </DropdownMenuLabel>
                        <DropdownMenuSeparator />
-                        {isDoctor ? (
+                        {userRole === 'admin' && (
+                             <DropdownMenuItem asChild>
+                                <Link href="/admin"><Shield className="mr-2 h-4 w-4" />Admin Portal</Link>
+                             </DropdownMenuItem>
+                        )}
+                        {userRole === 'doctor' && (
                              <DropdownMenuItem asChild>
                                 <Link href="/doctor/dashboard"><Stethoscope className="mr-2 h-4 w-4" />Doctor Portal</Link>
                              </DropdownMenuItem>
-                        ) : (
+                        )}
+                        {userRole === 'patient' && (
                             <DropdownMenuItem asChild>
-                                <Link href="/admin/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link>
+                                <Link href="/patient/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />My Dashboard</Link>
                             </DropdownMenuItem>
                         )}
                        <DropdownMenuSeparator />
@@ -119,7 +138,10 @@ export function Header() {
                 )}
                 </>
             )}
-             <Button onClick={() => setBookingSheetOpen(true)}>Book Now</Button>
+             {/* Only show Book Now button to non-staff users */}
+             {!isStaff && (
+               <Button onClick={() => setBookingSheetOpen(true)}>Book Now</Button>
+             )}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">
