@@ -65,6 +65,7 @@ export default function UsersPage() {
   // User states
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [editRoleValue, setEditRoleValue] = useState<UserRole>('patient');
   const [userDetails, setUserDetails] = useState({
     email: '',
     role: 'doctor' as UserRole,
@@ -146,19 +147,33 @@ export default function UsersPage() {
 
   const handleEdit = (user: User) => {
     setUserToEdit(user);
+    setEditRoleValue(user.role);
     setEditModalOpen(true);
   };
 
-  const handleUpdateRole = (newRole: UserRole) => {
-    if (!firestore || !userToEdit) return;
+  const handleUpdateRole = () => {
+    if (!firestore || !userToEdit || !editRoleValue) return;
+    if (editRoleValue === userToEdit.role) {
+      setEditModalOpen(false);
+      setUserToEdit(null);
+      return;
+    }
 
-    const userDocRef = doc(firestore, 'users', userToEdit.email);
-    updateDocumentNonBlocking(userDocRef, { role: newRole });
+    try {
+      const userDocRef = doc(firestore, 'users', userToEdit.email);
+      updateDocumentNonBlocking(userDocRef, { role: editRoleValue });
 
-    toast({ 
-      title: 'Role Updated', 
-      description: `${userToEdit.email} is now a ${newRole}.` 
-    });
+      toast({ 
+        title: 'Role Updated', 
+        description: `${userToEdit.email} is now a ${editRoleValue}.` 
+      });
+    } catch (error) {
+      toast({ 
+        variant: 'destructive',
+        title: 'Failed to Update Role', 
+        description: 'An error occurred while updating the role. Please try again.' 
+      });
+    }
     
     setEditModalOpen(false);
     setUserToEdit(null);
@@ -352,8 +367,8 @@ export default function UsersPage() {
           </DialogHeader>
           <div className="py-4">
             <Select
-              value={userToEdit?.role}
-              onValueChange={(value: UserRole) => handleUpdateRole(value)}
+              value={editRoleValue}
+              onValueChange={(value: UserRole) => setEditRoleValue(value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a role" />
@@ -368,6 +383,9 @@ export default function UsersPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditModalOpen(false)}>
               Cancel
+            </Button>
+            <Button onClick={handleUpdateRole}>
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
