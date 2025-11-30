@@ -26,14 +26,21 @@ const SERVICE_PRICES: Record<string, number> = {
 };
 
 const DEFAULT_PRICE = 2500; // Default consultation fee in PHP
+const MINIMUM_TRANSACTION_AMOUNT = 1; // Minimum transaction amount in PHP for valid Stripe transaction
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { serviceId, serviceName, paymentMethod, customerEmail, customerName } = body;
+    const { serviceId, serviceName, paymentMethod, customerEmail, customerName, couponCode, finalAmount } = body;
 
-    // Get the price for the service
-    const amount = SERVICE_PRICES[serviceId] ?? DEFAULT_PRICE;
+    // Use finalAmount if provided (when coupon is applied), otherwise calculate from serviceId
+    let amount = finalAmount;
+    if (amount === undefined || amount === null) {
+      amount = SERVICE_PRICES[serviceId] ?? DEFAULT_PRICE;
+    }
+    
+    // Ensure amount is never negative or zero
+    amount = Math.max(MINIMUM_TRANSACTION_AMOUNT, Math.round(amount));
 
     const stripe = getStripe();
 
@@ -60,8 +67,9 @@ export async function POST(request: NextRequest) {
         serviceName: serviceName || 'Medical Consultation',
         customerEmail: customerEmail || '',
         customerName: customerName || '',
+        couponCode: couponCode || '',
       },
-      description: `Payment for ${serviceName || 'Medical Consultation'}`,
+      description: `Payment for ${serviceName || 'Medical Consultation'}${couponCode ? ` (Coupon: ${couponCode})` : ''}`,
       receipt_email: customerEmail || undefined,
     });
 
