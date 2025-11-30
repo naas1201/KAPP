@@ -72,7 +72,11 @@ service cloud.firestore {
      * SECURITY: Email-based document IDs for role lookup
      */
     match /users/{userId} {
+      // Admins have full read/write access to all user documents
       allow read, write: if isAdmin();
+      // Allow users to read their own role document (document ID is their email)
+      // This is required for role-based authentication to work
+      allow read: if isSignedIn() && userId == request.auth.token.email;
       // Allow a user to create their own user document if one doesn't exist.
       // OWASP: Validate the email matches the authenticated user's email
       allow create: if isSignedIn() 

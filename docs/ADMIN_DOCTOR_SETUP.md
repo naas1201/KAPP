@@ -97,8 +97,11 @@ export const doctors: Doctor[] = [
 The `users` collection is protected by Firestore security rules:
 
 - **Admins** can read and write all user documents
-- **Users** can create their own document on signup (with matching email)
-- **No one else** can access user role information
+- **Users** can read their own role document (where document ID matches their email)
+- **Users** can create their own document on signup (with matching email, patient role only)
+- **Doctors** can read their own role document to authenticate
+
+This allows the login flow to check user roles without requiring admin privileges.
 
 ## Important Notes
 
