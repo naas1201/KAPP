@@ -41,19 +41,42 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 // Helper function to get role-based redirect URL
 async function getRoleBasedRedirectUrl(userEmail: string, defaultRedirect: string): Promise<string> {
-  if (!firestore || !userEmail) return defaultRedirect;
+  if (!firestore || !userEmail) {
+    console.log('getRoleBasedRedirectUrl: firestore or userEmail missing', { firestore: !!firestore, userEmail });
+    return defaultRedirect;
+  }
   
   try {
-    const userRoleDoc = await getDoc(doc(firestore, 'users', userEmail));
+    // Use lowercase email to match Firestore document ID
+    const normalizedEmail = userEmail.toLowerCase();
+    console.log('Fetching user role for:', normalizedEmail);
+    const userDocRef = doc(firestore, 'users', normalizedEmail);
+    console.log('Document path:', userDocRef.path);
+    const userRoleDoc = await getDoc(userDocRef);
+    console.log('Document exists:', userRoleDoc.exists());
     if (userRoleDoc.exists()) {
-      const role = userRoleDoc.data()?.role;
-      if (role === 'admin') return '/admin';
-      if (role === 'doctor') return '/doctor/dashboard';
+      const data = userRoleDoc.data();
+      console.log('Document data:', JSON.stringify(data));
+      const role = data?.role;
+      console.log('User role found:', role);
+      if (role === 'admin') {
+        console.log('Redirecting to admin dashboard');
+        return '/admin';
+      }
+      if (role === 'doctor') {
+        console.log('Redirecting to doctor dashboard');
+        return '/doctor/dashboard';
+      }
+      console.log('Role is not admin or doctor, treating as patient');
+    } else {
+      console.log('No role document found for user, defaulting to patient');
     }
     // Default to patient dashboard for regular users
     return defaultRedirect === '/' ? '/patient/dashboard' : defaultRedirect;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching user role:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
     return defaultRedirect;
   }
 }
@@ -106,10 +129,19 @@ function LoginForm() {
       const finalRedirectUrl = await getRoleBasedRedirectUrl(result.user.email || '', redirectUrl);
       router.push(finalRedirectUrl);
     } catch (error: any) {
+      console.error('Google sign-in error:', error);
+      let errorMessage = error.message;
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-in cancelled. Please try again.';
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = 'Pop-up blocked. Please allow pop-ups for this site.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      }
       toast({
         variant: 'destructive',
         title: 'Sign-in failed',
-        description: error.message,
+        description: errorMessage,
       });
     } finally {
         setIsLoading(false);
@@ -117,19 +149,44 @@ function LoginForm() {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!auth) return;
+    if (!auth) {
+      console.error('Auth not initialized');
+      return;
+    }
     setIsLoading(true);
+    console.log('Attempting sign-in for:', data.email);
     try {
       const result = await signInWithEmailAndPassword(auth, data.email, data.password);
+      console.log('Sign-in successful for:', result.user.email);
+      console.log('User UID:', result.user.uid);
       toast({ title: 'Signed in successfully!' });
       // Get role-based redirect URL
       const finalRedirectUrl = await getRoleBasedRedirectUrl(result.user.email || '', redirectUrl);
+      console.log('Redirecting to:', finalRedirectUrl);
       router.push(finalRedirectUrl);
     } catch (error: any) {
+      console.error('Sign-in error:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      // Provide more specific error messages based on Firebase error codes
+      let errorMessage = 'Invalid email or password. Please try again.';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email. Please sign up first.';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password. Please try again.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email format. Please check your email.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error.code === 'auth/invalid-credential') {
+        errorMessage = 'Invalid credentials. Please check your email and password.';
+      }
       toast({
         variant: 'destructive',
         title: 'Sign-in failed',
-        description: 'Invalid email or password. Please try again.',
+        description: errorMessage,
       });
     } finally {
         setIsLoading(false);
