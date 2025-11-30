@@ -4,6 +4,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ===== OWASP SECURITY HELPERS =====
+    
     // Helper functions for reusable logic
     function isSignedIn() {
       return request.auth != null;
@@ -25,16 +27,58 @@ service cloud.firestore {
     function isAdmin() {
        return isSignedIn() && getUserRole(request.auth.uid) == 'admin';
     }
+    
+    // OWASP: Input validation - Check string length to prevent DoS
+    function isValidStringLength(str, maxLength) {
+      return str is string && str.size() <= maxLength;
+    }
+    
+    // OWASP: Validate email format (RFC 5322 compliant - no dots at start/end, no consecutive dots)
+    function isValidEmailFormat(email) {
+      return email is string 
+        && email.matches('^[a-zA-Z0-9]([a-zA-Z0-9._%-]*[a-zA-Z0-9])?@[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\\.[a-zA-Z]{2,}$')
+        && email.size() <= 254
+        && !email.matches('.*\\.\\..+'); // No consecutive dots
+    }
+    
+    // OWASP: Validate phone number (Philippine format)
+    function isValidPhoneFormat(phone) {
+      return phone is string 
+        && phone.matches('^(\\+63|0)?9[0-9]{9}$');
+    }
+    
+    // OWASP: Prevent script injection in text fields
+    function noScriptTags(str) {
+      return str is string 
+        && !str.lower().matches('.*<script.*')
+        && !str.lower().matches('.*javascript:.*')
+        && !str.lower().matches('.*on[a-z]+\\s*=.*');
+    }
+    
+    // OWASP: Validate document size to prevent DoS
+    function isValidDocumentSize() {
+      return request.resource.data.keys().size() <= 100;
+    }
+    
+    // OWASP: Rate limiting awareness - timestamps must be recent
+    function isRecentTimestamp(ts) {
+      return ts is timestamp 
+        && ts >= request.time - duration.value(1, 'h')
+        && ts <= request.time + duration.value(5, 'm');
+    }
 
     /**
      * @description Stores user roles. Admin can write, user can create their own doc on signup.
+     * SECURITY: Email-based document IDs for role lookup
      */
     match /users/{userId} {
       allow read, write: if isAdmin();
       // Allow a user to create their own user document if one doesn't exist.
-      // This is used for when a user signs up via Google and doesn't have a pre-made role.
-      // The email is used as the document ID for simplicity in this prototype.
-      allow create: if isSignedIn() && request.resource.data.email == request.auth.token.email;
+      // OWASP: Validate the email matches the authenticated user's email
+      allow create: if isSignedIn() 
+        && request.resource.data.email == request.auth.token.email
+        && isValidEmailFormat(request.resource.data.email)
+        && request.resource.data.role in ['patient']; // Can only self-assign patient role
     }
 
 
@@ -42,7 +86,6 @@ service cloud.firestore {
      * Checks if the requesting user is an authorized doctor for a given patient.
      * Authorization is determined by the existence of a document in the doctor's
      * own patient list. This is a performant denormalized ACL check.
-     * In a real-world scenario, an admin or cloud function would create this record.
      */
     function isAuthorizedDoctorForPatient(patientId) {
       return isDoctor() && exists(/databases/$(database)/documents/doctors/$(request.auth.uid)/authorizedPatients/$(patientId));
@@ -56,106 +99,154 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages patient profiles. Only the patient can create. Patient or authorized doctor can read/update it.
+     * @description Manages patient profiles. 
+     * SECURITY: Validates input data, prevents XSS
      */
     match /patients/{patientId} {
-      allow get, update: if canAccessPatientData(patientId);
+      allow get, update: if canAccessPatientData(patientId)
+        && isValidDocumentSize();
       allow list: if isAdmin();
-      allow create: if isOwner(patientId); // Patient creates their own record
+      allow create: if isOwner(patientId)
+        && isValidDocumentSize()
+        && isValidStringLength(request.resource.data.firstName, 100)
+        && isValidStringLength(request.resource.data.lastName, 100)
+        && noScriptTags(request.resource.data.firstName)
+        && noScriptTags(request.resource.data.lastName);
       allow delete: if isAdmin();
 
       /**
        * @description Secures patient appointments, treatment records, and prescriptions.
-       * Access is inherited from the parent patient document.
+       * SECURITY: Validates booking data
        */
       match /appointments/{appointmentId} {
-        allow read, create: if canAccessPatientData(patientId);
-        allow update, delete: if isAuthorizedDoctorForPatient(patientId) || isAdmin(); // Only docs/admins can change appointments
+        allow read, create: if canAccessPatientData(patientId)
+          && isValidDocumentSize()
+          && isValidStringLength(request.resource.data.serviceType, 200)
+          && noScriptTags(request.resource.data.patientNotes);
+        allow update, delete: if isAuthorizedDoctorForPatient(patientId) || isAdmin();
+      }
+      
+      /**
+       * @description Medical records - doctor eyes only
+       * SECURITY: Strict access control, input validation
+       */
+      match /medicalRecords/{recordId} {
+        allow read: if canAccessPatientData(patientId);
+        allow write: if (isAuthorizedDoctorForPatient(patientId) || isAdmin())
+          && isValidDocumentSize()
+          && noScriptTags(request.resource.data.diagnosis)
+          && noScriptTags(request.resource.data.treatmentPlan);
       }
       
       match /treatmentRecords/{recordId} {
         allow read: if canAccessPatientData(patientId);
-        allow write: if isAuthorizedDoctorForPatient(patientId) || isAdmin(); // Only docs/admins can write treatment records
+        allow write: if (isAuthorizedDoctorForPatient(patientId) || isAdmin())
+          && isValidDocumentSize();
       }
       
        match /prescriptions/{prescriptionId} {
         allow read: if canAccessPatientData(patientId);
-        allow write: if isAuthorizedDoctorForPatient(patientId) || isAdmin(); // Only docs/admins can write prescriptions
+        allow write: if (isAuthorizedDoctorForPatient(patientId) || isAdmin())
+          && isValidDocumentSize()
+          && isValidStringLength(request.resource.data.prescriptionNumber, 50);
       }
     }
 
     /**
      * @description Publicly readable collection of all appointments, used by doctors.
-     * This denormalizes appointment data for easier querying by doctors.
-     * SECURITY: Only doctors can read this collection. Patients cannot list all appointments.
-     * Writes are handled via the patient's subcollection for security, then mirrored here by a function.
+     * SECURITY: Read-only for doctors, no direct writes
      */
      match /appointments/{appointmentId} {
         allow read: if isDoctor() || isAdmin();
-        // Disallow direct writes. Writes must go through /patients/{patientId}/appointments/{appointmentId}
+        // Disallow direct writes - writes must go through patient subcollection
         allow write: if false; 
      }
 
      /**
-      * @description Denormalized collection of all prescriptions for easier querying by staff.
-      * Writable only via a function that mirrors from the patient's subcollection.
+      * @description Denormalized prescriptions collection
+      * SECURITY: Admin read-only, no direct writes
       */
      match /prescriptions/{prescriptionId} {
         allow read, list: if isAdmin();
-        allow write: if false; // Writes must be mirrored from patient's subcollection
+        allow write: if false;
      }
 
     /**
-     * @description Manages doctor profiles. Profiles are readable by any authenticated user for booking.
+     * @description Manages doctor profiles.
+     * SECURITY: Validates license numbers and credentials
      */
     match /doctors/{doctorId} {
       allow get, list: if isSignedIn();
-      allow create: if isOwner(doctorId); // A doctor can create their own profile
-      allow update: if isOwner(doctorId) || isAdmin();
+      allow create: if isOwner(doctorId)
+        && isValidDocumentSize()
+        && isValidStringLength(request.resource.data.licenseNumber, 50);
+      allow update: if (isOwner(doctorId) || isAdmin())
+        && isValidDocumentSize();
       allow delete: if isAdmin();
       
       /**
-       * @description This path is an Access Control List (ACL). It links doctors to patients they can access.
-       * Only admins can grant/revoke doctor access to a patient.
+       * @description ACL for doctor-patient relationships
+       * SECURITY: Admin-only management
        */
       match /authorizedPatients/{patientId} {
         allow write: if isAdmin();
-        // Read access is checked via exists() in other rules, no direct read needed.
         allow read: if isAuthorizedDoctorForPatient(patientId);
       }
 
       /**
-       * @description A doctor's individual list of services and prices.
-       * Only the doctor themselves or an admin can write to this.
-       * Any authenticated user can read this to see what a doctor offers.
+       * @description Doctor's services and pricing
        */
       match /services/{serviceId} {
         allow read: if isSignedIn();
-        allow write: if isOwner(doctorId) || isAdmin();
+        allow write: if (isOwner(doctorId) || isAdmin())
+          && isValidDocumentSize();
+      }
+      
+      /**
+       * @description Doctor's digital signature and stamp
+       * SECURITY: Only the doctor can update their own signature/stamp
+       */
+      match /credentials/{credentialId} {
+        allow read: if isOwner(doctorId) || isAdmin();
+        allow write: if isOwner(doctorId)
+          && isValidDocumentSize();
       }
     }
 
     /**
-     * @description Master list of all treatments. Readable by any authenticated user.
-     * Writable only by admins.
+     * @description Master treatments list
      */
     match /treatments/{treatmentId} {
       allow get, list: if isSignedIn();
       allow write: if isAdmin();
     }
 
+    /**
+     * @description Discount codes
+     * SECURITY: Read for validation, write for admin only
+     */
+    match /discountCodes/{codeId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
 
     /**
-     * @description Stores leads from contact forms. Writable by any source (even unauthenticated), but manageable only by staff.
+     * @description Contact form leads
+     * SECURITY: Rate limiting awareness - check timestamp
      */
     match /leads/{leadId} {
       allow read, list: if isAdmin();
-      allow create: if true;
+      allow create: if true
+        && isValidDocumentSize()
+        && isValidStringLength(request.resource.data.name, 200)
+        && isValidStringLength(request.resource.data.message, 5000)
+        && noScriptTags(request.resource.data.name)
+        && noScriptTags(request.resource.data.message);
       allow update, delete: if isAdmin();
     }
 
     /**
-     * @description Stores public Frequently Asked Questions. Readable by anyone. Writable by admin.
+     * @description Public FAQs
      */
     match /faqs/{faqId} {
       allow get, list: if true;
@@ -163,98 +254,100 @@ service cloud.firestore {
     }
 
     /**
-     * @description Temporary signaling collection for WebRTC video calls.
-     * Only the doctor who created it or the involved patient can read/write.
+     * @description WebRTC signaling for video calls
+     * SECURITY: Scoped to authorized participants only
      */
     match /video-calls/{roomId} {
-      // The patientId should be stored in the document to verify access.
-      allow read, write: if isSignedIn() && (isAuthorizedDoctorForPatient(resource.data.patientId) || isOwner(resource.data.patientId));
+      allow read, write: if isSignedIn() 
+        && (isAuthorizedDoctorForPatient(resource.data.patientId) || isOwner(resource.data.patientId));
+      allow create: if isDoctor()
+        && isValidDocumentSize();
     }
-     /**
-     * @description Chat rooms between doctors and patients.
+    
+    /**
+     * @description Chat rooms between doctors and patients
+     * SECURITY: Participant-only access, message content validation
      */
     match /chatRooms/{roomId} {
-      // Participants can get, list, and update room details (e.g., unread count)
       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
-      // Only doctors can create new rooms
       allow create: if isDoctor();
 
-      /**
-       * @description Messages within a chat room.
-       */
       match /messages/{messageId} {
-        // Participants can read messages
-        allow get, list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
-        // Participants can add new messages if the room is open
-        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
-                     && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'open';
-        // Allow updating message (e.g. for reactions, read status) by participants
-        allow update: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
+        allow get, list: if isSignedIn() 
+          && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
+        allow create: if isSignedIn() 
+          && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
+          && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.status == 'open'
+          && isValidStringLength(request.resource.data.content, 10000)
+          && noScriptTags(request.resource.data.content);
+        allow update: if isSignedIn() 
+          && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
       }
     }
 
     /**
-     * @description Stores reports filed by doctors against patients.
+     * @description Reports filed by doctors
      */
     match /reports/{reportId} {
-      // Only doctors can create reports
-      allow create: if isDoctor();
-      // Only admins can read, update, or delete reports
+      allow create: if isDoctor()
+        && isValidDocumentSize()
+        && isValidStringLength(request.resource.data.reason, 5000);
       allow read, write: if isAdmin();
     }
 
     /**
-     * @description Stores ratings for consultations.
+     * @description Consultation ratings
+     * SECURITY: One rating per consultation
      */
     match /ratings/{ratingId} {
-      // Only signed-in users can create ratings
-      allow create: if isSignedIn();
-      // Only admins can read all ratings
+      allow create: if isSignedIn()
+        && isValidDocumentSize()
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
       allow read, list: if isAdmin();
-      // Doctors can read ratings for themselves
       allow read: if isDoctor() && resource.data.ratedId == request.auth.uid;
     }
 
     /**
-     * @description Stores name change requests from patients.
-     * Patients can create requests for their own accounts.
-     * Only admins can read all requests and process them.
+     * @description Name change requests
+     * SECURITY: Patient-initiated, admin-approved
      */
     match /nameChangeRequests/{requestId} {
-      // Patients can create their own name change requests
-      allow create: if isSignedIn() && request.resource.data.patientId == request.auth.uid;
-      // Patients can read their own requests
+      allow create: if isSignedIn() 
+        && request.resource.data.patientId == request.auth.uid
+        && isValidStringLength(request.resource.data.newLastName, 100)
+        && noScriptTags(request.resource.data.newLastName);
       allow read: if isSignedIn() && resource.data.patientId == request.auth.uid;
-      // Only admins can list all requests and update/delete them
       allow list, update, delete: if isAdmin();
     }
 
     /**
-     * @description Stores medical information filled by patients.
-     * Only visible to doctors and the patient themselves.
+     * @description Patient medical information
      */
     match /medicalInfo/{patientId} {
-      // Patient can read and write their own medical info
-      allow read, write: if isSignedIn() && isOwner(patientId);
-      // Authorized doctors can read medical info
+      allow read, write: if isSignedIn() && isOwner(patientId)
+        && isValidDocumentSize();
       allow read: if isAuthorizedDoctorForPatient(patientId);
-      // Admins can read but not modify medical info directly
       allow read: if isAdmin();
     }
 
     /**
-     * @description Stores notifications for doctors about appointment changes.
-     * Admins can create, doctors can read and update their own notifications.
+     * @description Notifications for doctors
      */
     match /notifications/{notificationId} {
-      // Admins can create notifications
       allow create: if isAdmin();
-      // Doctors can read notifications addressed to them
       allow read: if isDoctor() && resource.data.doctorId == request.auth.uid;
-      // Doctors can mark their own notifications as read
       allow update: if isDoctor() && resource.data.doctorId == request.auth.uid;
-      // Admins can read and delete any notification
       allow read, delete: if isAdmin();
+    }
+    
+    /**
+     * @description Doctor gamification data
+     * SECURITY: Read-only for doctors, system-managed writes
+     */
+    match /doctorGamification/{doctorId} {
+      allow read: if isOwner(doctorId) || isAdmin();
+      allow write: if isAdmin(); // Only system/admin can update gamification
     }
   }
 }

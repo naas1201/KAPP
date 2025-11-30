@@ -48,7 +48,14 @@ import {
   BookUser,
   NotebookTabs,
   Heart,
-  FileText
+  FileText,
+  Download,
+  FileCode,
+  Printer,
+  Stamp,
+  PenTool,
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 import { format, formatDistanceToNow, add } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -74,6 +81,25 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  exportMedicalRecordToXml, 
+  downloadXmlFile, 
+  generateMedicalRecordFilename,
+  type MedicalRecord 
+} from '@/lib/medical-records';
+import {
+  generatePrescriptionNumber,
+  calculateExpiryDate,
+  getValidityStatus,
+  printPrescription,
+  DRUG_ROUTES,
+  DOSAGE_FREQUENCIES,
+  type Prescription,
+  type PrescriptionItem
+} from '@/lib/prescription';
 
 const initialConsultationFormState = {
   historyOfPresentIllness: '',
@@ -102,13 +128,22 @@ export default function PatientDetailsPage() {
   
   const [consultationForm, setConsultationForm] = useState(initialConsultationFormState);
 
-
+  // Enhanced prescription state
   const [prescriptionDetails, setPrescriptionDetails] = useState({
     drugName: '',
+    genericName: '',
     dosage: '',
     frequency: '',
+    duration: '',
+    quantity: '',
+    route: 'oral' as 'oral' | 'topical' | 'injection' | 'inhalation' | 'other',
+    instructions: '',
     notes: '',
+    isControlled: false,
   });
+  
+  // Validity days for prescription
+  const [validityDays, setValidityDays] = useState(30);
 
   const patientRef = useMemoFirebase(() => {
     if (!firestore || !patientId) return null;
@@ -144,7 +179,60 @@ export default function PatientDetailsPage() {
   
   const resetPrescriptionForm = () => {
     setEditingPrescription(null);
-    setPrescriptionDetails({ drugName: '', dosage: '', frequency: '', notes: '' });
+    setPrescriptionDetails({ 
+      drugName: '', 
+      genericName: '',
+      dosage: '', 
+      frequency: '', 
+      duration: '',
+      quantity: '',
+      route: 'oral',
+      instructions: '',
+      notes: '',
+      isControlled: false,
+    });
+    setValidityDays(30);
+  };
+  
+  // Export medical record to XML
+  const handleExportMedicalRecord = (record: any) => {
+    if (!patient || !doctor) return;
+    
+    const medicalRecord: MedicalRecord = {
+      id: record.id,
+      patientId: patientId as string,
+      doctorId: doctor.uid,
+      createdAt: record.date,
+      updatedAt: record.date,
+      patientName: `${patient.firstName} ${patient.lastName}`,
+      patientDateOfBirth: patient.dateOfBirth,
+      patientGender: patient.gender || '',
+      patientAddress: patient.address || '',
+      chiefComplaint: record.historyOfPresentIllness || '',
+      historyOfPresentIllness: record.historyOfPresentIllness || '',
+      pastMedicalHistory: record.pastMedicalHistory || '',
+      familyHistory: record.familyHistory || '',
+      socialHistory: record.personalAndSocialHistory || '',
+      allergies: patient.allergies || '',
+      currentMedications: '',
+      vitalSigns: {},
+      physicalExamFindings: '',
+      diagnosis: record.diagnosis || '',
+      treatmentPlan: record.treatmentPlan || '',
+      skinCareRoutine: record.skinCareRoutine || '',
+      status: 'completed',
+    };
+    
+    const doctorName = doctor.displayName || 'Doctor';
+    const clinicName = 'Castillo Health & Aesthetics'; // Clinic name for documentation
+    const xml = exportMedicalRecordToXml(medicalRecord, doctorName, clinicName);
+    const filename = generateMedicalRecordFilename(`${patient.firstName}_${patient.lastName}`, record.id);
+    downloadXmlFile(xml, filename);
+    
+    toast({ 
+      title: "Medical Record Exported", 
+      description: `Saved as ${filename}` 
+    });
   };
   
   const openConsultationModal = () => {
@@ -191,23 +279,34 @@ export default function PatientDetailsPage() {
   const handleSavePrescription = () => {
     if (!firestore || !doctor || !patientId) return;
 
+    const now = new Date();
+    const expiryDate = calculateExpiryDate(now, validityDays);
+    
     const prescriptionData = {
+        prescriptionNumber: editingPrescription?.prescriptionNumber || generatePrescriptionNumber(),
         ...prescriptionDetails,
         patientId,
+        patientName: patient ? `${patient.firstName} ${patient.lastName}` : '',
         doctorId: doctor.uid,
+        doctorName: doctor.displayName || 'Doctor',
+        validityDays,
+        status: 'issued',
     };
 
     try {
       if (editingPrescription) {
         const prescriptionRef = doc(firestore, 'patients', patientId as string, 'prescriptions', editingPrescription.id);
-        updateDocumentNonBlocking(prescriptionRef, prescriptionData);
+        updateDocumentNonBlocking(prescriptionRef, {
+          ...prescriptionData,
+          updatedAt: now.toISOString(),
+        });
         toast({ title: "Prescription updated." });
       } else {
         const prescriptionRef = collection(firestore, 'patients', patientId as string, 'prescriptions');
         addDocumentNonBlocking(prescriptionRef, {
           ...prescriptionData,
-          createdAt: new Date().toISOString(),
-          expiresAt: add(new Date(), { days: 30 }).toISOString(), // Default 30-day expiry
+          createdAt: now.toISOString(),
+          expiresAt: expiryDate.toISOString(),
         });
         toast({ title: "Prescription created." });
       }
@@ -225,22 +324,35 @@ export default function PatientDetailsPage() {
   const handleEditPrescription = (prescription: any) => {
     setEditingPrescription(prescription);
     setPrescriptionDetails({
-      drugName: prescription.drugName,
-      dosage: prescription.dosage,
-      frequency: prescription.frequency,
-      notes: prescription.notes,
+      drugName: prescription.drugName || '',
+      genericName: prescription.genericName || '',
+      dosage: prescription.dosage || '',
+      frequency: prescription.frequency || '',
+      duration: prescription.duration || '',
+      quantity: prescription.quantity || '',
+      route: prescription.route || 'oral',
+      instructions: prescription.instructions || '',
+      notes: prescription.notes || '',
+      isControlled: prescription.isControlled || false,
     });
+    setValidityDays(prescription.validityDays || 30);
     setPrescriptionModalOpen(true);
   };
   
   const handleRenewPrescription = (prescription: any) => {
     if (!firestore || !doctor || !patientId) return;
     const prescriptionRef = collection(firestore, 'patients', patientId as string, 'prescriptions');
-    const { id, ...restOfPrescription } = prescription;
+    const { id, createdAt, expiresAt, status, ...restOfPrescription } = prescription;
+    const now = new Date();
+    const renewalValidityDays = prescription.validityDays || 30;
+    
     addDocumentNonBlocking(prescriptionRef, {
         ...restOfPrescription,
-        createdAt: new Date().toISOString(),
-        expiresAt: add(new Date(), { days: 30 }).toISOString(),
+        prescriptionNumber: generatePrescriptionNumber(),
+        renewedFromId: id,
+        createdAt: now.toISOString(),
+        expiresAt: calculateExpiryDate(now, renewalValidityDays).toISOString(),
+        status: 'issued',
     });
     toast({ title: `Prescription for ${prescription.drugName} renewed.` });
   };
@@ -431,18 +543,51 @@ export default function PatientDetailsPage() {
               {isLoadingPrescriptions ? (
                 <Skeleton className="h-10 w-full" />
               ) : (
-                prescriptions?.map((rx: any) => (
-                  <div key={rx.id} className="text-sm group relative">
-                    <p className="font-semibold">{rx.drugName}</p>
-                    <p className="text-muted-foreground">
-                      {rx.dosage} - {rx.frequency}
-                    </p>
-                     {rx.expiresAt && (
-                      <p className="text-xs text-muted-foreground/80">
-                        Expires {formatDistanceToNow(new Date(rx.expiresAt), { addSuffix: true })}
-                      </p>
-                    )}
-                     <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                prescriptions?.map((rx: any) => {
+                  const validityInfo = rx.expiresAt ? getValidityStatus({
+                    ...rx,
+                    expiryDate: rx.expiresAt,
+                    status: rx.status || 'issued'
+                  } as any) : null;
+                  
+                  return (
+                    <div key={rx.id} className="text-sm group relative p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-semibold">{rx.drugName}</p>
+                          {rx.genericName && (
+                            <p className="text-xs text-muted-foreground italic">({rx.genericName})</p>
+                          )}
+                          <p className="text-muted-foreground">
+                            {rx.dosage} - {rx.frequency}
+                          </p>
+                          {rx.prescriptionNumber && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Rx: {rx.prescriptionNumber}
+                            </p>
+                          )}
+                        </div>
+                        {validityInfo && (
+                          <Badge 
+                            variant={validityInfo.status === 'valid' ? 'default' : validityInfo.status === 'expiring' ? 'secondary' : 'destructive'}
+                            className="text-xs"
+                          >
+                            {validityInfo.status === 'valid' ? '✓ Valid' : validityInfo.status === 'expiring' ? '⚠ Expiring' : '✗ Expired'}
+                          </Badge>
+                        )}
+                      </div>
+                      {rx.expiresAt && (
+                        <p className="text-xs text-muted-foreground/80 mt-1">
+                          {validityInfo?.message || `Expires ${formatDistanceToNow(new Date(rx.expiresAt), { addSuffix: true })}`}
+                        </p>
+                      )}
+                      {rx.isControlled && (
+                        <Badge variant="outline" className="mt-1 text-xs border-orange-500 text-orange-600">
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          Controlled Substance
+                        </Badge>
+                      )}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
@@ -458,7 +603,8 @@ export default function PatientDetailsPage() {
                         </DropdownMenu>
                      </div>
                   </div>
-                ))
+                  );
+                })
               )}
                <Button
                 className="w-full"
@@ -497,7 +643,7 @@ export default function PatientDetailsPage() {
                   ))
                 ) : treatments?.length ? (
                   treatments.map((item: any, index) => (
-                    <div key={item.id} className="relative flex gap-4 timeline-item">
+                    <div key={item.id} className="relative flex gap-4 timeline-item group">
                        <div className="absolute -left-6 top-0 h-full w-px bg-border -translate-x-1/2" />
                       <div className="flex-shrink-0 z-10 -ml-2">
                         <div className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center ring-4 ring-background">
@@ -507,9 +653,21 @@ export default function PatientDetailsPage() {
                       <div className="flex-1 pb-8">
                         <div className="flex justify-between items-center">
                           <p className="font-semibold">Consultation Record</p>
-                          <time className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(item.date), { addSuffix: true })}
-                          </time>
+                          <div className="flex items-center gap-2">
+                            <time className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(item.date), { addSuffix: true })}
+                            </time>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleExportMedicalRecord(item)}
+                              title="Export to XML"
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              <FileCode className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="mt-2 text-sm space-y-2 text-muted-foreground">
                             <p><strong>Diagnosis:</strong> {item.diagnosis}</p>
@@ -582,41 +740,195 @@ export default function PatientDetailsPage() {
       
        {/* Add/Edit Prescription Dialog */}
       <Dialog open={isPrescriptionModalOpen} onOpenChange={(isOpen) => { if (!isOpen) resetPrescriptionForm(); setPrescriptionModalOpen(isOpen); }}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingPrescription ? 'Edit' : 'Create'} Prescription</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Pill className="w-5 h-5" />
+              {editingPrescription ? 'Edit' : 'Create'} Prescription
+            </DialogTitle>
             <DialogDescription>
               {editingPrescription ? 'Update the' : 'Create a new'} prescription for {patientName}.
+              This prescription follows Philippines DOH/FDA standards.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <Input 
-                placeholder="Drug Name"
-                value={prescriptionDetails.drugName}
-                onChange={(e) => setPrescriptionDetails({...prescriptionDetails, drugName: e.target.value})}
-            />
-             <Input 
-                placeholder="Dosage (e.g., 500mg)"
-                value={prescriptionDetails.dosage}
-                onChange={(e) => setPrescriptionDetails({...prescriptionDetails, dosage: e.target.value})}
-            />
-             <Input 
-                placeholder="Frequency (e.g., Once a day)"
-                value={prescriptionDetails.frequency}
-                onChange={(e) => setPrescriptionDetails({...prescriptionDetails, frequency: e.target.value})}
-            />
-            <Textarea
-              placeholder="Additional notes (optional)..."
-              rows={4}
-              value={prescriptionDetails.notes}
-              onChange={(e) => setPrescriptionDetails({...prescriptionDetails, notes: e.target.value})}
-            />
+          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-2">
+            {/* Drug Information */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="drugName">Drug Name *</Label>
+                <Input 
+                    id="drugName"
+                    placeholder="e.g., Amoxicillin"
+                    value={prescriptionDetails.drugName}
+                    onChange={(e) => setPrescriptionDetails({...prescriptionDetails, drugName: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="genericName">Generic Name</Label>
+                <Input 
+                    id="genericName"
+                    placeholder="e.g., Amoxicillin Trihydrate"
+                    value={prescriptionDetails.genericName}
+                    onChange={(e) => setPrescriptionDetails({...prescriptionDetails, genericName: e.target.value})}
+                />
+              </div>
+            </div>
+            
+            {/* Dosage and Frequency */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dosage">Dosage *</Label>
+                <Input 
+                    id="dosage"
+                    placeholder="e.g., 500mg"
+                    value={prescriptionDetails.dosage}
+                    onChange={(e) => setPrescriptionDetails({...prescriptionDetails, dosage: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="frequency">Frequency *</Label>
+                <Select 
+                  value={prescriptionDetails.frequency} 
+                  onValueChange={(value) => setPrescriptionDetails({...prescriptionDetails, frequency: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select frequency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOSAGE_FREQUENCIES.map((freq) => (
+                      <SelectItem key={freq.value} value={freq.label}>
+                        {freq.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {/* Duration, Quantity, Route */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration</Label>
+                <Input 
+                    id="duration"
+                    placeholder="e.g., 7 days"
+                    value={prescriptionDetails.duration}
+                    onChange={(e) => setPrescriptionDetails({...prescriptionDetails, duration: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity *</Label>
+                <Input 
+                    id="quantity"
+                    placeholder="e.g., 21 tablets"
+                    value={prescriptionDetails.quantity}
+                    onChange={(e) => setPrescriptionDetails({...prescriptionDetails, quantity: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="route">Route</Label>
+                <Select 
+                  value={prescriptionDetails.route} 
+                  onValueChange={(value: 'oral' | 'topical' | 'injection' | 'inhalation' | 'other') => setPrescriptionDetails({...prescriptionDetails, route: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select route" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DRUG_ROUTES.map((route) => (
+                      <SelectItem key={route.value} value={route.value}>
+                        {route.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {/* Instructions */}
+            <div className="space-y-2">
+              <Label htmlFor="instructions">Instructions</Label>
+              <Textarea
+                id="instructions"
+                placeholder="e.g., Take with food. Complete the full course of medication."
+                rows={2}
+                value={prescriptionDetails.instructions}
+                onChange={(e) => setPrescriptionDetails({...prescriptionDetails, instructions: e.target.value})}
+              />
+            </div>
+            
+            {/* Validity Period */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="validity">Prescription Validity</Label>
+                <Select 
+                  value={validityDays.toString()} 
+                  onValueChange={(value) => setValidityDays(parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select validity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">7 days (Controlled Substances)</SelectItem>
+                    <SelectItem value="14">14 days</SelectItem>
+                    <SelectItem value="30">30 days (Standard)</SelectItem>
+                    <SelectItem value="60">60 days</SelectItem>
+                    <SelectItem value="90">90 days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 flex items-end">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="isControlled"
+                    checked={prescriptionDetails.isControlled}
+                    onCheckedChange={(checked) => {
+                      const isChecked = checked === true;
+                      setPrescriptionDetails({...prescriptionDetails, isControlled: isChecked});
+                      if (isChecked) setValidityDays(7); // S2 substances have 7-day validity
+                    }}
+                  />
+                  <Label htmlFor="isControlled" className="text-sm font-normal cursor-pointer">
+                    Controlled Substance (S2)
+                  </Label>
+                </div>
+              </div>
+            </div>
+            
+            {/* Additional Notes */}
+            <div className="space-y-2">
+              <Label htmlFor="notes">Additional Notes</Label>
+              <Textarea
+                id="notes"
+                placeholder="Any additional notes for the pharmacist or patient..."
+                rows={2}
+                value={prescriptionDetails.notes}
+                onChange={(e) => setPrescriptionDetails({...prescriptionDetails, notes: e.target.value})}
+              />
+            </div>
+            
+            {/* Info Box */}
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-sm">
+              <div className="flex items-start gap-2">
+                <PenTool className="w-4 h-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-blue-800 dark:text-blue-200">Digital Signature Required</p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    Your digital signature and stamp (if configured) will be automatically applied when the prescription is issued.
+                    Configure your signature in Settings → Doctor Profile.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleSavePrescription}>Save Prescription</Button>
+            <Button onClick={handleSavePrescription}>
+              <Pill className="w-4 h-4 mr-2" />
+              {editingPrescription ? 'Update' : 'Issue'} Prescription
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
