@@ -12,8 +12,7 @@ import {
   browserSessionPersistence,
 } from 'firebase/auth';
 import { auth, firestore } from '@/firebase/client';
-import { signInStaffUser, type StaffRole } from '@/firebase/admin-auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { signInStaffUser, lookupEmailByStaffId, type StaffRole } from '@/firebase/admin-auth';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -84,29 +83,6 @@ export function StaffLoginForm({
 
   const rememberMe = form.watch('rememberMe');
 
-  // Helper function to look up email by staff ID
-  const lookupEmailByStaffId = async (staffId: string): Promise<string | null> => {
-    if (!firestore) return null;
-    
-    try {
-      // Check if it's a staff ID format (e.g., "admin1", "doc123")
-      // First, try to find in users collection by staffId field
-      const usersRef = collection(firestore, 'users');
-      const q = query(usersRef, where('staffId', '==', staffId.toLowerCase()), where('role', '==', role));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        return userDoc.data().email || userDoc.id;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('[StaffLogin] Error looking up staff ID:', error);
-      return null;
-    }
-  };
-
   const onSubmit = async (data: FormData) => {
     if (!auth || !firestore) {
       console.error('Auth or Firestore not initialized');
@@ -123,8 +99,8 @@ export function StaffLoginForm({
       const isEmail = email.includes('@');
       
       if (!isEmail) {
-        // Try to look up email by staff ID
-        const lookedUpEmail = await lookupEmailByStaffId(email);
+        // Use centralized staff ID lookup from admin-auth
+        const lookedUpEmail = await lookupEmailByStaffId(firestore, email, role);
         if (!lookedUpEmail) {
           setRoleError(`No ${role} account found with this staff ID. Please check your credentials or use your email address.`);
           setIsLoading(false);

@@ -2,12 +2,17 @@ import {
   Auth, 
   signInWithEmailAndPassword, 
   signOut,
-  User
+  User,
+  AuthError
 } from 'firebase/auth';
 import { 
   Firestore, 
   doc, 
-  getDoc 
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs
 } from 'firebase/firestore';
 
 // Supported staff roles
@@ -18,6 +23,97 @@ export interface StaffLoginResult {
   success: boolean;
   message?: string;
   user?: User;
+}
+
+/**
+ * Type guard to check if an error is a Firebase AuthError
+ */
+function isAuthError(error: unknown): error is AuthError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as AuthError).code === 'string'
+  );
+}
+
+/**
+ * Finds a user document using multiple strategies to handle different document schemes.
+ * Tries: 1) by UID, 2) by email field query, 3) by emailLower field query
+ */
+async function findUserDocument(
+  db: Firestore,
+  uid: string,
+  email: string | null
+): Promise<{ exists: boolean; userData?: Record<string, unknown> }> {
+  // Strategy 1: Try to find by UID (primary strategy)
+  const userDocRef = doc(db, 'users', uid);
+  const userDocSnap = await getDoc(userDocRef);
+  if (userDocSnap.exists()) {
+    return { exists: true, userData: userDocSnap.data() };
+  }
+
+  // If no email is provided, we can't try alternative strategies
+  if (!email) {
+    return { exists: false };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Strategy 2: Query by email field
+  const emailQuery = query(
+    collection(db, 'users'),
+    where('email', '==', normalizedEmail)
+  );
+  const emailSnap = await getDocs(emailQuery);
+  if (!emailSnap.empty) {
+    return { exists: true, userData: emailSnap.docs[0].data() };
+  }
+
+  // Strategy 3: Query by emailLower field
+  const emailLowerQuery = query(
+    collection(db, 'users'),
+    where('emailLower', '==', normalizedEmail)
+  );
+  const emailLowerSnap = await getDocs(emailLowerQuery);
+  if (!emailLowerSnap.empty) {
+    return { exists: true, userData: emailLowerSnap.docs[0].data() };
+  }
+
+  return { exists: false };
+}
+
+/**
+ * Looks up a staff member's email by their staff ID.
+ * 
+ * @param db - The Firebase Firestore instance
+ * @param staffId - The staff ID to look up
+ * @param role - The required role
+ */
+export async function lookupEmailByStaffId(
+  db: Firestore,
+  staffId: string,
+  role: StaffRole
+): Promise<string | null> {
+  try {
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef,
+      where('staffId', '==', staffId.toLowerCase()),
+      where('role', '==', role)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const userDoc = querySnapshot.docs[0];
+      return userDoc.data().email || null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[StaffAuth] Error looking up staff ID:', error);
+    return null;
+  }
 }
 
 /**
@@ -43,13 +139,12 @@ export async function signInStaffUser(
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // 2. Wait for Firestore to fetch the user profile using the UID
-    // We use user.uid because your security rules require isOwner(userId)
-    const userDocRef = doc(db, 'users', user.uid);
-    const userDocSnap = await getDoc(userDocRef);
+    // 2. Wait for Firestore to fetch the user profile
+    // Try multiple strategies to handle different document schemes
+    const userDoc = await findUserDocument(db, user.uid, user.email);
 
     // 3. Check if the document exists
-    if (!userDocSnap.exists()) {
+    if (!userDoc.exists || !userDoc.userData) {
       await signOut(auth); // Log them out immediately if no profile exists
       return { 
         success: false, 
@@ -58,17 +153,17 @@ export async function signInStaffUser(
     }
 
     // 4. Check the Role
-    const userData = userDocSnap.data();
-    if (userData?.role !== requiredRole) {
+    const userData = userDoc.userData;
+    if (userData.role !== requiredRole) {
       await signOut(auth); // Log them out if they don't have the required role
       
       // Provide helpful error messages based on actual role
       let message = `Access Denied: You do not have ${requiredRole} privileges.`;
-      if (userData?.role === 'admin') {
+      if (userData.role === 'admin') {
         message = 'This account is an admin account. Please use the admin login page.';
-      } else if (userData?.role === 'doctor') {
+      } else if (userData.role === 'doctor') {
         message = 'This account is a doctor account. Please use the doctor login page.';
-      } else if (userData?.role === 'patient' || !userData?.role) {
+      } else if (userData.role === 'patient' || !userData.role) {
         message = 'This is a patient account. Please use the Patient Login page.';
       }
       
@@ -85,18 +180,35 @@ export async function signInStaffUser(
     };
 
   } catch (error: unknown) {
-    const firebaseError = error as { code?: string; message?: string };
     console.error("Staff Login Error:", error);
     
-    // Return a clean error message
+    // Return a clean error message based on error type
     let errorMessage = 'An unexpected error occurred.';
-    if (firebaseError.code === 'auth/user-not-found') errorMessage = 'No staff account found with this email.';
-    if (firebaseError.code === 'auth/wrong-password') errorMessage = 'Incorrect password.';
-    if (firebaseError.code === 'auth/invalid-email') errorMessage = 'Invalid email address.';
-    if (firebaseError.code === 'auth/invalid-credential') errorMessage = 'Invalid credentials. Please check your email and password.';
-    if (firebaseError.code === 'auth/too-many-requests') errorMessage = 'Too many failed attempts. Please try again later.';
-    if (firebaseError.code === 'auth/network-request-failed') errorMessage = 'Network error. Please check your internet connection.';
-    if (firebaseError.code === 'permission-denied') errorMessage = 'Database permission denied. Check your rules.';
+    
+    if (isAuthError(error)) {
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'No staff account found with this email.';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Incorrect password.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address.';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid credentials. Please check your email and password.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many failed attempts. Please try again later.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Network error. Please check your internet connection.';
+          break;
+      }
+    } else if (error instanceof Error && error.message.includes('permission-denied')) {
+      errorMessage = 'Database permission denied. Check your rules.';
+    }
 
     return { 
       success: false, 
