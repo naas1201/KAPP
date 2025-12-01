@@ -114,12 +114,14 @@ export default function UsersPage() {
     setUserDetails({ email: '', role: 'doctor', staffId: '', accessCode: '', name: '' });
   };
 
-  // Generate a random access code
+  // Generate a cryptographically secure random access code
   const generateAccessCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const array = new Uint32Array(8);
+    crypto.getRandomValues(array);
     let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(array[i] % chars.length);
     }
     setUserDetails({ ...userDetails, accessCode: code });
   };
@@ -184,7 +186,7 @@ export default function UsersPage() {
 
     toast({ 
       title: 'User Added', 
-      description: `${userDetails.email} has been added as a ${userDetails.role}. Access code: ${userDetails.accessCode || 'N/A'}` 
+      description: `${userDetails.email} has been added as a ${userDetails.role}. Share the access code securely.` 
     });
     
     setModalOpen(false);

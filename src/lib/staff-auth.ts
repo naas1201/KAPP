@@ -20,6 +20,21 @@ const STAFF_SESSION_KEY = 'kapp_staff_session';
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
+ * Validate that a parsed object has the required StaffSession structure
+ */
+function isValidStaffSession(obj: unknown): obj is StaffSession {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const session = obj as Record<string, unknown>;
+  return (
+    typeof session.email === 'string' &&
+    (session.role === 'admin' || session.role === 'doctor') &&
+    typeof session.name === 'string' &&
+    typeof session.loggedInAt === 'number' &&
+    typeof session.expiresAt === 'number'
+  );
+}
+
+/**
  * Get the current staff session from localStorage
  */
 export function getStaffSession(): StaffSession | null {
@@ -29,17 +44,25 @@ export function getStaffSession(): StaffSession | null {
     const sessionData = localStorage.getItem(STAFF_SESSION_KEY);
     if (!sessionData) return null;
     
-    const session: StaffSession = JSON.parse(sessionData);
+    const parsed: unknown = JSON.parse(sessionData);
     
-    // Check if session has expired
-    if (Date.now() > session.expiresAt) {
+    // Validate the session structure
+    if (!isValidStaffSession(parsed)) {
+      console.warn('Invalid staff session structure, clearing');
       clearStaffSession();
       return null;
     }
     
-    return session;
+    // Check if session has expired
+    if (Date.now() > parsed.expiresAt) {
+      clearStaffSession();
+      return null;
+    }
+    
+    return parsed;
   } catch (error) {
     console.error('Error reading staff session:', error);
+    clearStaffSession();
     return null;
   }
 }
