@@ -231,6 +231,14 @@ function LoginForm() {
               Sign up
             </Link>
           </p>
+          <div className="mt-4 pt-4 border-t">
+            <p className="text-center text-xs text-muted-foreground">
+              Are you a doctor or admin?{' '}
+              <Link href="/staff-login" className="font-semibold text-primary hover:underline">
+                Use staff portal
+              </Link>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

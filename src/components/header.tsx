@@ -3,7 +3,28 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Menu, User, LogOut, LayoutDashboard, Stethoscope, Shield } from 'lucide-react';
+import { 
+  Menu, 
+  User, 
+  LogOut, 
+  LayoutDashboard, 
+  Stethoscope, 
+  Shield,
+  Calendar,
+  MessageSquare,
+  ClipboardList,
+  Heart,
+  Settings,
+  Users,
+  Award,
+  ListPlus,
+  FileText,
+  Tag,
+  UserCog,
+  Flag,
+  Activity,
+  HelpCircle
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -20,6 +41,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
+    DropdownMenuGroup,
   } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from '@/components/logo';
@@ -27,6 +49,7 @@ import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from '@/fireb
 import { signOut } from 'firebase/auth';
 import { BookingSheet } from './BookingSheet';
 import { doc } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
 
 
 const navLinks = [
@@ -34,6 +57,35 @@ const navLinks = [
   { href: '/new-patient', label: 'New Patients' },
   { href: '/#about', label: 'About' },
   { href: '/#contact', label: 'Contact' },
+];
+
+// Patient menu items
+const patientMenuItems = [
+  { href: '/patient/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
+  { href: '/patient/appointments', label: 'My Appointments', icon: Calendar },
+  { href: '/patient/medical-info', label: 'Health Profile', icon: Activity },
+  { href: '/patient/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/patient/profile', label: 'My Profile', icon: User },
+];
+
+// Doctor menu items
+const doctorMenuItems = [
+  { href: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/doctor/patients', label: 'My Patients', icon: Users },
+  { href: '/doctor/my-services', label: 'My Services', icon: ListPlus },
+  { href: '/doctor/achievements', label: 'Achievements', icon: Award },
+];
+
+// Admin menu items
+const adminMenuItems = [
+  { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/dashboard', label: 'Patients', icon: Users },
+  { href: '/admin/doctors', label: 'Doctors', icon: Stethoscope },
+  { href: '/admin/appointments', label: 'Appointments', icon: Calendar },
+  { href: '/admin/procedures', label: 'Procedures', icon: ClipboardList },
+  { href: '/admin/discount-codes', label: 'Discount Codes', icon: Tag },
+  { href: '/admin/users', label: 'Staff & Roles', icon: UserCog },
+  { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Header() {
@@ -64,6 +116,24 @@ export function Header() {
         if (!auth) return;
         await signOut(auth);
     }
+    
+    // Get menu items based on role
+    const menuItems = useMemo(() => {
+        if (userRole === 'admin') return adminMenuItems;
+        if (userRole === 'doctor') return doctorMenuItems;
+        return patientMenuItems;
+    }, [userRole]);
+
+    // Get role badge styling
+    const getRoleBadge = () => {
+        if (userRole === 'admin') {
+            return <Badge variant="destructive" className="ml-2 text-xs">Admin</Badge>;
+        }
+        if (userRole === 'doctor') {
+            return <Badge className="ml-2 text-xs bg-emerald-600">Doctor</Badge>;
+        }
+        return <Badge variant="secondary" className="ml-2 text-xs">Patient</Badge>;
+    };
 
   return (
     <>
@@ -76,7 +146,7 @@ export function Header() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="font-medium transition-colors text-foreground/60 hover:text-foreground"
+                className="font-medium transition-colors text-foreground/60 hover:text-foreground hover:text-primary"
               >
                 {link.label}
               </Link>
@@ -90,49 +160,73 @@ export function Header() {
                 {user ? (
                      <DropdownMenu>
                      <DropdownMenuTrigger asChild>
-                       <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                         <Avatar className="h-8 w-8">
+                       <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-2 ring-primary/20 hover:ring-primary/40 transition-all">
+                         <Avatar className="h-9 w-9">
                            <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'User'} />
-                           <AvatarFallback>{user.displayName?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
+                           <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                             {user.displayName?.charAt(0) || user.email?.charAt(0)}
+                           </AvatarFallback>
                          </Avatar>
                        </Button>
                      </DropdownMenuTrigger>
-                     <DropdownMenuContent className="w-56" align="end" forceMount>
-                       <DropdownMenuLabel className="font-normal">
+                     <DropdownMenuContent className="w-64" align="end" forceMount>
+                       <DropdownMenuLabel className="font-normal p-3">
                          <div className="flex flex-col space-y-1">
-                           <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
-                           <p className="text-xs leading-none text-muted-foreground">
+                           <div className="flex items-center">
+                             <p className="text-sm font-semibold leading-none">{user.displayName || 'User'}</p>
+                             {getRoleBadge()}
+                           </div>
+                           <p className="text-xs leading-none text-muted-foreground mt-1">
                              {user.email}
                            </p>
                          </div>
                        </DropdownMenuLabel>
                        <DropdownMenuSeparator />
-                        {userRole === 'admin' && (
-                             <DropdownMenuItem asChild>
-                                <Link href="/admin"><Shield className="mr-2 h-4 w-4" />Admin Portal</Link>
-                             </DropdownMenuItem>
-                        )}
-                        {userRole === 'doctor' && (
-                             <DropdownMenuItem asChild>
-                                <Link href="/doctor/dashboard"><Stethoscope className="mr-2 h-4 w-4" />Doctor Portal</Link>
-                             </DropdownMenuItem>
-                        )}
-                        {userRole === 'patient' && (
-                            <DropdownMenuItem asChild>
-                                <Link href="/patient/dashboard"><LayoutDashboard className="mr-2 h-4 w-4" />My Dashboard</Link>
-                            </DropdownMenuItem>
-                        )}
+                       
+                       <DropdownMenuGroup>
+                         {menuItems.slice(0, 5).map((item) => (
+                           <DropdownMenuItem key={item.href} asChild>
+                             <Link href={item.href} className="cursor-pointer">
+                               <item.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                               <span>{item.label}</span>
+                             </Link>
+                           </DropdownMenuItem>
+                         ))}
+                       </DropdownMenuGroup>
+                       
+                       {menuItems.length > 5 && (
+                         <>
+                           <DropdownMenuSeparator />
+                           <DropdownMenuGroup>
+                             {menuItems.slice(5).map((item) => (
+                               <DropdownMenuItem key={item.href} asChild>
+                                 <Link href={item.href} className="cursor-pointer">
+                                   <item.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                                   <span>{item.label}</span>
+                                 </Link>
+                               </DropdownMenuItem>
+                             ))}
+                           </DropdownMenuGroup>
+                         </>
+                       )}
+                       
                        <DropdownMenuSeparator />
-                       <DropdownMenuItem onClick={handleSignOut}>
+                       <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive cursor-pointer">
                          <LogOut className="mr-2 h-4 w-4" />
-                         <span>Log out</span>
+                         <span>Sign Out</span>
                        </DropdownMenuItem>
                      </DropdownMenuContent>
                    </DropdownMenu>
                 ) : (
                     <div className="hidden md:flex items-center gap-2">
-                         <Button variant="ghost" asChild>
+                         <Button variant="ghost" size="sm" asChild>
                             <Link href="/login">Sign In</Link>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/staff-login" className="flex items-center gap-1">
+                              <Shield className="w-3 h-3" />
+                              Staff
+                            </Link>
                         </Button>
                     </div>
                 )}
@@ -140,7 +234,7 @@ export function Header() {
             )}
              {/* Only show Book Now button to non-staff users */}
              {!isStaff && (
-               <Button onClick={() => setBookingSheetOpen(true)}>Book Now</Button>
+               <Button onClick={() => setBookingSheetOpen(true)} className="rounded-full shadow-lg shadow-primary/20">Book Now</Button>
              )}
           <Sheet>
             <SheetTrigger asChild>
@@ -154,30 +248,79 @@ export function Header() {
                 <SheetTitle className="sr-only">Mobile Menu</SheetTitle>
                 <Logo />
               </SheetHeader>
-              <nav className="grid gap-4 p-4 text-lg font-medium">
+              
+              {/* User info section for mobile */}
+              {user && (
+                <div className="p-4 border-b bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'User'} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                        {user.displayName?.charAt(0) || user.email?.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{user.displayName || 'User'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    </div>
+                    {getRoleBadge()}
+                  </div>
+                </div>
+              )}
+              
+              <nav className="grid gap-1 p-4 text-sm font-medium">
                 {navLinks.map((link) => (
                   <SheetClose asChild key={link.href}>
                     <Link
                       href={link.href}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
                       {link.label}
                     </Link>
                   </SheetClose>
                 ))}
+                
+                {user && (
+                  <>
+                    <div className="my-2 border-t" />
+                    <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase">
+                      {userRole === 'admin' ? 'Admin Menu' : userRole === 'doctor' ? 'Doctor Menu' : 'My Account'}
+                    </p>
+                    {menuItems.map((item) => (
+                      <SheetClose asChild key={item.href}>
+                        <Link
+                          href={item.href}
+                          className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          <item.icon className="w-4 h-4" />
+                          {item.label}
+                        </Link>
+                      </SheetClose>
+                    ))}
+                  </>
+                )}
               </nav>
-              <div className="mt-auto m-4 space-y-2">
+              <div className="mt-auto p-4 space-y-2 border-t">
                 {user ? (
                      <SheetClose asChild>
-                        <Button asChild size="lg" className="w-full" variant="outline" onClick={handleSignOut}>
-                            <button>Sign Out</button>
+                        <Button size="lg" className="w-full" variant="outline" onClick={handleSignOut}>
+                            <LogOut className="w-4 h-4 mr-2" />
+                            Sign Out
                         </Button>
                     </SheetClose>
                 ) : (
                     <>
                      <SheetClose asChild>
+                        <Button asChild size="lg" className="w-full">
+                            <Link href="/login">Patient Sign In</Link>
+                        </Button>
+                    </SheetClose>
+                    <SheetClose asChild>
                         <Button asChild size="lg" className="w-full" variant="outline">
-                            <Link href="/login">Sign In</Link>
+                            <Link href="/staff-login" className="flex items-center gap-2">
+                              <Shield className="w-4 h-4" />
+                              Staff Login
+                            </Link>
                         </Button>
                     </SheetClose>
                     </>
