@@ -13,7 +13,8 @@ import {
   GoogleAuthProvider,
   updateProfile,
 } from 'firebase/auth';
-import { auth } from '@/firebase/client';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, firestore } from '@/firebase/client';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -62,11 +63,24 @@ function SignupForm() {
   });
 
   const handleGoogleSignIn = async () => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      
+      // Create user document in Firestore at users/{uid} with default 'patient' role
+      // This is required for role-based access control via Firestore rules
+      if (result.user) {
+        const userDocRef = doc(firestore, 'users', result.user.uid);
+        await setDoc(userDocRef, {
+          email: result.user.email?.toLowerCase(),
+          role: 'patient', // Default role for new sign-ups
+          name: result.user.displayName || '',
+          createdAt: serverTimestamp(),
+        }, { merge: true }); // Use merge to avoid overwriting if user already exists
+      }
+      
       toast({ title: 'Signed up successfully!' });
       router.push(redirectUrl);
     } catch (error: any) {
@@ -81,13 +95,23 @@ function SignupForm() {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       if (!userCredential?.user) throw new Error('User creation failed');
       
       await updateProfile(userCredential.user, { displayName: data.fullName });
+      
+      // Create user document in Firestore at users/{uid} with default 'patient' role
+      // This is required for role-based access control via Firestore rules
+      const userDocRef = doc(firestore, 'users', userCredential.user.uid);
+      await setDoc(userDocRef, {
+        email: userCredential.user.email?.toLowerCase(),
+        role: 'patient', // Default role for new sign-ups
+        name: data.fullName,
+        createdAt: serverTimestamp(),
+      });
       
       toast({ title: 'Account created successfully!' });
       router.push(redirectUrl);

@@ -28,6 +28,11 @@ service cloud.firestore {
        return isSignedIn() && getUserRole(request.auth.uid) == 'admin';
     }
 
+    // Helper to check if user is staff (admin or doctor)
+    function isStaff() {
+      return isAdmin() || isDoctor();
+    }
+
     // OWASP: Input validation - Check string length to prevent DoS
     function isValidStringLength(str, maxLength) {
       return str is string && str.size() <= maxLength;
@@ -59,19 +64,29 @@ service cloud.firestore {
     // ==========================================================
 
     /**
-     * @description Stores user roles. 
-     * FIX APPLIED: Uses UID for ID, but checks Email for mismatch prevention.
+     * @description Stores user roles and profile data.
+     * Document ID MUST be the Auth UID (request.auth.uid) for security.
+     * Role lookup functions (getUserRole, isAdmin, isDoctor) depend on this.
      */
     match /users/{userId} {
       // Allow read if you are the owner (UID match) OR if you are Admin
       allow read: if isOwner(userId) || isAdmin();
-      // Only admins can change roles
-      allow write: if isAdmin();
       
-      // Allow creation only if the email in the doc matches the auth token email
+      // Allow users to create their own document during sign-up
+      // Must use their UID as document ID and email must match auth token
+      // Default role must be 'patient' - only admins can assign 'admin' or 'doctor'
       allow create: if isSignedIn() 
+        && isOwner(userId)
         && request.resource.data.email == request.auth.token.email
-        && isValidEmailFormat(request.resource.data.email);
+        && isValidEmailFormat(request.resource.data.email)
+        && request.resource.data.role == 'patient'
+        && isValidDocumentSize();
+      
+      // Only admins can update user documents (e.g., to change roles)
+      allow update: if isAdmin();
+      
+      // Only admins can delete user documents
+      allow delete: if isAdmin();
     }
 
     /**

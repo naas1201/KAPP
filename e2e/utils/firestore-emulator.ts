@@ -126,69 +126,87 @@ export async function seedBookingAppointment(opts: SeedOpts = {}) {
   const adminPassword = opts.adminPassword || process.env.ADMIN_PASS || 'password123';
 
   const seeded: string[] = [];
+  
+  // Store Auth UIDs for creating user documents
+  let doctorUid: string | undefined;
+  let patientUid: string | undefined;
+  let adminUid: string | undefined;
 
-  // create doctor
-  // attempt to create auth users in the Auth emulator (if present)
+  // Create auth users in the Auth emulator and capture their UIDs
   try {
-    await createAuthUser(authHost, projectId, doctorEmail, doctorPassword);
+    const doctorAuthUser = await createAuthUser(authHost, projectId, doctorEmail, doctorPassword);
+    doctorUid = doctorAuthUser.localId;
+    console.log(`Created doctor auth user with UID: ${doctorUid}`);
   } catch (err) {
-    // non-fatal; continue if auth emulator not running
     console.warn('createAuthUser doctor failed', (err as any)?.message || err);
   }
   try {
-    await createAuthUser(authHost, projectId, patientEmail, patientPassword);
+    const patientAuthUser = await createAuthUser(authHost, projectId, patientEmail, patientPassword);
+    patientUid = patientAuthUser.localId;
+    console.log(`Created patient auth user with UID: ${patientUid}`);
   } catch (err) {
     console.warn('createAuthUser patient failed', (err as any)?.message || err);
   }
   try {
-    await createAuthUser(authHost, projectId, adminEmail, adminPassword);
+    const adminAuthUser = await createAuthUser(authHost, projectId, adminEmail, adminPassword);
+    adminUid = adminAuthUser.localId;
+    console.log(`Created admin auth user with UID: ${adminUid}`);
   } catch (err) {
     console.warn('createAuthUser admin failed', (err as any)?.message || err);
   }
 
-  // Create admin role document in users collection
-  await postDocument(host, projectId, 'users', adminEmail, {
-    email: adminEmail,
-    role: 'admin',
-    createdAt: new Date().toISOString(),
-  });
-  seeded.push(`users/${adminEmail}`);
+  // Create admin role document in users collection using Auth UID as document ID
+  if (adminUid) {
+    await postDocument(host, projectId, 'users', adminUid, {
+      email: adminEmail.toLowerCase(),
+      role: 'admin',
+      name: 'E2E Admin',
+      createdAt: new Date().toISOString(),
+    });
+    seeded.push(`users/${adminUid}`);
+  }
 
   await postDocument(host, projectId, 'doctors', doctorId, {
     firstName: 'E2E',
     lastName: 'Doctor',
-    email: doctorEmail,
+    email: doctorEmail.toLowerCase(),
     role: 'doctor',
     onboardingCompleted: true,
     createdAt: new Date().toISOString(),
   });
   seeded.push(`doctors/${doctorId}`);
 
-  // Create role document in users collection (document ID is email)
+  // Create role document in users collection using Auth UID as document ID
   // This is required for role-based authentication to work
-  await postDocument(host, projectId, 'users', doctorEmail, {
-    email: doctorEmail,
-    role: 'doctor',
-    createdAt: new Date().toISOString(),
-  });
-  seeded.push(`users/${doctorEmail}`);
+  if (doctorUid) {
+    await postDocument(host, projectId, 'users', doctorUid, {
+      email: doctorEmail.toLowerCase(),
+      role: 'doctor',
+      name: 'E2E Doctor',
+      createdAt: new Date().toISOString(),
+    });
+    seeded.push(`users/${doctorUid}`);
+  }
 
   // create patient
   await postDocument(host, projectId, 'patients', patientId, {
     firstName: 'E2E',
     lastName: 'Patient',
-    email: patientEmail,
+    email: patientEmail.toLowerCase(),
     createdAt: new Date().toISOString(),
   });
   seeded.push(`patients/${patientId}`);
 
-  // Create role document in users collection for patient
-  await postDocument(host, projectId, 'users', patientEmail, {
-    email: patientEmail,
-    role: 'patient',
-    createdAt: new Date().toISOString(),
-  });
-  seeded.push(`users/${patientEmail}`);
+  // Create role document in users collection for patient using Auth UID as document ID
+  if (patientUid) {
+    await postDocument(host, projectId, 'users', patientUid, {
+      email: patientEmail.toLowerCase(),
+      role: 'patient',
+      name: 'E2E Patient',
+      createdAt: new Date().toISOString(),
+    });
+    seeded.push(`users/${patientUid}`);
+  }
 
   // create appointment in patient subcollection
   await postDocument(host, projectId, `patients/${patientId}/appointments`, appointmentId, {
@@ -214,7 +232,7 @@ export async function seedBookingAppointment(opts: SeedOpts = {}) {
   });
   seeded.push(`appointments/${appointmentId}`);
 
-  return { host, projectId, seeded, doctorId, patientId, appointmentId, adminEmail, doctorEmail, patientEmail };
+  return { host, projectId, seeded, doctorId, patientId, appointmentId, adminEmail, doctorEmail, patientEmail, doctorUid, patientUid, adminUid };
 }
 
 export async function teardownSeeded(paths: string[], opts: { host?: string; projectId?: string } = {}) {
