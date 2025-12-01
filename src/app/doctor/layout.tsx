@@ -1,8 +1,8 @@
 
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ListPlus, Calendar, Trophy } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, Users, ListPlus, Trophy, LogOut } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -12,12 +12,12 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase/hooks';
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { doc } from 'firebase/firestore';
+import { useStaffAuth } from '@/hooks/use-staff-auth';
+import { Button } from '@/components/ui/button';
 
 export default function DoctorLayout({
   children,
@@ -25,92 +25,46 @@ export default function DoctorLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, isLoading: isUserLoading } = useUser();
   const router = useRouter();
-  const firestore = useFirestore();
+  const { session, isLoading, isDoctor, logout, extendSession } = useStaffAuth();
 
   // Skip all auth checks for the login page
   const isLoginPage = pathname === '/doctor/login';
 
-  // Check if the user has doctor role in users collection (by email)
-  const userRoleRef = useMemoFirebase(() => {
-    if (isLoginPage || !firestore || !user?.email) return null;
-    // Use lowercase email to match Firestore document ID
-    const normalizedEmail = user.email.toLowerCase();
-    console.log('[DoctorLayout] Creating doc ref for user:', normalizedEmail);
-    return doc(firestore, 'users', normalizedEmail);
-  }, [firestore, user?.email, isLoginPage]);
-  
-  const { data: userRoleData, isLoading: isLoadingRole, error: roleError } = useDoc(userRoleRef);
-
-  // Also check for doctor-specific data (onboarding status, etc.)
-  const doctorRef = useMemoFirebase(() => {
-    if (isLoginPage || !firestore || !user) return null;
-    return doc(firestore, 'doctors', user.uid);
-  }, [firestore, user, isLoginPage]);
-  
-  const { data: doctorData, isLoading: isDoctorLoading } = useDoc(doctorRef);
-
-  // Log state changes for debugging
+  // Extend session on any activity
   useEffect(() => {
-    if (isLoginPage) return;
-    console.log('[DoctorLayout] State:', {
-      isUserLoading,
-      isLoadingRole,
-      user: user?.email,
-      userRoleData,
-      roleError: roleError?.message
-    });
-  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError, isLoginPage]);
+    if (session && !isLoginPage) {
+      extendSession();
+    }
+  }, [pathname, session, extendSession, isLoginPage]);
 
+  // Handle auth redirects
   useEffect(() => {
     // Skip auth redirects for login page
     if (isLoginPage) return;
 
-    if (!isUserLoading && !user) {
-      console.log('[DoctorLayout] No user, redirecting to doctor login');
-      router.push('/doctor/login');
-      return;
-    }
+    // Wait for loading to complete
+    if (isLoading) return;
 
-    // If there's an error fetching the role, log it
-    if (roleError) {
-      console.error('[DoctorLayout] Error fetching role:', roleError);
+    // Not logged in as doctor - redirect to staff login
+    if (!isDoctor) {
+      console.log('[DoctorLayout] Not doctor, redirecting to staff login');
+      router.push('/staff/login?redirect=/doctor/dashboard');
     }
+  }, [isDoctor, isLoading, router, isLoginPage]);
 
-    // Check role from users collection - redirect if not a doctor
-    if (!isLoadingRole && userRoleData && userRoleData.role !== 'doctor') {
-      console.log('[DoctorLayout] User role is:', userRoleData.role, '- redirecting');
-      if (userRoleData.role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/patient/dashboard');
-      }
-      return;
-    }
-
-    // If no role document exists but user is logged in, they might be a patient
-    if (!isLoadingRole && !userRoleData && user) {
-      console.log('[DoctorLayout] No role document, redirecting to patient dashboard');
-      router.push('/patient/dashboard');
-      return;
-    }
-
-    // Check onboarding status
-    if (!isDoctorLoading && doctorData) {
-      if (!(doctorData as any).onboardingCompleted && pathname !== '/doctor/onboarding') {
-        console.log('[DoctorLayout] Doctor not onboarded, redirecting to onboarding');
-        router.push('/doctor/onboarding');
-      }
-    }
-  }, [user, isUserLoading, router, doctorData, isDoctorLoading, pathname, userRoleData, isLoadingRole, roleError, isLoginPage]);
+  const handleLogout = () => {
+    logout();
+    router.push('/staff/login');
+  };
 
   // For login page, render children directly without sidebar or auth checks
   if (isLoginPage) {
     return <>{children}</>;
   }
 
-  if (isUserLoading || isLoadingRole || !user) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading...</p>
@@ -118,27 +72,11 @@ export default function DoctorLayout({
     );
   }
 
-  // Show error if there was a problem fetching the role
-  if (roleError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <p className="text-red-500">Error loading user role</p>
-        <p className="text-sm text-muted-foreground">{roleError.message}</p>
-        <button 
-          onClick={() => router.push('/doctor/login')}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded"
-        >
-          Back to Login
-        </button>
-      </div>
-    );
-  }
-
-  // Only render if user is a doctor
-  if (userRoleData?.role !== 'doctor') {
+  // Not authorized
+  if (!isDoctor) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p>Redirecting...</p>
+        <p>Redirecting to login...</p>
       </div>
     );
   }
@@ -201,6 +139,19 @@ export default function DoctorLayout({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
+        <SidebarFooter className="p-4 border-t">
+          <div className="text-sm text-muted-foreground mb-2">
+            Logged in as: {session?.name || session?.email}
+          </div>
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={handleLogout}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </SidebarFooter>
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>

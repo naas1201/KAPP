@@ -52,28 +52,40 @@ function isFirestoreError(error: unknown): error is FirestoreError {
 
 /**
  * Finds a user document using multiple strategies to handle different document schemes.
- * Tries: 1) by UID, 2) by email field query, 3) by emailLower field query
+ * Tries: 1) by email as document ID (primary - how users are created), 2) by UID, 
+ * 3) by email field query, 4) by emailLower field query
  */
 async function findUserDocument(
   db: Firestore,
   uid: string,
   email: string | null
 ): Promise<{ exists: boolean; userData?: Record<string, unknown> }> {
-  // Strategy 1: Try to find by UID (primary strategy)
+  // Normalize email once at the beginning
+  const normalizedEmail = email?.trim().toLowerCase() || null;
+
+  // Strategy 1: Try to find by email as document ID (primary strategy)
+  // This is how users are created in the admin panel - email is the document ID
+  if (normalizedEmail) {
+    const emailDocRef = doc(db, 'users', normalizedEmail);
+    const emailDocSnap = await getDoc(emailDocRef);
+    if (emailDocSnap.exists()) {
+      return { exists: true, userData: emailDocSnap.data() };
+    }
+  }
+
+  // Strategy 2: Try to find by UID (fallback for legacy/alternative schemes)
   const userDocRef = doc(db, 'users', uid);
   const userDocSnap = await getDoc(userDocRef);
   if (userDocSnap.exists()) {
     return { exists: true, userData: userDocSnap.data() };
   }
 
-  // If no email is provided, we can't try alternative strategies
-  if (!email) {
+  // If no email is provided, we can't try email-based query strategies
+  if (!normalizedEmail) {
     return { exists: false };
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
-
-  // Strategy 2: Query by email field
+  // Strategy 3: Query by email field (for documents with different ID schemes)
   const emailQuery = query(
     collection(db, 'users'),
     where('email', '==', normalizedEmail)
@@ -83,7 +95,7 @@ async function findUserDocument(
     return { exists: true, userData: emailSnap.docs[0].data() };
   }
 
-  // Strategy 3: Query by emailLower field
+  // Strategy 4: Query by emailLower field
   const emailLowerQuery = query(
     collection(db, 'users'),
     where('emailLower', '==', normalizedEmail)

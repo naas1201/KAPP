@@ -50,6 +50,8 @@ interface User {
   email: string;
   role: UserRole;
   staffId?: string;
+  accessCode?: string;
+  name?: string;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -71,6 +73,8 @@ export default function UsersPage() {
     email: '',
     role: 'doctor' as UserRole,
     staffId: '',
+    accessCode: '',
+    name: '',
   });
 
   // Search and pagination
@@ -107,7 +111,19 @@ export default function UsersPage() {
   };
 
   const resetForm = () => {
-    setUserDetails({ email: '', role: 'doctor', staffId: '' });
+    setUserDetails({ email: '', role: 'doctor', staffId: '', accessCode: '', name: '' });
+  };
+
+  // Generate a cryptographically secure random access code
+  const generateAccessCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const array = new Uint32Array(8);
+    crypto.getRandomValues(array);
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(array[i] % chars.length);
+    }
+    setUserDetails({ ...userDetails, accessCode: code });
   };
 
   const handleOpenModal = () => {
@@ -124,6 +140,15 @@ export default function UsersPage() {
       return;
     }
 
+    // Require access code for staff members
+    if ((userDetails.role === 'admin' || userDetails.role === 'doctor') && !userDetails.accessCode.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Access code is required for staff members.',
+      });
+      return;
+    }
+
     // Check if user already exists
     const existingUser = users?.find(u => u.email.toLowerCase() === userDetails.email.toLowerCase());
     if (existingUser) {
@@ -135,9 +160,10 @@ export default function UsersPage() {
       return;
     }
 
-    const userDocRef = doc(firestore, 'users', userDetails.email);
+    const normalizedEmail = userDetails.email.toLowerCase().trim();
+    const userDocRef = doc(firestore, 'users', normalizedEmail);
     const userData: any = { 
-      email: userDetails.email,
+      email: normalizedEmail,
       role: userDetails.role 
     };
     
@@ -145,12 +171,22 @@ export default function UsersPage() {
     if ((userDetails.role === 'admin' || userDetails.role === 'doctor') && userDetails.staffId.trim()) {
       userData.staffId = userDetails.staffId.toLowerCase().trim();
     }
+
+    // Add access code for staff members
+    if ((userDetails.role === 'admin' || userDetails.role === 'doctor') && userDetails.accessCode.trim()) {
+      userData.accessCode = userDetails.accessCode.trim();
+    }
+
+    // Add name if provided
+    if (userDetails.name.trim()) {
+      userData.name = userDetails.name.trim();
+    }
     
     setDocumentNonBlocking(userDocRef, userData, {});
 
     toast({ 
       title: 'User Added', 
-      description: `${userDetails.email} has been added as a ${userDetails.role}.` 
+      description: `${userDetails.email} has been added as a ${userDetails.role}. Share the access code securely.` 
     });
     
     setModalOpen(false);
@@ -338,7 +374,7 @@ export default function UsersPage() {
           <DialogHeader>
             <DialogTitle>Add New User</DialogTitle>
             <DialogDescription>
-              Enter the user's email and assign them a role. If they haven't signed up yet, they will be able to sign up and access the system with this role.
+              Enter the user's email and assign them a role. Staff members (admin/doctor) will need an access code to log in.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -348,6 +384,14 @@ export default function UsersPage() {
               value={userDetails.email}
               onChange={(e) =>
                 setUserDetails({ ...userDetails, email: e.target.value })
+              }
+            />
+            <Input
+              placeholder="Display Name (optional)"
+              type="text"
+              value={userDetails.name}
+              onChange={(e) =>
+                setUserDetails({ ...userDetails, name: e.target.value })
               }
             />
              <Select
@@ -364,14 +408,35 @@ export default function UsersPage() {
               </SelectContent>
             </Select>
             {(userDetails.role === 'admin' || userDetails.role === 'doctor') && (
-              <Input
-                placeholder="Staff ID (optional, e.g., admin1 or doc123)"
-                type="text"
-                value={userDetails.staffId}
-                onChange={(e) =>
-                  setUserDetails({ ...userDetails, staffId: e.target.value })
-                }
-              />
+              <>
+                <Input
+                  placeholder="Staff ID (optional, e.g., admin1 or doc123)"
+                  type="text"
+                  value={userDetails.staffId}
+                  onChange={(e) =>
+                    setUserDetails({ ...userDetails, staffId: e.target.value })
+                  }
+                />
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Access Code (required for staff login)"
+                      type="text"
+                      value={userDetails.accessCode}
+                      onChange={(e) =>
+                        setUserDetails({ ...userDetails, accessCode: e.target.value })
+                      }
+                      className="flex-1"
+                    />
+                    <Button type="button" variant="outline" onClick={generateAccessCode}>
+                      Generate
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This code will be used for staff to log in at /staff/login
+                  </p>
+                </div>
+              </>
             )}
           </div>
           <DialogFooter>
