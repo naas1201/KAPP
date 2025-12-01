@@ -47,6 +47,9 @@ type FormData = z.infer<typeof formSchema>;
 
 export type StaffRole = 'admin' | 'doctor';
 
+// Constants for login paths
+const PATIENT_LOGIN_PATH = '/login';
+
 interface StaffLoginFormProps {
   role: StaffRole;
   title: string;
@@ -101,8 +104,11 @@ export function StaffLoginForm({
       console.log(`[${role}Login] Sign-in successful for:`, result.user.email);
       
       // Verify the user has the correct role
-      if (!firestore || !result.user.email) {
-        throw new Error('Unable to verify user role');
+      if (!firestore) {
+        throw new Error('Firestore not available. Please try again later.');
+      }
+      if (!result.user.email) {
+        throw new Error('User email not found. Please try again.');
       }
       
       const normalizedEmail = result.user.email.toLowerCase();
@@ -128,7 +134,7 @@ export function StaffLoginForm({
         } else if (userRole === 'doctor') {
           setRoleError('This account is a doctor account. Please use the doctor login page.');
         } else {
-          setRoleError(`This is a patient account. Please use the main login page at /login.`);
+          setRoleError('This is a patient account. Please use the Patient Login page.');
         }
         return;
       }
@@ -139,12 +145,10 @@ export function StaffLoginForm({
       console.error(`[${role}Login] Sign-in error:`, error);
       
       // Provide specific error messages based on Firebase error codes
+      // Note: Firebase Auth v9+ combines user-not-found and wrong-password into invalid-credential
+      // for security (to prevent email enumeration attacks)
       let errorMessage = 'Invalid email or password. Please try again.';
-      if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email.';
-      } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
-      } else if (error.code === 'auth/invalid-email') {
+      if (error.code === 'auth/invalid-email') {
         errorMessage = 'Invalid email format. Please check your email.';
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = 'Too many failed attempts. Please try again later.';
@@ -248,7 +252,7 @@ export function StaffLoginForm({
             </p>
             <p className="text-muted-foreground">
               Are you a patient?{' '}
-              <Link href="/login" className="font-semibold text-primary hover:underline">
+              <Link href={PATIENT_LOGIN_PATH} className="font-semibold text-primary hover:underline">
                 Patient Login
               </Link>
             </p>
