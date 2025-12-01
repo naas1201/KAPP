@@ -30,12 +30,13 @@ export default function AdminLayout({
   // Skip all auth checks for the login page
   const isLoginPage = pathname === '/admin/login';
 
-  // Extend session on any activity
+  // Extend session on page navigation (not on session changes to avoid infinite loop)
   useEffect(() => {
-    if (session && !isLoginPage) {
+    if (!isLoginPage && session) {
       extendSession();
     }
-  }, [pathname, session, extendSession, isLoginPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, isLoginPage]);
 
   // Handle auth redirects
   useEffect(() => {
