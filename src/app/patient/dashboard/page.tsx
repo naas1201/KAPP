@@ -56,6 +56,9 @@ import {
   LevelProgress 
 } from '@/components/gamification/PatientGamification';
 import { PATIENT_BADGES, calculatePatientLevel, type PatientBadge } from '@/lib/gamification';
+import { ProfileCompleteness } from '@/components/profile-completeness';
+import { NextAppointmentCountdown } from '@/components/next-appointment-countdown';
+import { WelcomeNotification } from '@/components/welcome-notification';
 
 export default function PatientDashboard() {
   const { firestore, user, isUserLoading } = useFirebase();
@@ -293,6 +296,9 @@ export default function PatientDashboard() {
 
   return (
     <div className="p-4 sm:p-6">
+      {/* Welcome Notification */}
+      <WelcomeNotification role="patient" userName={patient?.firstName} />
+
       {/* First Visit Celebration Dialog */}
       <FirstVisitCelebration 
         isOpen={showFirstVisitCelebration} 
@@ -307,6 +313,22 @@ export default function PatientDashboard() {
         <p className="text-muted-foreground">
           Manage your appointments and health information
         </p>
+      </div>
+
+      {/* Quick Overview Grid */}
+      <div className="grid gap-6 md:grid-cols-2 mb-6">
+        {/* Next Appointment Countdown */}
+        <NextAppointmentCountdown 
+          appointment={upcomingAppointments[0] || todayAppointments[0] || null}
+        />
+        
+        {/* Profile Completeness */}
+        <ProfileCompleteness 
+          patient={patient}
+          userEmail={user?.email || undefined}
+          variant="compact"
+          onEditProfile={handleOpenEditProfile}
+        />
       </div>
 
       {/* Gamification Progress Card */}

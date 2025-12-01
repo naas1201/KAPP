@@ -4,6 +4,8 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { ThemeProvider } from '@/components/theme-provider';
+import { QuickContactButton } from '@/components/quick-contact-button';
 import { cn } from '@/lib/utils';
 
 
@@ -40,10 +42,13 @@ export default function RootLayout({
           'font-body antialiased flex flex-col min-h-dvh'
         )}
       >
+        <ThemeProvider defaultTheme="system">
           <Header />
           <main className="flex-grow">{children}</main>
           <Footer />
+          <QuickContactButton />
           <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

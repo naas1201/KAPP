@@ -23,6 +23,7 @@ import {
   } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from '@/components/logo';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase/hooks';
 import { signOut } from 'firebase/auth';
 import { BookingSheet } from './BookingSheet';
@@ -98,6 +99,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+            <ThemeToggle />
             {!isUserLoading && (
                 <>
                 {user ? (
