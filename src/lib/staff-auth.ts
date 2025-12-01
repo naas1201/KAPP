@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Simple staff authentication system using localStorage
+ * Simple staff authentication system using localStorage and cookies
  * This provides a straightforward way for admin and doctors to access the system
  * without depending on complex Firebase Auth role verification.
  */
@@ -14,10 +14,44 @@ export interface StaffSession {
   name: string;
   loggedInAt: number;
   expiresAt: number;
+  rememberDevice?: boolean;
 }
 
 const STAFF_SESSION_KEY = 'kapp_staff_session';
+const STAFF_COOKIE_NAME = 'kapp_staff_token';
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const EXTENDED_SESSION_DURATION_MS = 180 * 24 * 60 * 60 * 1000; // 180 days (6 months)
+
+/**
+ * Cookie utilities for session persistence
+ */
+export function setCookie(name: string, value: string, maxAgeSeconds: number): void {
+  if (typeof document === 'undefined') return;
+  
+  const isProduction = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const secureFlag = isProduction ? '; Secure' : '';
+  const sameSite = '; SameSite=Lax';
+  
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}${secureFlag}${sameSite}`;
+}
+
+export function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [cookieName, ...cookieValueParts] = cookie.trim().split('=');
+    if (cookieName === name) {
+      return decodeURIComponent(cookieValueParts.join('='));
+    }
+  }
+  return null;
+}
+
+export function removeCookie(name: string): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; path=/; max-age=0`;
+}
 
 /**
  * Validate that a parsed object has the required StaffSession structure
@@ -35,13 +69,20 @@ function isValidStaffSession(obj: unknown): obj is StaffSession {
 }
 
 /**
- * Get the current staff session from localStorage
+ * Get the current staff session from localStorage or cookies
  */
 export function getStaffSession(): StaffSession | null {
   if (typeof window === 'undefined') return null;
   
   try {
-    const sessionData = localStorage.getItem(STAFF_SESSION_KEY);
+    // First try localStorage
+    let sessionData = localStorage.getItem(STAFF_SESSION_KEY);
+    
+    // Fall back to cookie if localStorage is empty
+    if (!sessionData) {
+      sessionData = getCookie(STAFF_COOKIE_NAME);
+    }
+    
     if (!sessionData) return null;
     
     const parsed: unknown = JSON.parse(sessionData);
@@ -69,19 +110,35 @@ export function getStaffSession(): StaffSession | null {
 
 /**
  * Create a new staff session
+ * @param email - User email
+ * @param role - Staff role (admin or doctor)
+ * @param name - Display name
+ * @param rememberDevice - If true, extends session to 180 days
  */
-export function createStaffSession(email: string, role: StaffRole, name: string): StaffSession {
+export function createStaffSession(
+  email: string,
+  role: StaffRole,
+  name: string,
+  rememberDevice: boolean = false
+): StaffSession {
   const now = Date.now();
+  const sessionDurationMs = rememberDevice ? EXTENDED_SESSION_DURATION_MS : SESSION_DURATION_MS;
   const session: StaffSession = {
     email,
     role,
     name,
     loggedInAt: now,
-    expiresAt: now + SESSION_DURATION_MS,
+    expiresAt: now + sessionDurationMs,
+    rememberDevice,
   };
   
   if (typeof window !== 'undefined') {
-    localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify(session));
+    const sessionJson = JSON.stringify(session);
+    // Store in localStorage
+    localStorage.setItem(STAFF_SESSION_KEY, sessionJson);
+    // Also store in cookie for better persistence
+    const maxAgeSeconds = Math.floor(sessionDurationMs / 1000);
+    setCookie(STAFF_COOKIE_NAME, sessionJson, maxAgeSeconds);
   }
   
   return session;
@@ -93,6 +150,7 @@ export function createStaffSession(email: string, role: StaffRole, name: string)
 export function clearStaffSession(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(STAFF_SESSION_KEY);
+    removeCookie(STAFF_COOKIE_NAME);
   }
 }
 
@@ -125,9 +183,13 @@ export function isDoctorLoggedIn(): boolean {
 export function extendStaffSession(): void {
   const session = getStaffSession();
   if (session) {
-    session.expiresAt = Date.now() + SESSION_DURATION_MS;
+    const sessionDurationMs = session.rememberDevice ? EXTENDED_SESSION_DURATION_MS : SESSION_DURATION_MS;
+    session.expiresAt = Date.now() + sessionDurationMs;
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify(session));
+      const sessionJson = JSON.stringify(session);
+      localStorage.setItem(STAFF_SESSION_KEY, sessionJson);
+      const maxAgeSeconds = Math.floor(sessionDurationMs / 1000);
+      setCookie(STAFF_COOKIE_NAME, sessionJson, maxAgeSeconds);
     }
   }
 }
