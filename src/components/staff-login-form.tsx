@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -106,27 +106,81 @@ export function StaffLoginForm({
     }
   };
 
+  // Helper to find user doc by email across different collection schemes
+  const findUserDocByEmail = async (email: string): Promise<{ exists: boolean; userData?: Record<string, unknown> }> => {
+    if (!firestore) {
+      return { exists: false };
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      // Strategy 1: Query by emailLower field
+      const q1 = query(collection(firestore, 'users'), where('emailLower', '==', normalizedEmail));
+      const snap1 = await getDocs(q1);
+      if (!snap1.empty) {
+        return { exists: true, userData: snap1.docs[0].data() };
+      }
+
+      // Strategy 2: Query by email field
+      const q2 = query(collection(firestore, 'users'), where('email', '==', normalizedEmail));
+      const snap2 = await getDocs(q2);
+      if (!snap2.empty) {
+        return { exists: true, userData: snap2.docs[0].data() };
+      }
+
+      // Strategy 3: Fallback to reading doc by id (older deployments use email as doc id)
+      const userDocRefById = doc(firestore, 'users', normalizedEmail);
+      const snapById = await getDoc(userDocRefById);
+      if (snapById.exists()) {
+        return { exists: true, userData: snapById.data() };
+      }
+
+      return { exists: false };
+    } catch (error) {
+      console.error('[StaffLogin] Error finding user doc:', error);
+      return { exists: false };
+    }
+  };
+
+  // Helper to find user doc by uid (for post-auth validation)
+  const findUserDocByUid = async (uid: string): Promise<{ exists: boolean; userData?: Record<string, unknown> }> => {
+    if (!firestore) {
+      return { exists: false };
+    }
+
+    try {
+      // Primary strategy: doc id = uid
+      const userDocRef = doc(firestore, 'users', uid);
+      const snap = await getDoc(userDocRef);
+      if (snap.exists()) {
+        return { exists: true, userData: snap.data() };
+      }
+
+      return { exists: false };
+    } catch (error) {
+      console.error('[StaffLogin] Error finding user doc by uid:', error);
+      return { exists: false };
+    }
+  };
+
   // Pre-validate role before authentication
   const validateRoleBeforeAuth = async (email: string): Promise<{ isValid: boolean; message?: string }> => {
     if (!firestore) {
       return { isValid: false, message: 'Firestore not available. Please try again later.' };
     }
 
-    const normalizedEmail = email.toLowerCase();
-    const userDocRef = doc(firestore, 'users', normalizedEmail);
-    
     try {
-      const userRoleDoc = await getDoc(userDocRef);
-      
-      if (!userRoleDoc.exists()) {
+      const result = await findUserDocByEmail(email);
+
+      if (!result.exists || !result.userData) {
         return { 
           isValid: false, 
           message: `No ${role} account found for this email. Please contact the administrator if you believe this is an error.` 
         };
       }
       
-      const userData = userRoleDoc.data();
-      const userRole = userData?.role;
+      const userRole = result.userData.role;
       
       if (userRole !== role) {
         if (userRole === 'admin') {
@@ -142,6 +196,44 @@ export function StaffLoginForm({
     } catch (error) {
       console.error('[StaffLogin] Error validating role:', error);
       return { isValid: false, message: 'Error validating account. Please try again.' };
+    }
+  };
+
+  // Post-login role revalidation by uid
+  const revalidateRoleAfterAuth = async (uid: string, userEmail: string | null): Promise<{ isValid: boolean; message?: string }> => {
+    if (!firestore) {
+      return { isValid: false, message: 'Firestore not available.' };
+    }
+
+    try {
+      // First try to find by uid
+      let result = await findUserDocByUid(uid);
+
+      // If not found by uid, fall back to email search
+      if (!result.exists && userEmail) {
+        result = await findUserDocByEmail(userEmail);
+      }
+
+      if (!result.exists || !result.userData) {
+        return { 
+          isValid: false, 
+          message: 'Account not recognized as staff. Contact admin.' 
+        };
+      }
+
+      const userRole = result.userData.role;
+
+      if (userRole !== role) {
+        return { 
+          isValid: false, 
+          message: 'Access denied: account does not have the required staff role.' 
+        };
+      }
+
+      return { isValid: true };
+    } catch (error) {
+      console.error('[StaffLogin] Error revalidating role after auth:', error);
+      return { isValid: false, message: 'Error verifying account role.' };
     }
   };
 
@@ -189,6 +281,16 @@ export function StaffLoginForm({
       // Now sign in with Firebase Auth (role is already validated)
       const result = await signInWithEmailAndPassword(auth, email, data.password);
       console.log(`[${role}Login] Sign-in successful for:`, result.user.email);
+      
+      // Post-login role revalidation by uid (extra security layer)
+      const postAuthValidation = await revalidateRoleAfterAuth(result.user.uid, result.user.email);
+      if (!postAuthValidation.isValid) {
+        // Role mismatch detected - sign out and show error
+        await auth.signOut();
+        setRoleError(postAuthValidation.message || 'Access denied: account does not have the required staff role.');
+        setIsLoading(false);
+        return;
+      }
       
       toast({ title: 'Signed in successfully!' });
       router.push(redirectPath);

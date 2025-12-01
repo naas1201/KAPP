@@ -578,3 +578,44 @@ Before deploying to production:
 5. ✅ Test payment flow (if applicable)
 6. ✅ Review error handling
 7. ✅ Check mobile responsiveness
+
+---
+
+## Seeding Staff Accounts
+
+The project includes a script to create staff accounts (admin and doctor) for development and testing purposes.
+
+### Running Against Firebase Emulator (Recommended for Development)
+
+Start the Firebase emulators, then run:
+
+```bash
+export FIRESTORE_EMULATOR_HOST=localhost:8080
+export AUTH_EMULATOR_HOST=localhost:9099
+npm run seed:prod-staff-accounts
+```
+
+This creates:
+- **Admin account:** `admin@lpp.ovh` with password `1q2w3e4r5t6y` (staffId: `admin1`)
+- **Doctor account:** `doctor@lpp.ovh` with password `1q2w3e4r5t6y` (staffId: `doc1`)
+
+### Running Against Production Firebase (Requires Explicit Flag)
+
+To run this script against a production Firebase project, you **must** set the explicit safety flag:
+
+```bash
+export FIREBASE_SERVICE_ACCOUNT=/path/to/serviceAccount.json
+export PROCEED_WITH_HARD_CODED_PROD_ACCOUNTS=1
+NODE_ENV=production npm run seed:prod-staff-accounts
+```
+
+⚠️ **SECURITY WARNING:** These accounts use hard-coded passwords and are **insecure** for production use. You must:
+1. Change the passwords immediately after creation
+2. Or remove these accounts before publishing to general users
+3. Never commit your service account JSON to git
+
+### After Seeding
+
+You can log in with:
+- **Admin:** `/admin/login` using `admin@lpp.ovh` / `1q2w3e4r5t6y`
+- **Doctor:** `/doctor/login` using `doctor@lpp.ovh` / `1q2w3e4r5t6y`
