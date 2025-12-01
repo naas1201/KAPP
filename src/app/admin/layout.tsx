@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, Stethoscope, Calendar, Tag, Settings, Mail } from 'lucide-react';
+import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, Stethoscope, Calendar, Tag, Settings, Mail, LogOut } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -12,10 +12,11 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase/hooks';
-import { doc } from 'firebase/firestore';
+import { useStaffAuth } from '@/hooks/use-staff-auth';
+import { Button } from '@/components/ui/button';
 
 export default function AdminLayout({
   children,
@@ -24,79 +25,45 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isLoading: isUserLoading } = useUser();
-  const firestore = useFirestore();
+  const { session, isLoading, isAdmin, logout, extendSession } = useStaffAuth();
 
   // Skip all auth checks for the login page
   const isLoginPage = pathname === '/admin/login';
 
-  // Check if the user has admin role
-  const userRoleRef = useMemoFirebase(() => {
-    if (isLoginPage || !firestore || !user?.email) return null;
-    // Use lowercase email to match Firestore document ID
-    const normalizedEmail = user.email.toLowerCase();
-    console.log('[AdminLayout] Creating doc ref for user:', normalizedEmail);
-    return doc(firestore, 'users', normalizedEmail);
-  }, [firestore, user?.email, isLoginPage]);
-  
-  const { data: userRoleData, isLoading: isLoadingRole, error: roleError } = useDoc(userRoleRef);
-
-  // Log state changes for debugging
+  // Extend session on any activity
   useEffect(() => {
-    if (isLoginPage) return;
-    console.log('[AdminLayout] State:', {
-      isUserLoading,
-      isLoadingRole,
-      user: user?.email,
-      userRoleData,
-      roleError: roleError?.message
-    });
-  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError, isLoginPage]);
+    if (session && !isLoginPage) {
+      extendSession();
+    }
+  }, [pathname, session, extendSession, isLoginPage]);
 
+  // Handle auth redirects
   useEffect(() => {
     // Skip auth redirects for login page
     if (isLoginPage) return;
+    
+    // Wait for loading to complete
+    if (isLoading) return;
 
-    if (!isUserLoading && !user) {
-      console.log('[AdminLayout] No user, redirecting to admin login');
-      router.push('/admin/login');
-      return;
+    // Not logged in as admin - redirect to staff login
+    if (!isAdmin) {
+      console.log('[AdminLayout] Not admin, redirecting to staff login');
+      router.push('/staff/login?redirect=/admin');
     }
+  }, [isAdmin, isLoading, router, isLoginPage]);
 
-    // If there's an error fetching the role, log it
-    if (roleError) {
-      console.error('[AdminLayout] Error fetching role:', roleError);
-    }
-
-    // Check role after loading is complete
-    if (!isLoadingRole && user) {
-      if (!userRoleData) {
-        // No role document exists - treat as patient
-        console.log('[AdminLayout] No role document found for user:', user.email, '- redirecting to patient dashboard');
-        router.push('/patient/dashboard');
-        return;
-      }
-      
-      if (userRoleData.role !== 'admin') {
-        // Not an admin, redirect to appropriate dashboard
-        console.log('[AdminLayout] User role is:', userRoleData.role, '- redirecting appropriately');
-        if (userRoleData.role === 'doctor') {
-          router.push('/doctor/dashboard');
-        } else {
-          router.push('/patient/dashboard');
-        }
-      } else {
-        console.log('[AdminLayout] User is admin, rendering admin layout');
-      }
-    }
-  }, [user, isUserLoading, userRoleData, isLoadingRole, router, roleError, isLoginPage]);
+  const handleLogout = () => {
+    logout();
+    router.push('/staff/login');
+  };
 
   // For login page, render children directly without sidebar or auth checks
   if (isLoginPage) {
     return <>{children}</>;
   }
 
-  if (isUserLoading || isLoadingRole || !user) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading...</p>
@@ -104,27 +71,11 @@ export default function AdminLayout({
     );
   }
 
-  // Show error if there was a problem fetching the role
-  if (roleError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <p className="text-red-500">Error loading user role</p>
-        <p className="text-sm text-muted-foreground">{roleError.message}</p>
-        <button 
-          onClick={() => router.push('/admin/login')}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded"
-        >
-          Back to Login
-        </button>
-      </div>
-    );
-  }
-
-  // Only render if user is admin
-  if (userRoleData?.role !== 'admin') {
+  // Not authorized
+  if (!isAdmin) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p>Redirecting...</p>
+        <p>Redirecting to login...</p>
       </div>
     );
   }
@@ -283,6 +234,19 @@ export default function AdminLayout({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
+        <SidebarFooter className="p-4 border-t">
+          <div className="text-sm text-muted-foreground mb-2">
+            Logged in as: {session?.name || session?.email}
+          </div>
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={handleLogout}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </SidebarFooter>
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>

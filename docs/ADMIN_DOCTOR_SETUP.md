@@ -4,23 +4,18 @@ This guide explains how to add administrators and doctors to the KAPP medical cl
 
 ## Overview
 
-The KAPP application uses Firebase Authentication for user sign-in and Firestore for role-based access control. Admins and doctors are recognized by their email addresses stored in the `users` collection.
+The KAPP application uses a simple access-code based system for staff authentication. Admins and doctors are registered in the `users` collection with an email, role, and access code.
 
 ## Login Pages
 
-The application has **separate login pages** for different user roles:
+The application has the following login pages:
 
 | Role | Login URL | Redirects To |
 |------|-----------|--------------|
 | **Patient** | `/login` | `/patient/dashboard` |
-| **Doctor** | `/doctor/login` | `/doctor/dashboard` |
-| **Admin** | `/admin/login` | `/admin` |
+| **Staff (Admin/Doctor)** | `/staff/login` | `/admin` or `/doctor/dashboard` |
 
-This design provides:
-- Clear separation of access points
-- Explicit role verification at login time
-- Better error messages when using the wrong login page
-- Seamless integration with Firebase Authentication
+Legacy routes `/admin/login` and `/doctor/login` automatically redirect to `/staff/login`.
 
 ## How to Login
 
@@ -29,21 +24,16 @@ This design provides:
 2. Sign in with email/password or Google
 3. You will be redirected to `/patient/dashboard`
 
-### As a Doctor
-1. Go to `/doctor/login`
-2. Sign in with the email registered for the doctor role
-3. The system verifies you have `role: "doctor"` in the `users` collection
-4. You will be redirected to `/doctor/dashboard`
-
-### As an Admin
-1. Go to `/admin/login`
-2. Sign in with the email registered for the admin role
-3. The system verifies you have `role: "admin"` in the `users` collection
-4. You will be redirected to `/admin`
+### As a Staff Member (Admin or Doctor)
+1. Go to `/staff/login`
+2. Enter your registered email address
+3. Select your role (Admin or Doctor)
+4. Enter your access code (provided by administrator)
+5. You will be redirected to the appropriate dashboard
 
 ## Adding an Admin
 
-### Method 1: Using Firebase Console (Recommended for First Admin)
+### Method 1: Using Firebase Console (Required for First Admin)
 
 1. Go to your [Firebase Console](https://console.firebase.google.com)
 2. Select your project
@@ -55,20 +45,22 @@ This design provides:
    ```
    email: "admin@example.com" (string)
    role: "admin" (string)
+   accessCode: "YOUR_ACCESS_CODE" (string) - e.g., "ADMIN123"
+   name: "Admin Name" (string, optional)
    ```
 8. Click **Save**
-9. The user must also exist in Firebase Authentication - create them via the Authentication tab or have them sign up
 
 ### Method 2: Using Admin Panel (After First Admin Exists)
 
-1. Sign in as an existing admin at `/admin/login`
+1. Sign in as an existing admin at `/staff/login`
 2. Navigate to `/admin/users`
-3. Click **Invite User**
-4. Enter the email address
+3. Click **Add User**
+4. Enter the email address and display name
 5. Select **Admin** as the role
-6. Click **Send Invitation**
+6. Click **Generate** to create an access code, or enter a custom one
+7. Click **Add User**
 
-The new admin can now sign in at `/admin/login` using that email address.
+Share the access code with the new admin. They can sign in at `/staff/login`.
 
 ## Adding a Doctor
 
@@ -83,17 +75,22 @@ The new admin can now sign in at `/admin/login` using that email address.
    ```
    email: "dr.smith@example.com" (string)
    role: "doctor" (string)
+   accessCode: "YOUR_ACCESS_CODE" (string) - e.g., "DOC456"
+   name: "Dr. John Smith" (string, optional)
    ```
 7. Click **Save**
 
 ### Method 2: Using Admin Panel
 
-1. Sign in as an admin at `/admin/login`
+1. Sign in as an admin at `/staff/login`
 2. Navigate to `/admin/users`
-3. Click **Invite User**
-4. Enter the doctor's email address
+3. Click **Add User**
+4. Enter the doctor's email address and display name
 5. Select **Doctor** as the role
-6. Click **Send Invitation**
+6. Click **Generate** to create an access code
+7. Click **Add User**
+
+Share the access code with the new doctor. They can sign in at `/staff/login`.
 
 ### Method 3: Add to Static Doctor List (for booking dropdown)
 
@@ -119,62 +116,50 @@ export const doctors: Doctor[] = [
 ];
 ```
 
-## Firestore Security
-
-The `users` collection is protected by Firestore security rules:
-
-- **Admins** can read and write all user documents
-- **Users** can read their own role document (where document ID matches their email)
-- **Users** can create their own document on signup (with matching email, patient role only)
-- **Doctors** can read their own role document to authenticate
-
-This allows the login flow to check user roles without requiring admin privileges.
-
 ## Important Notes
+
+### Access Codes
+- Access codes are stored in the user document in Firestore
+- Each staff member should have a unique access code
+- Access codes can be any alphanumeric string (recommended: 6+ characters)
+- The admin panel can auto-generate codes for you
 
 ### Email Matching
 - The **Document ID** in Firestore must be the email in **lowercase**
 - The `email` field in the document should also be lowercase
-- Firebase Auth emails are automatically normalized to lowercase during login
 
 ### First Admin Bootstrap
-Since no admin exists initially, you must add the first admin directly in Firebase Console. After that, the admin can invite other admins and doctors through the UI.
+Since no admin exists initially, you must add the first admin directly in Firebase Console with an access code. After that, the admin can add other admins and doctors through the UI.
 
 ### Doctor Profile
 After a doctor is added to the `users` collection, they should:
-1. Sign in at `/doctor/login` with their email
+1. Sign in at `/staff/login` with their email, select "Doctor", and enter their access code
 2. Complete the onboarding process at `/doctor/onboarding`
 3. Set up their services in `/doctor/my-services`
 
 ## Troubleshooting
 
-### "No admin/doctor account found for this email"
+### "No staff account found with this email"
 - Verify the email exists in the `users` collection in Firestore
 - Make sure the **Document ID** is the email in lowercase
 - Check that the `role` field is exactly `admin` or `doctor`
 
-### User Logged In But Access Denied
-- The user may be using the wrong login page
-- Verify the `role` field matches the login page being used
-- Check browser console for specific error messages
+### "Invalid access code"
+- Verify the `accessCode` field in the Firestore document matches what the user entered
+- Access codes are case-sensitive
+- Check for leading/trailing spaces
 
 ### Cannot Access Admin/Doctor Pages After Login
-- Ensure the user is signed in via the correct login page
+- Try logging out and back in at `/staff/login`
+- Clear browser localStorage and try again
 - Verify the `role` field is set correctly (`admin` or `doctor`)
-- Check browser console for Firestore permission errors
-
-### Firestore Permission Denied
-- The `users` collection might not have proper security rules
-- Verify the `firestore.rules` file is deployed
-- Ensure the user can read their own document (email match)
 
 ## Quick Reference
 
 | Action | URL |
 |--------|-----|
 | Patient Login | `/login` |
-| Doctor Login | `/doctor/login` |
-| Admin Login | `/admin/login` |
+| Staff Login (Admin/Doctor) | `/staff/login` |
 | Patient Dashboard | `/patient/dashboard` |
 | Doctor Dashboard | `/doctor/dashboard` |
 | Admin Dashboard | `/admin` |
@@ -183,9 +168,8 @@ After a doctor is added to the `users` collection, they should:
 
 ## Security Best Practices
 
-1. **Never** share admin credentials
-2. **Regularly** audit the users collection for unauthorized changes
-3. **Use** strong passwords or Google authentication
-4. **Remove** access immediately when a doctor/admin leaves
-5. **Monitor** Firebase Authentication logs for suspicious activity
-6. **Use lowercase emails** consistently in Firestore documents
+1. **Use strong access codes** - at least 6 characters, mix of letters and numbers
+2. **Regularly rotate access codes** - change them periodically via the admin panel
+3. **Remove access immediately** when a doctor/admin leaves - delete their user document
+4. **Monitor** the users collection for unauthorized changes
+5. **Use lowercase emails** consistently in Firestore documents

@@ -1,16 +1,20 @@
 'use client';
 
-import { StaffLoginForm } from '@/components/staff-login-form';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
+// This page now redirects to the unified staff login
 export default function DoctorLoginPage() {
+  const router = useRouter();
+  
+  useEffect(() => {
+    router.replace('/staff/login?redirect=/doctor/dashboard');
+  }, [router]);
+
   return (
-    <StaffLoginForm
-      role="doctor"
-      title="Doctor Portal"
-      description="Sign in to access your doctor dashboard"
-      redirectPath="/doctor/dashboard"
-      alternativeLoginPath="/admin/login"
-      alternativeLoginLabel="Admin Login →"
-    />
+    <div className="flex min-h-screen items-center justify-center">
+      <p>Redirecting to Staff Login...</p>
+    </div>
   );
 }
+

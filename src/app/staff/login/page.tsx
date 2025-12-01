@@ -1,0 +1,291 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { Logo } from '@/components/logo';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, Shield, Stethoscope, Users } from 'lucide-react';
+import { useStaffAuth } from '@/hooks/use-staff-auth';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { firestore } from '@/firebase/client';
+import type { StaffRole } from '@/lib/staff-auth';
+import { Suspense } from 'react';
+
+const formSchema = z.object({
+  email: z.string().email({ message: 'Please enter a valid email address.' }),
+  accessCode: z.string().min(4, { message: 'Access code must be at least 4 characters.' }),
+  role: z.enum(['admin', 'doctor'], { required_error: 'Please select your role.' }),
+});
+
+type FormData = z.infer<typeof formSchema>;
+
+function StaffLoginContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const { login, isLoggedIn, session } = useStaffAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const redirectUrl = searchParams.get('redirect');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isLoggedIn && session) {
+      const defaultPath = session.role === 'admin' ? '/admin' : '/doctor/dashboard';
+      router.push(redirectUrl || defaultPath);
+    }
+  }, [isLoggedIn, session, router, redirectUrl]);
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: '',
+      accessCode: '',
+      role: undefined,
+    },
+  });
+
+  const onSubmit = async (data: FormData) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      if (!firestore) {
+        throw new Error('Database not available');
+      }
+
+      // Look up staff member by email in users collection
+      const normalizedEmail = data.email.trim().toLowerCase();
+      
+      // Define the user data type
+      interface UserData {
+        email?: string;
+        role?: string;
+        accessCode?: string;
+        name?: string;
+        staffId?: string;
+      }
+      
+      // Try to find by email as document ID first
+      const userDocRef = doc(firestore, 'users', normalizedEmail);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      let userData: UserData | null = null;
+      
+      if (userDocSnap.exists()) {
+        userData = userDocSnap.data() as UserData;
+      } else {
+        // Try to query by email field
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where('email', '==', normalizedEmail));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          userData = querySnapshot.docs[0].data() as UserData;
+        }
+      }
+
+      if (!userData) {
+        setError('No staff account found with this email. Please contact your administrator.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check role matches
+      if (userData.role !== data.role) {
+        if (userData.role === 'admin') {
+          setError('This email is registered as an admin. Please select "Admin" as your role.');
+        } else if (userData.role === 'doctor') {
+          setError('This email is registered as a doctor. Please select "Doctor" as your role.');
+        } else {
+          setError(`This is a ${userData.role || 'patient'} account. Staff login is only for admin and doctor accounts.`);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Check access code
+      // The access code is stored in the user document
+      if (userData.accessCode !== data.accessCode) {
+        setError('Invalid access code. Please check your code and try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Success! Create the session
+      const displayName = userData.name || userData.email || data.email;
+      login(normalizedEmail, data.role as StaffRole, displayName);
+
+      toast({ title: 'Welcome back!', description: `Signed in as ${data.role}` });
+      
+      // Redirect based on role
+      const defaultPath = data.role === 'admin' ? '/admin' : '/doctor/dashboard';
+      router.push(redirectUrl || defaultPath);
+
+    } catch (err) {
+      console.error('Staff login error:', err);
+      setError('An error occurred during login. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 w-fit">
+            <Logo />
+          </div>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Users className="w-5 h-5 text-primary" />
+            <CardTitle>Staff Portal</CardTitle>
+          </div>
+          <CardDescription>
+            Sign in to access the admin or doctor dashboard
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="staff@example.com"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            <span>Admin</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="doctor">
+                          <div className="flex items-center gap-2">
+                            <Stethoscope className="w-4 h-4" />
+                            <span>Doctor</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="accessCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Access Code</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Enter your access code"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Signing In...' : 'Sign In'}
+              </Button>
+            </form>
+          </Form>
+
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            <p>
+              Are you a patient?{' '}
+              <Link href="/login" className="font-semibold text-primary hover:underline">
+                Patient Login
+              </Link>
+            </p>
+          </div>
+
+          <div className="mt-4 p-3 bg-muted rounded-lg text-xs text-muted-foreground">
+            <p className="font-medium mb-1">Need access?</p>
+            <p>Contact your administrator to get your email registered and receive an access code.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function StaffLoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    }>
+      <StaffLoginContent />
+    </Suspense>
+  );
+}

@@ -242,14 +242,9 @@ function LoginForm() {
           
           <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground">
             <p className="mb-2">Staff members:</p>
-            <div className="flex justify-center gap-4">
-              <Link href="/doctor/login" className="font-semibold text-primary hover:underline">
-                Doctor Login
-              </Link>
-              <Link href="/admin/login" className="font-semibold text-primary hover:underline">
-                Admin Login
-              </Link>
-            </div>
+            <Link href="/staff/login" className="font-semibold text-primary hover:underline">
+              Staff Portal Login →
+            </Link>
           </div>
         </CardContent>
       </Card>
