@@ -27,19 +27,23 @@ export default function AdminLayout({
   const { user, isLoading: isUserLoading } = useUser();
   const firestore = useFirestore();
 
+  // Skip all auth checks for the login page
+  const isLoginPage = pathname === '/admin/login';
+
   // Check if the user has admin role
   const userRoleRef = useMemoFirebase(() => {
-    if (!firestore || !user?.email) return null;
+    if (isLoginPage || !firestore || !user?.email) return null;
     // Use lowercase email to match Firestore document ID
     const normalizedEmail = user.email.toLowerCase();
     console.log('[AdminLayout] Creating doc ref for user:', normalizedEmail);
     return doc(firestore, 'users', normalizedEmail);
-  }, [firestore, user?.email]);
+  }, [firestore, user?.email, isLoginPage]);
   
   const { data: userRoleData, isLoading: isLoadingRole, error: roleError } = useDoc(userRoleRef);
 
   // Log state changes for debugging
   useEffect(() => {
+    if (isLoginPage) return;
     console.log('[AdminLayout] State:', {
       isUserLoading,
       isLoadingRole,
@@ -47,12 +51,15 @@ export default function AdminLayout({
       userRoleData,
       roleError: roleError?.message
     });
-  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError]);
+  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError, isLoginPage]);
 
   useEffect(() => {
+    // Skip auth redirects for login page
+    if (isLoginPage) return;
+
     if (!isUserLoading && !user) {
-      console.log('[AdminLayout] No user, redirecting to login');
-      router.push('/login');
+      console.log('[AdminLayout] No user, redirecting to admin login');
+      router.push('/admin/login');
       return;
     }
 
@@ -82,7 +89,12 @@ export default function AdminLayout({
         console.log('[AdminLayout] User is admin, rendering admin layout');
       }
     }
-  }, [user, isUserLoading, userRoleData, isLoadingRole, router, roleError]);
+  }, [user, isUserLoading, userRoleData, isLoadingRole, router, roleError, isLoginPage]);
+
+  // For login page, render children directly without sidebar or auth checks
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   if (isUserLoading || isLoadingRole || !user) {
     return (
@@ -99,7 +111,7 @@ export default function AdminLayout({
         <p className="text-red-500">Error loading user role</p>
         <p className="text-sm text-muted-foreground">{roleError.message}</p>
         <button 
-          onClick={() => router.push('/login')}
+          onClick={() => router.push('/admin/login')}
           className="px-4 py-2 bg-primary text-primary-foreground rounded"
         >
           Back to Login

@@ -29,27 +29,31 @@ export default function DoctorLayout({
   const router = useRouter();
   const firestore = useFirestore();
 
+  // Skip all auth checks for the login page
+  const isLoginPage = pathname === '/doctor/login';
+
   // Check if the user has doctor role in users collection (by email)
   const userRoleRef = useMemoFirebase(() => {
-    if (!firestore || !user?.email) return null;
+    if (isLoginPage || !firestore || !user?.email) return null;
     // Use lowercase email to match Firestore document ID
     const normalizedEmail = user.email.toLowerCase();
     console.log('[DoctorLayout] Creating doc ref for user:', normalizedEmail);
     return doc(firestore, 'users', normalizedEmail);
-  }, [firestore, user?.email]);
+  }, [firestore, user?.email, isLoginPage]);
   
   const { data: userRoleData, isLoading: isLoadingRole, error: roleError } = useDoc(userRoleRef);
 
   // Also check for doctor-specific data (onboarding status, etc.)
   const doctorRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (isLoginPage || !firestore || !user) return null;
     return doc(firestore, 'doctors', user.uid);
-  }, [firestore, user]);
+  }, [firestore, user, isLoginPage]);
   
   const { data: doctorData, isLoading: isDoctorLoading } = useDoc(doctorRef);
 
   // Log state changes for debugging
   useEffect(() => {
+    if (isLoginPage) return;
     console.log('[DoctorLayout] State:', {
       isUserLoading,
       isLoadingRole,
@@ -57,12 +61,15 @@ export default function DoctorLayout({
       userRoleData,
       roleError: roleError?.message
     });
-  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError]);
+  }, [isUserLoading, isLoadingRole, user, userRoleData, roleError, isLoginPage]);
 
   useEffect(() => {
+    // Skip auth redirects for login page
+    if (isLoginPage) return;
+
     if (!isUserLoading && !user) {
-      console.log('[DoctorLayout] No user, redirecting to login');
-      router.push('/login');
+      console.log('[DoctorLayout] No user, redirecting to doctor login');
+      router.push('/doctor/login');
       return;
     }
 
@@ -96,7 +103,12 @@ export default function DoctorLayout({
         router.push('/doctor/onboarding');
       }
     }
-  }, [user, isUserLoading, router, doctorData, isDoctorLoading, pathname, userRoleData, isLoadingRole, roleError]);
+  }, [user, isUserLoading, router, doctorData, isDoctorLoading, pathname, userRoleData, isLoadingRole, roleError, isLoginPage]);
+
+  // For login page, render children directly without sidebar or auth checks
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   if (isUserLoading || isLoadingRole || !user) {
     return (
@@ -113,7 +125,7 @@ export default function DoctorLayout({
         <p className="text-red-500">Error loading user role</p>
         <p className="text-sm text-muted-foreground">{roleError.message}</p>
         <button 
-          onClick={() => router.push('/login')}
+          onClick={() => router.push('/doctor/login')}
           className="px-4 py-2 bg-primary text-primary-foreground rounded"
         >
           Back to Login

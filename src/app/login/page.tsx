@@ -15,8 +15,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
 } from 'firebase/auth';
-import { auth, firestore } from '@/firebase/client';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth } from '@/firebase/client';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -39,48 +38,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Helper function to get role-based redirect URL
-async function getRoleBasedRedirectUrl(userEmail: string, defaultRedirect: string): Promise<string> {
-  if (!firestore || !userEmail) {
-    console.log('getRoleBasedRedirectUrl: firestore or userEmail missing', { firestore: !!firestore, userEmail });
-    return defaultRedirect;
-  }
-  
-  try {
-    // Use lowercase email to match Firestore document ID
-    const normalizedEmail = userEmail.toLowerCase();
-    console.log('Fetching user role for:', normalizedEmail);
-    const userDocRef = doc(firestore, 'users', normalizedEmail);
-    console.log('Document path:', userDocRef.path);
-    const userRoleDoc = await getDoc(userDocRef);
-    console.log('Document exists:', userRoleDoc.exists());
-    if (userRoleDoc.exists()) {
-      const data = userRoleDoc.data();
-      console.log('Document data:', JSON.stringify(data));
-      const role = data?.role;
-      console.log('User role found:', role);
-      if (role === 'admin') {
-        console.log('Redirecting to admin dashboard');
-        return '/admin';
-      }
-      if (role === 'doctor') {
-        console.log('Redirecting to doctor dashboard');
-        return '/doctor/dashboard';
-      }
-      console.log('Role is not admin or doctor, treating as patient');
-    } else {
-      console.log('No role document found for user, defaulting to patient');
-    }
-    // Default to patient dashboard for regular users
-    return defaultRedirect === '/' ? '/patient/dashboard' : defaultRedirect;
-  } catch (error: any) {
-    console.error('Error fetching user role:', error);
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    return defaultRedirect;
-  }
-}
-
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
@@ -96,7 +53,7 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   
   // Get redirect URL from query params
-  const redirectUrl = searchParams.get('redirect') || '/';
+  const redirectUrl = searchParams.get('redirect') || '/patient/dashboard';
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -123,11 +80,10 @@ function LoginForm() {
     const provider = new GoogleAuthProvider();
     try {
       await setPersistence(auth, browserLocalPersistence); // Persist Google sign-in
-      const result = await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, provider);
       toast({ title: 'Signed in successfully!' });
-      // Get role-based redirect URL
-      const finalRedirectUrl = await getRoleBasedRedirectUrl(result.user.email || '', redirectUrl);
-      router.push(finalRedirectUrl);
+      // Patients go to patient dashboard
+      router.push(redirectUrl);
     } catch (error: any) {
       console.error('Google sign-in error:', error);
       let errorMessage = error.message;
@@ -158,16 +114,11 @@ function LoginForm() {
     try {
       const result = await signInWithEmailAndPassword(auth, data.email, data.password);
       console.log('Sign-in successful for:', result.user.email);
-      console.log('User UID:', result.user.uid);
       toast({ title: 'Signed in successfully!' });
-      // Get role-based redirect URL
-      const finalRedirectUrl = await getRoleBasedRedirectUrl(result.user.email || '', redirectUrl);
-      console.log('Redirecting to:', finalRedirectUrl);
-      router.push(finalRedirectUrl);
+      // Patients go to patient dashboard
+      router.push(redirectUrl);
     } catch (error: any) {
       console.error('Sign-in error:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
       // Provide more specific error messages based on Firebase error codes
       let errorMessage = 'Invalid email or password. Please try again.';
       if (error.code === 'auth/user-not-found') {
@@ -200,8 +151,8 @@ function LoginForm() {
             <div className="mx-auto mb-4 w-fit">
                 <Logo />
             </div>
-          <CardTitle>Welcome Back!</CardTitle>
-          <CardDescription>Sign in to access your account</CardDescription>
+          <CardTitle>Patient Login</CardTitle>
+          <CardDescription>Sign in to access your patient portal</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -284,10 +235,22 @@ function LoginForm() {
 
           <p className="mt-6 text-center text-sm">
             Don&apos;t have an account?{' '}
-            <Link href={`/signup${redirectUrl !== '/' ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`} className="font-semibold text-primary hover:underline">
+            <Link href={`/signup${redirectUrl !== '/patient/dashboard' ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`} className="font-semibold text-primary hover:underline">
               Sign up
             </Link>
           </p>
+          
+          <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground">
+            <p className="mb-2">Staff members:</p>
+            <div className="flex justify-center gap-4">
+              <Link href="/doctor/login" className="font-semibold text-primary hover:underline">
+                Doctor Login
+              </Link>
+              <Link href="/admin/login" className="font-semibold text-primary hover:underline">
+                Admin Login
+              </Link>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
