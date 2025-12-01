@@ -160,36 +160,35 @@ function StaffLoginContent() {
         throw new Error('Database not available');
       }
 
-      // Look up staff member by email in users collection
+      // Look up staff member by email in staffCredentials collection
       const normalizedEmail = data.email.trim().toLowerCase();
       
-      // Define the user data type
-      interface UserData {
+      // Define the staff credential data type
+      interface StaffCredentialData {
         email?: string;
         role?: string;
         accessCode?: string;
         name?: string;
-        staffId?: string;
       }
       
       // Try to find by email as document ID first with retry logic
-      const userDocRef = doc(firestore, 'users', normalizedEmail);
+      const credentialDocRef = doc(firestore, 'staffCredentials', normalizedEmail);
       
-      let userData: UserData | null = null;
+      let credentialData: StaffCredentialData | null = null;
       
       try {
-        const userDocSnap = await retryWithBackoff(() => getDoc(userDocRef));
+        const credentialDocSnap = await retryWithBackoff(() => getDoc(credentialDocRef));
         
-        if (userDocSnap.exists()) {
-          userData = userDocSnap.data() as UserData;
+        if (credentialDocSnap.exists()) {
+          credentialData = credentialDocSnap.data() as StaffCredentialData;
         } else {
           // Try to query by email field with retry logic
-          const usersRef = collection(firestore, 'users');
-          const q = query(usersRef, where('email', '==', normalizedEmail));
+          const credentialsRef = collection(firestore, 'staffCredentials');
+          const q = query(credentialsRef, where('email', '==', normalizedEmail));
           const querySnapshot = await retryWithBackoff(() => getDocs(q));
           
           if (!querySnapshot.empty) {
-            userData = querySnapshot.docs[0].data() as UserData;
+            credentialData = querySnapshot.docs[0].data() as StaffCredentialData;
           }
         }
       } catch (err) {
@@ -203,35 +202,35 @@ function StaffLoginContent() {
         throw err;
       }
 
-      if (!userData) {
+      if (!credentialData) {
         setError('No staff account found with this email. Please contact your administrator.');
         setIsLoading(false);
         return;
       }
 
       // Check role matches
-      if (userData.role !== data.role) {
-        if (userData.role === 'admin') {
+      if (credentialData.role !== data.role) {
+        if (credentialData.role === 'admin') {
           setError('This email is registered as an admin. Please select "Admin" as your role.');
-        } else if (userData.role === 'doctor') {
+        } else if (credentialData.role === 'doctor') {
           setError('This email is registered as a doctor. Please select "Doctor" as your role.');
         } else {
-          setError(`This is a ${userData.role || 'patient'} account. Staff login is only for admin and doctor accounts.`);
+          setError(`This is a ${credentialData.role || 'patient'} account. Staff login is only for admin and doctor accounts.`);
         }
         setIsLoading(false);
         return;
       }
 
       // Check access code
-      // The access code is stored in the user document
-      if (userData.accessCode !== data.accessCode) {
+      // The access code is stored in the staffCredentials document
+      if (credentialData.accessCode !== data.accessCode) {
         setError('Invalid access code. Please check your code and try again.');
         setIsLoading(false);
         return;
       }
 
       // Success! Create the session with remember device preference
-      const displayName = userData.name || userData.email || data.email;
+      const displayName = credentialData.name || credentialData.email || data.email;
       login(normalizedEmail, data.role as StaffRole, displayName, data.rememberDevice);
 
       toast({ title: 'Welcome back!', description: `Signed in as ${data.role}` });

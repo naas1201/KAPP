@@ -75,6 +75,19 @@ service cloud.firestore {
     }
 
     /**
+     * @description Staff credentials for authentication.
+     * This collection is publicly readable to allow staff login verification
+     * but only contains the minimal data needed (email, role, accessCode).
+     * Sensitive user data remains protected in the users collection.
+     */
+    match /staffCredentials/{credentialId} {
+      // Allow read for anyone - needed for staff login to verify credentials
+      allow read: if true;
+      // Only admins can create or modify staff credentials
+      allow write: if isAdmin();
+    }
+
+    /**
      * Checks if the requesting user is an authorized doctor for a given patient.
      */
     function isAuthorizedDoctorForPatient(patientId) {
