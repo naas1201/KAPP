@@ -52,17 +52,20 @@ function isFirestoreError(error: unknown): error is FirestoreError {
 
 /**
  * Finds a user document using multiple strategies to handle different document schemes.
- * Tries: 1) by email as document ID (primary - how users are created), 2) by UID, 3) by email field query
+ * Tries: 1) by email as document ID (primary - how users are created), 2) by UID, 
+ * 3) by email field query, 4) by emailLower field query
  */
 async function findUserDocument(
   db: Firestore,
   uid: string,
   email: string | null
 ): Promise<{ exists: boolean; userData?: Record<string, unknown> }> {
+  // Normalize email once at the beginning
+  const normalizedEmail = email?.trim().toLowerCase() || null;
+
   // Strategy 1: Try to find by email as document ID (primary strategy)
   // This is how users are created in the admin panel - email is the document ID
-  if (email) {
-    const normalizedEmail = email.trim().toLowerCase();
+  if (normalizedEmail) {
     const emailDocRef = doc(db, 'users', normalizedEmail);
     const emailDocSnap = await getDoc(emailDocRef);
     if (emailDocSnap.exists()) {
@@ -78,11 +81,9 @@ async function findUserDocument(
   }
 
   // If no email is provided, we can't try email-based query strategies
-  if (!email) {
+  if (!normalizedEmail) {
     return { exists: false };
   }
-
-  const normalizedEmail = email.trim().toLowerCase();
 
   // Strategy 3: Query by email field (for documents with different ID schemes)
   const emailQuery = query(
