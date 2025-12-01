@@ -272,12 +272,12 @@ export default function PatientMedicalInfoPage() {
 
   const bmiCategory = useMemo(() => getBMICategory(bmi), [bmi]);
 
-  // Calculate completion percentage
+  // Calculate completion percentage - only depends on required fields
   const completionPercentage = useMemo(() => {
-    const requiredFields = ['sex', 'bloodType', 'heightCm', 'weightKg', 'emergencyContact', 'emergencyPhone'];
-    const filled = requiredFields.filter(field => formData[field as keyof FormDataType]).length;
+    const requiredFields = [formData.sex, formData.bloodType, formData.heightCm, formData.weightKg, formData.emergencyContact, formData.emergencyPhone];
+    const filled = requiredFields.filter(Boolean).length;
     return Math.round((filled / requiredFields.length) * 100);
-  }, [formData]);
+  }, [formData.sex, formData.bloodType, formData.heightCm, formData.weightKg, formData.emergencyContact, formData.emergencyPhone]);
 
   const updateField = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -494,7 +494,7 @@ export default function PatientMedicalInfoPage() {
             </Card>
 
             {/* Pregnancy - Only show for females */}
-            {!isMale && formData.sex === 'female' && (
+            {formData.sex === 'female' && (
               <Card className="md:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

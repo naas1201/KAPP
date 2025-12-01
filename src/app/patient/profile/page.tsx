@@ -107,12 +107,15 @@ export default function PatientProfilePage() {
     fileInputRef.current?.click();
   };
 
+  // Maximum file size for avatar upload (500KB)
+  const MAX_AVATAR_SIZE_BYTES = 500 * 1024;
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check file size (max 500KB for base64)
-    if (file.size > 500 * 1024) {
+    // Check file size
+    if (file.size > MAX_AVATAR_SIZE_BYTES) {
       toast({
         variant: 'destructive',
         title: 'File too large',
