@@ -12,7 +12,8 @@ import {
   collection,
   query,
   where,
-  getDocs
+  getDocs,
+  FirestoreError
 } from 'firebase/firestore';
 
 // Supported staff roles
@@ -34,6 +35,18 @@ function isAuthError(error: unknown): error is AuthError {
     error !== null &&
     'code' in error &&
     typeof (error as AuthError).code === 'string'
+  );
+}
+
+/**
+ * Type guard to check if an error is a Firestore error
+ */
+function isFirestoreError(error: unknown): error is FirestoreError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as FirestoreError).code === 'string'
   );
 }
 
@@ -95,6 +108,11 @@ export async function lookupEmailByStaffId(
   staffId: string,
   role: StaffRole
 ): Promise<string | null> {
+  // Validate staffId input
+  if (!staffId || typeof staffId !== 'string') {
+    return null;
+  }
+  
   try {
     const usersRef = collection(db, 'users');
     const q = query(
@@ -206,7 +224,7 @@ export async function signInStaffUser(
           errorMessage = 'Network error. Please check your internet connection.';
           break;
       }
-    } else if (error instanceof Error && error.message.includes('permission-denied')) {
+    } else if (isFirestoreError(error) && error.code === 'permission-denied') {
       errorMessage = 'Database permission denied. Check your rules.';
     }
 

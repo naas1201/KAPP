@@ -44,9 +44,6 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-// Re-export StaffRole from admin-auth
-export type { StaffRole };
-
 // Constants for login paths
 const PATIENT_LOGIN_PATH = '/login';
 
