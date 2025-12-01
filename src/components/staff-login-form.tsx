@@ -7,13 +7,12 @@ import * as z from 'zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  signInWithEmailAndPassword,
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
 } from 'firebase/auth';
 import { auth, firestore } from '@/firebase/client';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { signInStaffUser, lookupEmailByStaffId, type StaffRole } from '@/firebase/admin-auth';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -44,8 +43,6 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
-
-export type StaffRole = 'admin' | 'doctor';
 
 // Constants for login paths
 const PATIENT_LOGIN_PATH = '/login';
@@ -83,163 +80,9 @@ export function StaffLoginForm({
 
   const rememberMe = form.watch('rememberMe');
 
-  // Helper function to look up email by staff ID
-  const lookupEmailByStaffId = async (staffId: string): Promise<string | null> => {
-    if (!firestore) return null;
-    
-    try {
-      // Check if it's a staff ID format (e.g., "admin1", "doc123")
-      // First, try to find in users collection by staffId field
-      const usersRef = collection(firestore, 'users');
-      const q = query(usersRef, where('staffId', '==', staffId.toLowerCase()), where('role', '==', role));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        return userDoc.data().email || userDoc.id;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('[StaffLogin] Error looking up staff ID:', error);
-      return null;
-    }
-  };
-
-  // Helper to find user doc by email across different collection schemes
-  const findUserDocByEmail = async (email: string): Promise<{ exists: boolean; userData?: Record<string, unknown> }> => {
-    if (!firestore) {
-      return { exists: false };
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    try {
-      // Strategy 1: Query by emailLower field
-      const q1 = query(collection(firestore, 'users'), where('emailLower', '==', normalizedEmail));
-      const snap1 = await getDocs(q1);
-      if (!snap1.empty) {
-        return { exists: true, userData: snap1.docs[0].data() };
-      }
-
-      // Strategy 2: Query by email field
-      const q2 = query(collection(firestore, 'users'), where('email', '==', normalizedEmail));
-      const snap2 = await getDocs(q2);
-      if (!snap2.empty) {
-        return { exists: true, userData: snap2.docs[0].data() };
-      }
-
-      // Strategy 3: Fallback to reading doc by id (older deployments use email as doc id)
-      const userDocRefById = doc(firestore, 'users', normalizedEmail);
-      const snapById = await getDoc(userDocRefById);
-      if (snapById.exists()) {
-        return { exists: true, userData: snapById.data() };
-      }
-
-      return { exists: false };
-    } catch (error) {
-      console.error('[StaffLogin] Error finding user doc:', error);
-      return { exists: false };
-    }
-  };
-
-  // Helper to find user doc by uid (for post-auth validation)
-  const findUserDocByUid = async (uid: string): Promise<{ exists: boolean; userData?: Record<string, unknown> }> => {
-    if (!firestore) {
-      return { exists: false };
-    }
-
-    try {
-      // Primary strategy: doc id = uid
-      const userDocRef = doc(firestore, 'users', uid);
-      const snap = await getDoc(userDocRef);
-      if (snap.exists()) {
-        return { exists: true, userData: snap.data() };
-      }
-
-      return { exists: false };
-    } catch (error) {
-      console.error('[StaffLogin] Error finding user doc by uid:', error);
-      return { exists: false };
-    }
-  };
-
-  // Pre-validate role before authentication
-  const validateRoleBeforeAuth = async (email: string): Promise<{ isValid: boolean; message?: string }> => {
-    if (!firestore) {
-      return { isValid: false, message: 'Firestore not available. Please try again later.' };
-    }
-
-    try {
-      const result = await findUserDocByEmail(email);
-
-      if (!result.exists || !result.userData) {
-        return { 
-          isValid: false, 
-          message: `No ${role} account found for this email. Please contact the administrator if you believe this is an error.` 
-        };
-      }
-      
-      const userRole = result.userData.role;
-      
-      if (userRole !== role) {
-        if (userRole === 'admin') {
-          return { isValid: false, message: 'This account is an admin account. Please use the admin login page.' };
-        } else if (userRole === 'doctor') {
-          return { isValid: false, message: 'This account is a doctor account. Please use the doctor login page.' };
-        } else {
-          return { isValid: false, message: 'This is a patient account. Please use the Patient Login page.' };
-        }
-      }
-      
-      return { isValid: true };
-    } catch (error) {
-      console.error('[StaffLogin] Error validating role:', error);
-      return { isValid: false, message: 'Error validating account. Please try again.' };
-    }
-  };
-
-  // Post-login role revalidation by uid
-  const revalidateRoleAfterAuth = async (uid: string, userEmail: string | null): Promise<{ isValid: boolean; message?: string }> => {
-    if (!firestore) {
-      return { isValid: false, message: 'Firestore not available.' };
-    }
-
-    try {
-      // First try to find by uid
-      let result = await findUserDocByUid(uid);
-
-      // If not found by uid, fall back to email search
-      if (!result.exists && userEmail) {
-        result = await findUserDocByEmail(userEmail);
-      }
-
-      if (!result.exists || !result.userData) {
-        return { 
-          isValid: false, 
-          message: 'Account not recognized as staff. Contact admin.' 
-        };
-      }
-
-      const userRole = result.userData.role;
-
-      if (userRole !== role) {
-        return { 
-          isValid: false, 
-          message: 'Access denied: account does not have the required staff role.' 
-        };
-      }
-
-      return { isValid: true };
-    } catch (error) {
-      console.error('[StaffLogin] Error revalidating role after auth:', error);
-      return { isValid: false, message: 'Error verifying account role.' };
-    }
-  };
-
   const onSubmit = async (data: FormData) => {
-    if (!auth) {
-      console.error('Auth not initialized');
+    if (!auth || !firestore) {
+      console.error('Auth or Firestore not initialized');
       return;
     }
     
@@ -253,8 +96,8 @@ export function StaffLoginForm({
       const isEmail = email.includes('@');
       
       if (!isEmail) {
-        // Try to look up email by staff ID
-        const lookedUpEmail = await lookupEmailByStaffId(email);
+        // Use centralized staff ID lookup from admin-auth
+        const lookedUpEmail = await lookupEmailByStaffId(firestore, email, role);
         if (!lookedUpEmail) {
           setRoleError(`No ${role} account found with this staff ID. Please check your credentials or use your email address.`);
           setIsLoading(false);
@@ -263,58 +106,30 @@ export function StaffLoginForm({
         email = lookedUpEmail;
       }
       
-      // IMPORTANT: Validate role BEFORE Firebase Auth sign-in
-      // This prevents the user from being signed in as a patient if they don't have the correct role
-      const roleValidation = await validateRoleBeforeAuth(email);
-      if (!roleValidation.isValid) {
-        setRoleError(roleValidation.message || 'Access denied.');
-        setIsLoading(false);
-        return;
-      }
-      
       // Set persistence based on remember me
       const persistence = rememberMe
         ? browserLocalPersistence
         : browserSessionPersistence;
       await setPersistence(auth, persistence);
       
-      // Now sign in with Firebase Auth (role is already validated)
-      const result = await signInWithEmailAndPassword(auth, email, data.password);
-      console.log(`[${role}Login] Sign-in successful for:`, result.user.email);
+      // Use the BLOCKING signInStaffUser function
+      // This waits for Firebase Auth to confirm credentials AND validates the role
+      const result = await signInStaffUser(auth, firestore, email, data.password, role);
       
-      // Post-login role revalidation by uid (extra security layer)
-      const postAuthValidation = await revalidateRoleAfterAuth(result.user.uid, result.user.email);
-      if (!postAuthValidation.isValid) {
-        // Role mismatch detected - sign out and show error
-        await auth.signOut();
-        setRoleError(postAuthValidation.message || 'Access denied: account does not have the required staff role.');
-        setIsLoading(false);
-        return;
+      if (result.success) {
+        console.log(`[${role}Login] Sign-in successful for:`, result.user?.email);
+        toast({ title: 'Signed in successfully!' });
+        router.push(redirectPath);
+      } else {
+        // Show the error message from the blocking auth function
+        setRoleError(result.message || 'Login failed. Please try again.');
       }
-      
-      toast({ title: 'Signed in successfully!' });
-      router.push(redirectPath);
-    } catch (error: any) {
-      console.error(`[${role}Login] Sign-in error:`, error);
-      
-      // Provide specific error messages based on Firebase error codes
-      let errorMessage = 'Invalid credentials. Please check your email/staff ID and password.';
-      if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email format. Please check your email.';
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many failed attempts. Please try again later.';
-      } else if (error.code === 'auth/network-request-failed') {
-        errorMessage = 'Network error. Please check your internet connection.';
-      } else if (error.code === 'auth/invalid-credential') {
-        errorMessage = 'Invalid credentials. Please check your email/staff ID and password.';
-      } else if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found. Please check your email or contact the administrator.';
-      }
-      
+    } catch (error) {
+      console.error(`[${role}Login] Unexpected error:`, error);
       toast({
         variant: 'destructive',
         title: 'Sign-in failed',
-        description: errorMessage,
+        description: 'An unexpected error occurred. Please try again.',
       });
     } finally {
       setIsLoading(false);
