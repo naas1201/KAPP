@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,7 +13,7 @@ import {
   browserSessionPersistence,
 } from 'firebase/auth';
 import { auth, firestore } from '@/firebase/client';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -35,10 +35,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Shield, Stethoscope } from 'lucide-react';
 
 const formSchema = z.object({
-  email: z.string().email({ message: 'Please enter a valid email address.' }),
+  identifier: z.string().min(1, { message: 'Please enter your email or staff ID.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   rememberMe: z.boolean().default(false).optional(),
 });
@@ -75,13 +75,75 @@ export function StaffLoginForm({
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: '',
+      identifier: '',
       password: '',
       rememberMe: false,
     },
   });
 
   const rememberMe = form.watch('rememberMe');
+
+  // Helper function to look up email by staff ID
+  const lookupEmailByStaffId = async (staffId: string): Promise<string | null> => {
+    if (!firestore) return null;
+    
+    try {
+      // Check if it's a staff ID format (e.g., "admin1", "doc123")
+      // First, try to find in users collection by staffId field
+      const usersRef = collection(firestore, 'users');
+      const q = query(usersRef, where('staffId', '==', staffId.toLowerCase()), where('role', '==', role));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        return userDoc.data().email || userDoc.id;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[StaffLogin] Error looking up staff ID:', error);
+      return null;
+    }
+  };
+
+  // Pre-validate role before authentication
+  const validateRoleBeforeAuth = async (email: string): Promise<{ isValid: boolean; message?: string }> => {
+    if (!firestore) {
+      return { isValid: false, message: 'Firestore not available. Please try again later.' };
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    const userDocRef = doc(firestore, 'users', normalizedEmail);
+    
+    try {
+      const userRoleDoc = await getDoc(userDocRef);
+      
+      if (!userRoleDoc.exists()) {
+        return { 
+          isValid: false, 
+          message: `No ${role} account found for this email. Please contact the administrator if you believe this is an error.` 
+        };
+      }
+      
+      const userData = userRoleDoc.data();
+      const userRole = userData?.role;
+      
+      if (userRole !== role) {
+        if (userRole === 'admin') {
+          return { isValid: false, message: 'This account is an admin account. Please use the admin login page.' };
+        } else if (userRole === 'doctor') {
+          return { isValid: false, message: 'This account is a doctor account. Please use the doctor login page.' };
+        } else {
+          return { isValid: false, message: 'This is a patient account. Please use the Patient Login page.' };
+        }
+      }
+      
+      return { isValid: true };
+    } catch (error) {
+      console.error('[StaffLogin] Error validating role:', error);
+      return { isValid: false, message: 'Error validating account. Please try again.' };
+    }
+  };
 
   const onSubmit = async (data: FormData) => {
     if (!auth) {
@@ -93,51 +155,40 @@ export function StaffLoginForm({
     setRoleError(null);
     
     try {
+      let email = data.identifier.trim();
+      
+      // Check if the identifier is an email or a staff ID
+      const isEmail = email.includes('@');
+      
+      if (!isEmail) {
+        // Try to look up email by staff ID
+        const lookedUpEmail = await lookupEmailByStaffId(email);
+        if (!lookedUpEmail) {
+          setRoleError(`No ${role} account found with this staff ID. Please check your credentials or use your email address.`);
+          setIsLoading(false);
+          return;
+        }
+        email = lookedUpEmail;
+      }
+      
+      // IMPORTANT: Validate role BEFORE Firebase Auth sign-in
+      // This prevents the user from being signed in as a patient if they don't have the correct role
+      const roleValidation = await validateRoleBeforeAuth(email);
+      if (!roleValidation.isValid) {
+        setRoleError(roleValidation.message || 'Access denied.');
+        setIsLoading(false);
+        return;
+      }
+      
       // Set persistence based on remember me
       const persistence = rememberMe
         ? browserLocalPersistence
         : browserSessionPersistence;
       await setPersistence(auth, persistence);
       
-      // Sign in with Firebase Auth
-      const result = await signInWithEmailAndPassword(auth, data.email, data.password);
+      // Now sign in with Firebase Auth (role is already validated)
+      const result = await signInWithEmailAndPassword(auth, email, data.password);
       console.log(`[${role}Login] Sign-in successful for:`, result.user.email);
-      
-      // Verify the user has the correct role
-      if (!firestore) {
-        throw new Error('Firestore not available. Please try again later.');
-      }
-      if (!result.user.email) {
-        throw new Error('User email not found. Please try again.');
-      }
-      
-      const normalizedEmail = result.user.email.toLowerCase();
-      const userDocRef = doc(firestore, 'users', normalizedEmail);
-      const userRoleDoc = await getDoc(userDocRef);
-      
-      if (!userRoleDoc.exists()) {
-        // Sign out the user since they don't have the right role
-        await auth.signOut();
-        setRoleError(`No ${role} account found for this email. Please contact the administrator if you believe this is an error.`);
-        return;
-      }
-      
-      const userData = userRoleDoc.data();
-      const userRole = userData?.role;
-      
-      if (userRole !== role) {
-        // Sign out the user since they don't have the right role
-        await auth.signOut();
-        
-        if (userRole === 'admin') {
-          setRoleError('This account is an admin account. Please use the admin login page.');
-        } else if (userRole === 'doctor') {
-          setRoleError('This account is a doctor account. Please use the doctor login page.');
-        } else {
-          setRoleError('This is a patient account. Please use the Patient Login page.');
-        }
-        return;
-      }
       
       toast({ title: 'Signed in successfully!' });
       router.push(redirectPath);
@@ -145,9 +196,7 @@ export function StaffLoginForm({
       console.error(`[${role}Login] Sign-in error:`, error);
       
       // Provide specific error messages based on Firebase error codes
-      // Note: Firebase Auth v9+ combines user-not-found and wrong-password into invalid-credential
-      // for security (to prevent email enumeration attacks)
-      let errorMessage = 'Invalid email or password. Please try again.';
+      let errorMessage = 'Invalid credentials. Please check your email/staff ID and password.';
       if (error.code === 'auth/invalid-email') {
         errorMessage = 'Invalid email format. Please check your email.';
       } else if (error.code === 'auth/too-many-requests') {
@@ -155,7 +204,9 @@ export function StaffLoginForm({
       } else if (error.code === 'auth/network-request-failed') {
         errorMessage = 'Network error. Please check your internet connection.';
       } else if (error.code === 'auth/invalid-credential') {
-        errorMessage = 'Invalid credentials. Please check your email and password.';
+        errorMessage = 'Invalid credentials. Please check your email/staff ID and password.';
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found. Please check your email or contact the administrator.';
       }
       
       toast({
@@ -168,6 +219,8 @@ export function StaffLoginForm({
     }
   };
 
+  const RoleIcon = role === 'admin' ? Shield : Stethoscope;
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
       <Card className="w-full max-w-sm">
@@ -175,7 +228,10 @@ export function StaffLoginForm({
           <div className="mx-auto mb-4 w-fit">
             <Logo />
           </div>
-          <CardTitle>{title}</CardTitle>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <RoleIcon className="w-5 h-5 text-primary" />
+            <CardTitle>{title}</CardTitle>
+          </div>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -190,12 +246,16 @@ export function StaffLoginForm({
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="email"
+                name="identifier"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Email or Staff ID</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
+                      <Input 
+                        type="text" 
+                        placeholder={role === 'admin' ? 'admin@example.com or admin1' : 'doctor@example.com or doc123'} 
+                        {...field} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
