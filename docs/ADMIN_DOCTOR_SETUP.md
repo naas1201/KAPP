@@ -173,3 +173,5 @@ After a doctor is added to the `users` collection, they should:
 3. **Remove access immediately** when a doctor/admin leaves - delete their user document
 4. **Monitor** the users collection for unauthorized changes
 5. **Use lowercase emails** consistently in Firestore documents
+
+> **Security Note**: The staff login system uses access codes stored in Firestore that are readable by unauthenticated users. This is by design to enable login verification. Treat access codes like passwords - keep them confidential and rotate them regularly. For enhanced security in production, consider migrating to Firebase Authentication for staff accounts.
