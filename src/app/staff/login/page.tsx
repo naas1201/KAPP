@@ -30,10 +30,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Shield, Stethoscope, Users } from 'lucide-react';
+import { AlertCircle, Shield, Stethoscope, Users, WifiOff } from 'lucide-react';
 import { useStaffAuth } from '@/hooks/use-staff-auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { firestore } from '@/firebase/client';
@@ -44,9 +45,81 @@ const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
   accessCode: z.string().min(4, { message: 'Access code must be at least 4 characters.' }),
   role: z.enum(['admin', 'doctor'], { required_error: 'Please select your role.' }),
+  rememberDevice: z.boolean().default(false),
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+/**
+ * Check if an error is a network/connection error
+ */
+function isNetworkError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    // Check common network error messages
+    if (
+      message.includes('network') ||
+      message.includes('failed to fetch') ||
+      message.includes('connection') ||
+      message.includes('timeout') ||
+      message.includes('unavailable') ||
+      message.includes('offline') ||
+      message.includes('quic') ||
+      message.includes('transport')
+    ) {
+      return true;
+    }
+    
+    // Check for Firebase/Firestore specific error codes
+    const errorWithCode = error as { code?: string };
+    if (errorWithCode.code) {
+      const code = errorWithCode.code.toLowerCase();
+      if (
+        code.includes('unavailable') ||
+        code.includes('network') ||
+        code.includes('timeout') ||
+        code === 'resource-exhausted' ||
+        code === 'internal' ||
+        code === 'cancelled'
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Retry a Firestore operation with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: unknown;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      
+      // Only retry on network errors
+      if (!isNetworkError(error)) {
+        throw error;
+      }
+      
+      // Don't wait after the last attempt
+      if (attempt < maxRetries - 1) {
+        const delayMs = baseDelayMs * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  
+  throw lastError;
+}
 
 function StaffLoginContent() {
   const router = useRouter();
@@ -55,6 +128,7 @@ function StaffLoginContent() {
   const { login, isLoggedIn, session } = useStaffAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNetworkIssue, setIsNetworkIssue] = useState(false);
 
   const redirectUrl = searchParams.get('redirect');
 
@@ -72,12 +146,14 @@ function StaffLoginContent() {
       email: '',
       accessCode: '',
       role: undefined,
+      rememberDevice: false,
     },
   });
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
     setError(null);
+    setIsNetworkIssue(false);
 
     try {
       if (!firestore) {
@@ -96,23 +172,35 @@ function StaffLoginContent() {
         staffId?: string;
       }
       
-      // Try to find by email as document ID first
+      // Try to find by email as document ID first with retry logic
       const userDocRef = doc(firestore, 'users', normalizedEmail);
-      const userDocSnap = await getDoc(userDocRef);
       
       let userData: UserData | null = null;
       
-      if (userDocSnap.exists()) {
-        userData = userDocSnap.data() as UserData;
-      } else {
-        // Try to query by email field
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where('email', '==', normalizedEmail));
-        const querySnapshot = await getDocs(q);
+      try {
+        const userDocSnap = await retryWithBackoff(() => getDoc(userDocRef));
         
-        if (!querySnapshot.empty) {
-          userData = querySnapshot.docs[0].data() as UserData;
+        if (userDocSnap.exists()) {
+          userData = userDocSnap.data() as UserData;
+        } else {
+          // Try to query by email field with retry logic
+          const usersRef = collection(firestore, 'users');
+          const q = query(usersRef, where('email', '==', normalizedEmail));
+          const querySnapshot = await retryWithBackoff(() => getDocs(q));
+          
+          if (!querySnapshot.empty) {
+            userData = querySnapshot.docs[0].data() as UserData;
+          }
         }
+      } catch (err) {
+        // Handle network errors specifically
+        if (isNetworkError(err)) {
+          setIsNetworkIssue(true);
+          setError('Unable to connect to the database. Please check your internet connection and try again.');
+          setIsLoading(false);
+          return;
+        }
+        throw err;
       }
 
       if (!userData) {
@@ -142,9 +230,9 @@ function StaffLoginContent() {
         return;
       }
 
-      // Success! Create the session
+      // Success! Create the session with remember device preference
       const displayName = userData.name || userData.email || data.email;
-      login(normalizedEmail, data.role as StaffRole, displayName);
+      login(normalizedEmail, data.role as StaffRole, displayName, data.rememberDevice);
 
       toast({ title: 'Welcome back!', description: `Signed in as ${data.role}` });
       
@@ -154,7 +242,13 @@ function StaffLoginContent() {
 
     } catch (err) {
       console.error('Staff login error:', err);
-      setError('An error occurred during login. Please try again.');
+      
+      if (isNetworkError(err)) {
+        setIsNetworkIssue(true);
+        setError('Unable to connect to the database. Please check your internet connection and try again.');
+      } else {
+        setError('An error occurred during login. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -178,7 +272,7 @@ function StaffLoginContent() {
         <CardContent>
           {error && (
             <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
+              {isNetworkIssue ? <WifiOff className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -249,6 +343,25 @@ function StaffLoginContent() {
                       />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="rememberDevice"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        id="rememberDevice"
+                      />
+                    </FormControl>
+                    <FormLabel htmlFor="rememberDevice" className="text-sm font-normal cursor-pointer">
+                      Remember this device for 6 months (use on trusted devices only)
+                    </FormLabel>
                   </FormItem>
                 )}
               />

@@ -24,9 +24,9 @@ export function useStaffAuth() {
     setIsLoading(false);
   }, []);
 
-  // Login function
-  const login = useCallback((email: string, role: StaffRole, name: string) => {
-    const newSession = createStaffSession(email, role, name);
+  // Login function with optional rememberDevice flag
+  const login = useCallback((email: string, role: StaffRole, name: string, rememberDevice: boolean = false) => {
+    const newSession = createStaffSession(email, role, name, rememberDevice);
     setSession(newSession);
     return newSession;
   }, []);
