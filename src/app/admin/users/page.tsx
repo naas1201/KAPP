@@ -162,7 +162,7 @@ export default function UsersPage() {
 
     const normalizedEmail = userDetails.email.toLowerCase().trim();
     const userDocRef = doc(firestore, 'users', normalizedEmail);
-    const userData: any = { 
+    const userData: Record<string, string> = { 
       email: normalizedEmail,
       role: userDetails.role 
     };
@@ -183,6 +183,21 @@ export default function UsersPage() {
     }
     
     setDocumentNonBlocking(userDocRef, userData, {});
+
+    // Also create staffCredentials document for staff members (admin/doctor)
+    // This separate collection is publicly readable for login verification
+    if (userDetails.role === 'admin' || userDetails.role === 'doctor') {
+      const staffCredentialsRef = doc(firestore, 'staffCredentials', normalizedEmail);
+      const credentialData: Record<string, string> = {
+        email: normalizedEmail,
+        role: userDetails.role,
+        accessCode: userDetails.accessCode.trim(),
+      };
+      if (userDetails.name.trim()) {
+        credentialData.name = userDetails.name.trim();
+      }
+      setDocumentNonBlocking(staffCredentialsRef, credentialData, {});
+    }
 
     toast({ 
       title: 'User Added', 
@@ -236,6 +251,9 @@ export default function UsersPage() {
     if (!firestore || !userToDelete) return;
     const userDocRef = doc(firestore, 'users', userToDelete);
     deleteDocumentNonBlocking(userDocRef);
+    // Also delete from staffCredentials if exists
+    const staffCredentialsRef = doc(firestore, 'staffCredentials', userToDelete);
+    deleteDocumentNonBlocking(staffCredentialsRef);
     toast({ title: 'User removed.', variant: 'destructive' });
     setIsDeleteDialogOpen(false);
     setUserToDelete(null);

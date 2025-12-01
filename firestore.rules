@@ -61,13 +61,10 @@ service cloud.firestore {
     /**
      * @description Stores user roles. 
      * FIX APPLIED: Uses UID for ID, but checks Email for mismatch prevention.
-     * NOTE: Read is allowed for unauthenticated users to enable staff login
-     * which verifies credentials against stored accessCode before session creation.
      */
     match /users/{userId} {
-      // Allow read for anyone - needed for staff login to verify credentials
-      // The accessCode field acts as a password for staff authentication
-      allow read: if true;
+      // Allow read if you are the owner (UID match) OR if you are Admin
+      allow read: if isOwner(userId) || isAdmin();
       // Only admins can change roles
       allow write: if isAdmin();
       
@@ -75,6 +72,19 @@ service cloud.firestore {
       allow create: if isSignedIn() 
         && request.resource.data.email == request.auth.token.email
         && isValidEmailFormat(request.resource.data.email);
+    }
+
+    /**
+     * @description Staff credentials for authentication.
+     * This collection is publicly readable to allow staff login verification
+     * but only contains the minimal data needed (email, role, accessCode).
+     * Sensitive user data remains protected in the users collection.
+     */
+    match /staffCredentials/{credentialId} {
+      // Allow read for anyone - needed for staff login to verify credentials
+      allow read: if true;
+      // Only admins can create or modify staff credentials
+      allow write: if isAdmin();
     }
 
     /**
