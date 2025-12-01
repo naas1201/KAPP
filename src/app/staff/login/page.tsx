@@ -1,11 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  signInWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+} from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, firestore } from '@/firebase/client';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -23,265 +31,155 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Shield, Stethoscope, Users, WifiOff } from 'lucide-react';
-import { useStaffAuth } from '@/hooks/use-staff-auth';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { firestore } from '@/firebase/client';
-import type { StaffRole } from '@/lib/staff-auth';
-import { Suspense } from 'react';
-
-/**
- * Fallback staff credentials for when Firestore is unavailable or permissions fail.
- * These are simple master credentials that allow admin/doctor login when the database fails.
- * In production, you should set these via environment variables or remove after fixing Firestore rules.
- */
-const FALLBACK_STAFF_CREDENTIALS: Record<string, { role: StaffRole; accessCode: string; name: string }> = {
-  'admin@kapp.com': { role: 'admin', accessCode: 'admin123', name: 'Admin User' },
-  'doctor@kapp.com': { role: 'doctor', accessCode: 'doctor123', name: 'Doctor User' },
-};
+import { AlertCircle, Users } from 'lucide-react';
+import { useUser } from '@/firebase/hooks';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
-  accessCode: z.string().min(4, { message: 'Access code must be at least 4 characters.' }),
-  role: z.enum(['admin', 'doctor'], { required_error: 'Please select your role.' }),
-  rememberDevice: z.boolean().default(false),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+  rememberMe: z.boolean().default(false),
 });
 
 type FormData = z.infer<typeof formSchema>;
-
-/**
- * Check if an error is a network/connection error
- */
-function isNetworkError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    // Check common network error messages
-    if (
-      message.includes('network') ||
-      message.includes('failed to fetch') ||
-      message.includes('connection') ||
-      message.includes('timeout') ||
-      message.includes('unavailable') ||
-      message.includes('offline') ||
-      message.includes('quic') ||
-      message.includes('transport')
-    ) {
-      return true;
-    }
-    
-    // Check for Firebase/Firestore specific error codes
-    const errorWithCode = error as { code?: string };
-    if (errorWithCode.code) {
-      const code = errorWithCode.code.toLowerCase();
-      if (
-        code.includes('unavailable') ||
-        code.includes('network') ||
-        code.includes('timeout') ||
-        code === 'resource-exhausted' ||
-        code === 'internal' ||
-        code === 'cancelled'
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-/**
- * Retry a Firestore operation with exponential backoff
- */
-async function retryWithBackoff<T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelayMs: number = 1000
-): Promise<T> {
-  let lastError: unknown;
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      
-      // Only retry on network errors
-      if (!isNetworkError(error)) {
-        throw error;
-      }
-      
-      // Don't wait after the last attempt
-      if (attempt < maxRetries - 1) {
-        const delayMs = baseDelayMs * Math.pow(2, attempt);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-  
-  throw lastError;
-}
 
 function StaffLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { login, isLoggedIn, session } = useStaffAuth();
+  const { user, isLoading: isUserLoading } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isNetworkIssue, setIsNetworkIssue] = useState(false);
 
   const redirectUrl = searchParams.get('redirect');
 
-  // Redirect if already logged in
+  // Redirect if already logged in with a staff role
   useEffect(() => {
-    if (isLoggedIn && session) {
-      const defaultPath = session.role === 'admin' ? '/admin' : '/doctor/dashboard';
-      router.push(redirectUrl || defaultPath);
+    if (user && !isUserLoading && firestore) {
+      // Check the user's role and redirect accordingly
+      const checkRoleAndRedirect = async () => {
+        try {
+          const userDocRef = doc(firestore, 'users', user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            if (userData.role === 'admin') {
+              router.push(redirectUrl || '/admin');
+            } else if (userData.role === 'doctor') {
+              router.push(redirectUrl || '/doctor/dashboard');
+            }
+            // If role is 'patient', don't redirect - they should use patient login
+          }
+        } catch (err) {
+          console.error('Error checking user role:', err);
+        }
+      };
+      checkRoleAndRedirect();
     }
-  }, [isLoggedIn, session, router, redirectUrl]);
+  }, [user, isUserLoading, router, redirectUrl]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
-      accessCode: '',
-      role: undefined,
-      rememberDevice: false,
+      password: '',
+      rememberMe: false,
     },
   });
 
+  const rememberMe = form.watch('rememberMe');
+
+  useEffect(() => {
+    if (!auth) return;
+    const persistence = rememberMe
+      ? browserLocalPersistence
+      : browserSessionPersistence;
+    setPersistence(auth, persistence);
+  }, [rememberMe]);
+
   const onSubmit = async (data: FormData) => {
+    if (!auth || !firestore) {
+      setError('Authentication service not available. Please try again later.');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
-    setIsNetworkIssue(false);
 
-    const normalizedEmail = data.email.trim().toLowerCase();
-    
-    // Define the staff credential data type
-    interface StaffCredentialData {
-      email?: string;
-      role?: string;
-      accessCode?: string;
-      name?: string;
-    }
-    
-    let credentialData: StaffCredentialData | null = null;
-    let usedFallback = false;
-
-    // First, try to check fallback credentials (always works, no Firestore needed)
-    const fallbackCred = FALLBACK_STAFF_CREDENTIALS[normalizedEmail];
-    
-    // Try Firestore first, but fallback to hardcoded credentials on any error
     try {
-      if (firestore) {
-        // Try to find by email as document ID first with retry logic
-        const credentialDocRef = doc(firestore, 'staffCredentials', normalizedEmail);
-        
-        try {
-          const credentialDocSnap = await retryWithBackoff(() => getDoc(credentialDocRef), 2, 500);
-          
-          if (credentialDocSnap.exists()) {
-            credentialData = credentialDocSnap.data() as StaffCredentialData;
-          } else {
-            // Try to query by email field with retry logic
-            const credentialsRef = collection(firestore, 'staffCredentials');
-            const q = query(credentialsRef, where('email', '==', normalizedEmail));
-            const querySnapshot = await retryWithBackoff(() => getDocs(q), 2, 500);
-            
-            if (!querySnapshot.empty) {
-              credentialData = querySnapshot.docs[0].data() as StaffCredentialData;
-            }
-          }
-        } catch (firestoreErr) {
-          console.warn('Firestore lookup failed, trying fallback:', firestoreErr);
-          // Firestore failed - use fallback if available
-          if (fallbackCred) {
-            credentialData = {
-              email: normalizedEmail,
-              role: fallbackCred.role,
-              accessCode: fallbackCred.accessCode,
-              name: fallbackCred.name,
-            };
-            usedFallback = true;
-          }
-        }
+      // 1. Authenticate with Firebase Auth (email/password)
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        data.email.trim().toLowerCase(),
+        data.password
+      );
+      
+      // 2. Read the user's role from Firestore at users/{uid}
+      const userDocRef = doc(firestore, 'users', userCredential.user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (!userDocSnap.exists()) {
+        setError('No staff profile found. Please contact your administrator.');
+        setIsLoading(false);
+        return;
       }
-    } catch (err) {
-      console.warn('Database not available, trying fallback credentials');
-      // Database not available - use fallback if available
-      if (fallbackCred) {
-        credentialData = {
-          email: normalizedEmail,
-          role: fallbackCred.role,
-          accessCode: fallbackCred.accessCode,
-          name: fallbackCred.name,
-        };
-        usedFallback = true;
+      
+      const userData = userDocSnap.data();
+      const role = userData.role;
+      
+      // 3. Verify the user has a staff role (admin or doctor)
+      if (role !== 'admin' && role !== 'doctor') {
+        setError('This is a patient account. Please use the Patient Login page.');
+        setIsLoading(false);
+        return;
       }
-    }
-
-    // If no Firestore data and no fallback, try fallback one more time
-    if (!credentialData && fallbackCred) {
-      credentialData = {
-        email: normalizedEmail,
-        role: fallbackCred.role,
-        accessCode: fallbackCred.accessCode,
-        name: fallbackCred.name,
-      };
-      usedFallback = true;
-    }
-
-    // Check if we found any credentials
-    if (!credentialData) {
-      setError('No staff account found with this email. Please contact your administrator.');
-      setIsLoading(false);
-      return;
-    }
-
-    // Check role matches
-    if (credentialData.role !== data.role) {
-      if (credentialData.role === 'admin') {
-        setError('This email is registered as an admin. Please select "Admin" as your role.');
-      } else if (credentialData.role === 'doctor') {
-        setError('This email is registered as a doctor. Please select "Doctor" as your role.');
-      } else {
-        setError(`This is a ${credentialData.role || 'patient'} account. Staff login is only for admin and doctor accounts.`);
+      
+      // 4. Success - redirect based on role
+      toast({
+        title: 'Welcome back!',
+        description: `Signed in as ${role}`,
+      });
+      
+      const defaultPath = role === 'admin' ? '/admin' : '/doctor/dashboard';
+      router.push(redirectUrl || defaultPath);
+      
+    } catch (error: any) {
+      console.error('Staff login error:', error);
+      
+      // Provide specific error messages based on Firebase error codes
+      let errorMessage = 'An error occurred. Please try again.';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'No account found with this email.';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Incorrect password.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email format.';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid email or password. Please try again.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many failed attempts. Please try again later.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Network error. Please check your internet connection.';
+          break;
+        case 'permission-denied':
+          errorMessage = 'Access denied. Please contact your administrator.';
+          break;
       }
+      
+      setError(errorMessage);
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    // Check access code
-    if (credentialData.accessCode !== data.accessCode) {
-      setError('Invalid access code. Please check your code and try again.');
-      setIsLoading(false);
-      return;
-    }
-
-    // Success! Create the session with remember device preference
-    const displayName = credentialData.name || credentialData.email || data.email;
-    login(normalizedEmail, data.role as StaffRole, displayName, data.rememberDevice);
-
-    toast({ 
-      title: 'Welcome back!', 
-      description: `Signed in as ${data.role}${usedFallback ? ' (offline mode)' : ''}` 
-    });
-    
-    // Redirect based on role
-    const defaultPath = data.role === 'admin' ? '/admin' : '/doctor/dashboard';
-    router.push(redirectUrl || defaultPath);
-    
-    setIsLoading(false);
   };
 
   return (
@@ -296,13 +194,13 @@ function StaffLoginContent() {
             <CardTitle>Staff Portal</CardTitle>
           </div>
           <CardDescription>
-            Sign in to access the admin or doctor dashboard
+            Sign in with your staff credentials
           </CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
             <Alert variant="destructive" className="mb-4">
-              {isNetworkIssue ? <WifiOff className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+              <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -329,46 +227,14 @@ function StaffLoginContent() {
 
               <FormField
                 control={form.control}
-                name="role"
+                name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Role</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="admin">
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4" />
-                            <span>Admin</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="doctor">
-                          <div className="flex items-center gap-2">
-                            <Stethoscope className="w-4 h-4" />
-                            <span>Doctor</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="accessCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Access Code</FormLabel>
+                    <FormLabel>Password</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
-                        placeholder="Enter your access code"
+                        placeholder="••••••••"
                         {...field}
                       />
                     </FormControl>
@@ -377,24 +243,30 @@ function StaffLoginContent() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="rememberDevice"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        id="rememberDevice"
-                      />
-                    </FormControl>
-                    <FormLabel htmlFor="rememberDevice" className="text-sm font-normal cursor-pointer">
-                      Remember this device for 6 months (use on trusted devices only)
-                    </FormLabel>
-                  </FormItem>
-                )}
-              />
+              <div className="flex items-center justify-between">
+                <FormField
+                  control={form.control}
+                  name="rememberMe"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-sm font-normal">Remember me</FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <Link href="/forgot-password" passHref>
+                  <Button variant="link" className="px-0 text-sm h-auto">
+                    Forgot password?
+                  </Button>
+                </Link>
+              </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? 'Signing In...' : 'Sign In'}
@@ -412,8 +284,8 @@ function StaffLoginContent() {
           </div>
 
           <div className="mt-4 p-3 bg-muted rounded-lg text-xs text-muted-foreground">
-            <p className="font-medium mb-1">Need access?</p>
-            <p>Contact your administrator to get your email registered and receive an access code.</p>
+            <p className="font-medium mb-1">Staff accounts are managed by administrators</p>
+            <p>Contact your administrator if you need access or have forgotten your password.</p>
           </div>
         </CardContent>
       </Card>

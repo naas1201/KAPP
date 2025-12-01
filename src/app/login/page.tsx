@@ -15,7 +15,8 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
 } from 'firebase/auth';
-import { auth } from '@/firebase/client';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, firestore } from '@/firebase/client';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -75,12 +76,29 @@ function LoginForm() {
   }, [rememberMe]);
 
   const handleGoogleSignIn = async () => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       await setPersistence(auth, browserLocalPersistence); // Persist Google sign-in
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      
+      // Ensure user document exists in Firestore at users/{uid}
+      // This is required for role-based access control via Firestore rules
+      if (result.user) {
+        const userDocRef = doc(firestore, 'users', result.user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (!userDocSnap.exists()) {
+          // Create user document with default 'patient' role if it doesn't exist
+          await setDoc(userDocRef, {
+            email: result.user.email?.toLowerCase(),
+            role: 'patient',
+            name: result.user.displayName || '',
+            createdAt: serverTimestamp(),
+          });
+        }
+      }
+      
       toast({ title: 'Signed in successfully!' });
       // Patients go to patient dashboard
       router.push(redirectUrl);
