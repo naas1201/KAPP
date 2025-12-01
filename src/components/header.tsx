@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Menu, User, LogOut, LayoutDashboard, Stethoscope, Shield } from 'lucide-react';
+import { Menu, LogOut, LayoutDashboard, Stethoscope, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -23,24 +23,19 @@ import {
   } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Logo } from '@/components/logo';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase/hooks';
 import { signOut } from 'firebase/auth';
 import { BookingSheet } from './BookingSheet';
 import { doc } from 'firebase/firestore';
 
 
-const navLinks = [
-  { href: '/services', label: 'Services' },
-  { href: '/new-patient', label: 'New Patients' },
-  { href: '/#about', label: 'About' },
-  { href: '/#contact', label: 'Contact' },
-];
-
 export function Header() {
     const { user, isLoading: isUserLoading } = useUser();
     const auth = useAuth();
     const firestore = useFirestore();
     const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
+    const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
     
     // Fetch user role from Firestore - uses email as document ID
     const userRoleRef = useMemoFirebase(() => {
@@ -61,8 +56,26 @@ export function Header() {
     
     const isStaff = userRole === 'admin' || userRole === 'doctor';
     
+    // Dynamic nav links based on user state
+    const navLinks = useMemo(() => {
+      const links = [
+        { href: '/services', label: 'Services' },
+        { href: '/#about', label: 'About' },
+        { href: '/#contact', label: 'Contact' },
+      ];
+      
+      // Only show "New Patients" link for non-logged-in users or users without patient profile
+      // For logged-in patients, they can access this from their dashboard
+      if (!user) {
+        links.splice(1, 0, { href: '/new-patient', label: 'New Patients' });
+      }
+      
+      return links;
+    }, [user]);
+    
     const handleSignOut = async () => {
         if (!auth) return;
+        setMobileMenuOpen(false);
         await signOut(auth);
     }
 
@@ -86,6 +99,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+            <ThemeToggle />
             {!isUserLoading && (
                 <>
                 {user ? (
@@ -143,7 +157,7 @@ export function Header() {
              {!isStaff && (
                <Button onClick={() => setBookingSheetOpen(true)}>Book Now</Button>
              )}
-          <Sheet>
+          <Sheet open={isMobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">
                 <Menu className="w-5 h-5" />
@@ -166,22 +180,60 @@ export function Header() {
                     </Link>
                   </SheetClose>
                 ))}
+                {/* Show dashboard links in mobile menu based on role */}
+                {user && userRole === 'patient' && (
+                  <SheetClose asChild>
+                    <Link
+                      href="/patient/dashboard"
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      My Dashboard
+                    </Link>
+                  </SheetClose>
+                )}
+                {user && userRole === 'doctor' && (
+                  <SheetClose asChild>
+                    <Link
+                      href="/doctor/dashboard"
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+                    >
+                      <Stethoscope className="w-4 h-4" />
+                      Doctor Portal
+                    </Link>
+                  </SheetClose>
+                )}
+                {user && userRole === 'admin' && (
+                  <SheetClose asChild>
+                    <Link
+                      href="/admin"
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-2"
+                    >
+                      <Shield className="w-4 h-4" />
+                      Admin Portal
+                    </Link>
+                  </SheetClose>
+                )}
               </nav>
               <div className="mt-auto m-4 space-y-2">
                 {user ? (
-                     <SheetClose asChild>
-                        <Button asChild size="lg" className="w-full" variant="outline" onClick={handleSignOut}>
-                            <button>Sign Out</button>
-                        </Button>
-                    </SheetClose>
+                  <Button 
+                    size="lg" 
+                    className="w-full" 
+                    variant="outline" 
+                    onClick={handleSignOut}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </Button>
                 ) : (
-                    <>
-                     <SheetClose asChild>
-                        <Button asChild size="lg" className="w-full" variant="outline">
-                            <Link href="/login">Sign In</Link>
-                        </Button>
+                  <>
+                    <SheetClose asChild>
+                      <Button asChild size="lg" className="w-full" variant="outline">
+                        <Link href="/login">Sign In</Link>
+                      </Button>
                     </SheetClose>
-                    </>
+                  </>
                 )}
               </div>
             </SheetContent>

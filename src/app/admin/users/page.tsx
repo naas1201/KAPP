@@ -49,6 +49,7 @@ interface User {
   id: string;
   email: string;
   role: UserRole;
+  staffId?: string;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -69,6 +70,7 @@ export default function UsersPage() {
   const [userDetails, setUserDetails] = useState({
     email: '',
     role: 'doctor' as UserRole,
+    staffId: '',
   });
 
   // Search and pagination
@@ -105,7 +107,7 @@ export default function UsersPage() {
   };
 
   const resetForm = () => {
-    setUserDetails({ email: '', role: 'doctor' });
+    setUserDetails({ email: '', role: 'doctor', staffId: '' });
   };
 
   const handleOpenModal = () => {
@@ -134,7 +136,17 @@ export default function UsersPage() {
     }
 
     const userDocRef = doc(firestore, 'users', userDetails.email);
-    setDocumentNonBlocking(userDocRef, userDetails, {});
+    const userData: any = { 
+      email: userDetails.email,
+      role: userDetails.role 
+    };
+    
+    // Add staffId for admin and doctor roles
+    if ((userDetails.role === 'admin' || userDetails.role === 'doctor') && userDetails.staffId.trim()) {
+      userData.staffId = userDetails.staffId.toLowerCase().trim();
+    }
+    
+    setDocumentNonBlocking(userDocRef, userData, {});
 
     toast({ 
       title: 'User Added', 
@@ -235,6 +247,7 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
+                <TableHead>Staff ID</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -244,12 +257,13 @@ export default function UsersPage() {
                 <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                 </TableRow>
               ))}
               {!isLoading && paginatedUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     {searchQuery ? 'No users found matching your search.' : 'No users found. Add your first user to get started.'}
                   </TableCell>
                 </TableRow>
@@ -257,6 +271,9 @@ export default function UsersPage() {
               {paginatedUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.email}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {user.staffId || '-'}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
                       {user.role}
@@ -346,6 +363,16 @@ export default function UsersPage() {
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
+            {(userDetails.role === 'admin' || userDetails.role === 'doctor') && (
+              <Input
+                placeholder="Staff ID (optional, e.g., admin1 or doc123)"
+                type="text"
+                value={userDetails.staffId}
+                onChange={(e) =>
+                  setUserDetails({ ...userDetails, staffId: e.target.value })
+                }
+              />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>

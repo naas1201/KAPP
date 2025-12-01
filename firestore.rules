@@ -354,5 +354,17 @@ service cloud.firestore {
       allow read: if isOwner(doctorId) || isAdmin();
       allow write: if isAdmin(); // Only system/admin can update gamification
     }
+
+    /**
+     * @description Newsletter subscribers collection
+     * SECURITY: Anyone can subscribe, only admin can read list, users can unsubscribe their own
+     */
+    match /newsletterSubscribers/{email} {
+      allow read, update: if isAdmin();
+      allow read, update: if isSignedIn() && request.auth.token.email.lower() == email.lower();
+      allow create: if true
+        && isValidEmailFormat(request.resource.data.email)
+        && isValidDocumentSize();
+    }
   }
 }
