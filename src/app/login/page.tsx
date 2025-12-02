@@ -14,6 +14,7 @@ import {
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
+  type User,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, firestore } from '@/firebase/client';
@@ -38,6 +39,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createStaffSession } from '@/lib/staff-auth';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -46,6 +48,44 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+/**
+ * Get the appropriate redirect URL based on user role
+ */
+async function getRedirectForUser(user: User, defaultRedirect: string): Promise<string> {
+  if (!firestore) return defaultRedirect;
+  
+  try {
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+    
+    if (userDocSnap.exists()) {
+      const userData = userDocSnap.data();
+      const role = userData.role;
+      
+      // Create staff session for admin/doctor
+      if (role === 'admin' || role === 'doctor') {
+        createStaffSession(
+          userData.email || user.email || '',
+          role,
+          userData.name || user.displayName || '',
+          true // remember device
+        );
+      }
+      
+      if (role === 'admin') {
+        return '/admin';
+      } else if (role === 'doctor') {
+        return '/doctor/dashboard';
+      }
+    }
+    
+    return defaultRedirect;
+  } catch (error) {
+    console.error('Error fetching user role:', error);
+    return defaultRedirect;
+  }
+}
 
 function LoginForm() {
   const router = useRouter();
@@ -97,11 +137,13 @@ function LoginForm() {
             createdAt: serverTimestamp(),
           });
         }
+        
+        // Get appropriate redirect based on user role
+        const finalRedirect = await getRedirectForUser(result.user, redirectUrl);
+        
+        toast({ title: 'Signed in successfully!' });
+        router.push(finalRedirect);
       }
-      
-      toast({ title: 'Signed in successfully!' });
-      // Patients go to patient dashboard
-      router.push(redirectUrl);
     } catch (error: any) {
       console.error('Google sign-in error:', error);
       let errorMessage = error.message;
@@ -123,7 +165,7 @@ function LoginForm() {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!auth) {
+    if (!auth || !firestore) {
       console.error('Auth not initialized');
       return;
     }
@@ -132,9 +174,12 @@ function LoginForm() {
     try {
       const result = await signInWithEmailAndPassword(auth, data.email, data.password);
       console.log('Sign-in successful for:', result.user.email);
+      
+      // Get appropriate redirect based on user role
+      const finalRedirect = await getRedirectForUser(result.user, redirectUrl);
+      
       toast({ title: 'Signed in successfully!' });
-      // Patients go to patient dashboard
-      router.push(redirectUrl);
+      router.push(finalRedirect);
     } catch (error: any) {
       console.error('Sign-in error:', error);
       // Provide more specific error messages based on Firebase error codes
