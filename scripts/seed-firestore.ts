@@ -47,54 +47,72 @@ if (getApps().length === 0) {
 
 const db: Firestore = getFirestore(app);
 
-// Default treatments/procedures
+// Helper function to create a slug from treatment name
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+// Default treatments/procedures with slugified IDs
 const treatments = [
   {
+    id: 'annual-physical-exam',
     name: 'Annual Physical Exam',
     description: 'A comprehensive check-up to assess your overall health and prevent potential health issues.',
     category: 'General Medicine'
   },
   {
+    id: 'vaccinations',
     name: 'Vaccinations',
     description: 'Stay protected with essential vaccinations for flu, HPV, pneumonia, and more.',
     category: 'General Medicine'
   },
   {
+    id: 'chronic-disease-management',
     name: 'Chronic Disease Management',
     description: 'Ongoing care and support for managing conditions like diabetes, hypertension, and asthma.',
     category: 'General Medicine'
   },
   {
+    id: 'minor-injury-care',
     name: 'Minor Injury Care',
     description: 'Treatment for non-life-threatening injuries such as cuts, sprains, and minor burns.',
     category: 'General Medicine'
   },
   {
+    id: 'botox-injections',
     name: 'Botox Injections',
     description: 'Smooth out wrinkles and fine lines for a refreshed, youthful appearance.',
     category: 'Aesthetic'
   },
   {
+    id: 'dermal-fillers',
     name: 'Dermal Fillers',
     description: 'Restore volume, contour facial features, and soften creases with hyaluronic acid fillers.',
     category: 'Aesthetic'
   },
   {
+    id: 'chemical-peels',
     name: 'Chemical Peels',
     description: 'Improve skin texture and tone by removing the outermost layers of the skin.',
     category: 'Aesthetic'
   },
   {
+    id: 'microneedling-with-prp',
     name: 'Microneedling with PRP',
     description: "Stimulate collagen production and enhance skin repair using your body's own growth factors.",
     category: 'Aesthetic'
   },
   {
+    id: 'dermatology-consultation',
     name: 'Dermatology Consultation',
     description: 'Expert consultation for skin conditions, acne, eczema, and other dermatological concerns.',
     category: 'Dermatology'
   },
   {
+    id: 'skin-cancer-screening',
     name: 'Skin Cancer Screening',
     description: 'Comprehensive skin examination to detect early signs of skin cancer and melanoma.',
     category: 'Dermatology'
@@ -114,8 +132,11 @@ async function seedTreatments(): Promise<void> {
   }
   
   for (const treatment of treatments) {
-    const docRef = await db.collection('treatments').add(treatment);
-    console.log(`   ✓ Added: ${treatment.name} (${docRef.id})`);
+    // Use the predefined slug ID for the document
+    const { id, ...treatmentData } = treatment;
+    const docRef = db.collection('treatments').doc(id);
+    await docRef.set(treatmentData);
+    console.log(`   ✓ Added: ${treatment.name} (${id})`);
   }
   
   console.log(`✅ Added ${treatments.length} treatments`);
