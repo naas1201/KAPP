@@ -103,6 +103,20 @@ service cloud.firestore {
     }
 
     /**
+     * @description Pending staff invites. Admin can create invites by email.
+     * When users sign up, they check this collection to see if they have a pending invite.
+     * Public read is required so signup process can check for pending invites.
+     */
+    match /pendingStaff/{email} {
+      // Allow read for anyone - needed during signup to check for pending invites
+      allow read: if true;
+      // Only admins can create, update, or delete pending invites
+      allow write: if isAdmin();
+      // Allow authenticated users to delete their own pending invite (when claiming it during signup)
+      allow delete: if isSignedIn() && request.auth.token.email == email;
+    }
+
+    /**
      * Checks if the requesting user is an authorized doctor for a given patient.
      */
     function isAuthorizedDoctorForPatient(patientId) {
@@ -261,6 +275,37 @@ service cloud.firestore {
          && request.resource.data.rating >= 1
          && request.resource.data.rating <= 5;
       allow read, list: if isAdmin();
+    }
+
+    /**
+     * @description System announcements visible to users
+     */
+    match /announcements/{announcementId} {
+      // Users can read active announcements
+      allow read: if isSignedIn();
+      // Only admins can create, update, delete announcements
+      allow write: if isAdmin();
+    }
+
+    /**
+     * @description Feature flags for enabling/disabling features
+     */
+    match /featureFlags/{flagId} {
+      // Anyone can read feature flags (needed for feature checks)
+      allow read: if true;
+      // Only admins can modify feature flags
+      allow write: if isAdmin();
+    }
+
+    /**
+     * @description Audit logs for tracking admin actions
+     */
+    match /auditLogs/{logId} {
+      // Only admins can read audit logs
+      allow read: if isAdmin();
+      // Admins can create logs, but cannot update or delete them (immutable)
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
   }
 }

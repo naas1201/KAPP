@@ -12,8 +12,9 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   updateProfile,
+  type User,
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, firestore } from '@/firebase/client';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/logo';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createStaffSession } from '@/lib/staff-auth';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name must be at least 2 characters.' }),
@@ -43,6 +45,66 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+/**
+ * Check if the user has a pending staff invite and create the appropriate user document
+ */
+async function createUserDocument(user: User, displayName: string): Promise<{ role: string; redirect: string }> {
+  if (!firestore) return { role: 'patient', redirect: '/' };
+  
+  const email = user.email?.toLowerCase() || '';
+  
+  // Check if there's a pending staff invite for this email
+  const pendingStaffRef = doc(firestore, 'pendingStaff', email);
+  const pendingStaffDoc = await getDoc(pendingStaffRef);
+  
+  let role = 'patient';
+  let redirect = '/patient/dashboard';
+  let staffData: Record<string, unknown> = {};
+  
+  if (pendingStaffDoc.exists()) {
+    const pendingData = pendingStaffDoc.data();
+    role = pendingData.role || 'patient';
+    staffData = {
+      staffId: pendingData.staffId,
+      accessCode: pendingData.accessCode,
+    };
+    
+    // Set redirect based on role
+    if (role === 'admin') {
+      redirect = '/admin';
+      createStaffSession(email, 'admin', displayName, true);
+    } else if (role === 'doctor') {
+      redirect = '/doctor/dashboard';
+      createStaffSession(email, 'doctor', displayName, true);
+    }
+    
+    // Delete the pending staff record as it's now been claimed
+    await deleteDoc(pendingStaffRef);
+    
+    // Update staffCredentials with the UID
+    const staffCredentialsRef = doc(firestore, 'staffCredentials', email);
+    await setDoc(staffCredentialsRef, {
+      ...staffData,
+      email,
+      role,
+      uid: user.uid,
+      name: displayName,
+    }, { merge: true });
+  }
+  
+  // Create the user document at users/{uid}
+  const userDocRef = doc(firestore, 'users', user.uid);
+  await setDoc(userDocRef, {
+    email,
+    role,
+    name: displayName,
+    ...staffData,
+    createdAt: serverTimestamp(),
+  }, { merge: true });
+  
+  return { role, redirect };
+}
 
 function SignupForm() {
   const router = useRouter();
@@ -69,20 +131,18 @@ function SignupForm() {
     try {
       const result = await signInWithPopup(auth, provider);
       
-      // Create user document in Firestore at users/{uid} with default 'patient' role
-      // This is required for role-based access control via Firestore rules
       if (result.user) {
-        const userDocRef = doc(firestore, 'users', result.user.uid);
-        await setDoc(userDocRef, {
-          email: result.user.email?.toLowerCase(),
-          role: 'patient', // Default role for new sign-ups
-          name: result.user.displayName || '',
-          createdAt: serverTimestamp(),
-        }, { merge: true }); // Use merge to avoid overwriting if user already exists
+        const displayName = result.user.displayName || '';
+        const { role, redirect } = await createUserDocument(result.user, displayName);
+        
+        toast({ 
+          title: 'Signed up successfully!',
+          description: role !== 'patient' ? `Welcome, you're registered as ${role}!` : undefined,
+        });
+        
+        // If there's a custom redirect, use that. Otherwise use role-based redirect
+        router.push(redirectUrl !== '/' ? redirectUrl : redirect);
       }
-      
-      toast({ title: 'Signed up successfully!' });
-      router.push(redirectUrl);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -103,18 +163,15 @@ function SignupForm() {
       
       await updateProfile(userCredential.user, { displayName: data.fullName });
       
-      // Create user document in Firestore at users/{uid} with default 'patient' role
-      // This is required for role-based access control via Firestore rules
-      const userDocRef = doc(firestore, 'users', userCredential.user.uid);
-      await setDoc(userDocRef, {
-        email: userCredential.user.email?.toLowerCase(),
-        role: 'patient', // Default role for new sign-ups
-        name: data.fullName,
-        createdAt: serverTimestamp(),
+      const { role, redirect } = await createUserDocument(userCredential.user, data.fullName);
+      
+      toast({ 
+        title: 'Account created successfully!',
+        description: role !== 'patient' ? `Welcome, you're registered as ${role}!` : undefined,
       });
       
-      toast({ title: 'Account created successfully!' });
-      router.push(redirectUrl);
+      // If there's a custom redirect, use that. Otherwise use role-based redirect
+      router.push(redirectUrl !== '/' ? redirectUrl : redirect);
     } catch (error: any) {
         let description = 'An unexpected error occurred. Please try again.';
         if (error.code === 'auth/email-already-in-use') {

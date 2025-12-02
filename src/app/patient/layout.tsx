@@ -20,8 +20,9 @@ import {
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
 import { useUser, useDoc, useFirestore } from '@/firebase/hooks';
-import { useEffect } from 'react';
-import { doc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { createStaffSession } from '@/lib/staff-auth';
 
 export default function PatientLayout({
   children,
@@ -32,10 +33,64 @@ export default function PatientLayout({
   const { user, isLoading: isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
 
   // Check if the user has a patient record
   const patientRef = user && firestore ? doc(firestore, 'patients', user.uid) : null;
   const { data: patientData, isLoading: isPatientLoading } = useDoc(patientRef);
+
+  // Check user role and redirect staff to appropriate dashboard
+  useEffect(() => {
+    const checkUserRole = async () => {
+      if (!user || !firestore) {
+        setIsCheckingRole(false);
+        return;
+      }
+
+      try {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          const role = userData.role;
+          
+          // Redirect staff users to their appropriate dashboard
+          if (role === 'admin') {
+            // Create staff session for admin
+            createStaffSession(
+              userData.email || user.email || '',
+              'admin',
+              userData.name || user.displayName || '',
+              true
+            );
+            router.push('/admin');
+            return;
+          } else if (role === 'doctor') {
+            // Create staff session for doctor
+            createStaffSession(
+              userData.email || user.email || '',
+              'doctor',
+              userData.name || user.displayName || '',
+              true
+            );
+            router.push('/doctor/dashboard');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking user role:', error);
+      }
+      
+      setIsCheckingRole(false);
+    };
+
+    if (user && !isUserLoading) {
+      checkUserRole();
+    } else if (!isUserLoading) {
+      setIsCheckingRole(false);
+    }
+  }, [user, isUserLoading, firestore, router]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -43,7 +98,7 @@ export default function PatientLayout({
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || !user || isCheckingRole) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Loading...</p>
