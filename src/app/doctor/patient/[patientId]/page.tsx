@@ -111,6 +111,17 @@ const initialConsultationFormState = {
   treatmentPlan: '',
 };
 
+// Patient workflow statuses
+const PATIENT_STATUSES = [
+  { value: 'new', label: 'New Patient', color: 'bg-blue-500', textColor: 'text-blue-700' },
+  { value: 'accepted', label: 'Accepted', color: 'bg-green-500', textColor: 'text-green-700' },
+  { value: 'waiting_consultation', label: 'Waiting for Consultation', color: 'bg-yellow-500', textColor: 'text-yellow-700' },
+  { value: 'in_consultation', label: 'In Consultation', color: 'bg-purple-500', textColor: 'text-purple-700' },
+  { value: 'treated', label: 'Patient Treated', color: 'bg-green-600', textColor: 'text-green-700' },
+  { value: 'follow_up', label: 'Needs Follow-up', color: 'bg-orange-500', textColor: 'text-orange-700' },
+  { value: 'completed', label: 'Completed', color: 'bg-gray-500', textColor: 'text-gray-700' },
+];
+
 export default function PatientDetailsPage() {
   const { patientId } = useParams();
   const { user: doctor, isLoading: isUserLoading } = useUser();
@@ -125,6 +136,7 @@ export default function PatientDetailsPage() {
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [isReportModalOpen, setReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [patientStatus, setPatientStatus] = useState('new');
   
   const [consultationForm, setConsultationForm] = useState(initialConsultationFormState);
 
@@ -151,6 +163,21 @@ export default function PatientDetailsPage() {
   }, [firestore, patientId]);
 
   const { data: patient, isLoading: isLoadingPatient } = useDoc(patientRef);
+
+  // Doctor's patient record for workflow status
+  const doctorPatientRef = useMemoFirebase(() => {
+    if (!firestore || !patientId || !doctor) return null;
+    return doc(firestore, 'doctors', doctor.uid, 'patients', patientId as string);
+  }, [firestore, patientId, doctor]);
+
+  const { data: doctorPatientData } = useDoc(doctorPatientRef);
+
+  // Update patient status from doctor's record
+  useMemo(() => {
+    if (doctorPatientData?.status) {
+      setPatientStatus(doctorPatientData.status);
+    }
+  }, [doctorPatientData]);
 
   const treatmentsQuery = useMemoFirebase(() => {
     if (!firestore || !patientId) return null;
@@ -232,6 +259,112 @@ export default function PatientDetailsPage() {
     toast({ 
       title: "Medical Record Exported", 
       description: `Saved as ${filename}` 
+    });
+  };
+
+  // Export all patient data to XML
+  const handleExportAllPatientData = () => {
+    if (!patient || !doctor) return;
+    
+    // Create a comprehensive patient record
+    const allRecords = treatments || [];
+    const allPrescriptions = prescriptions || [];
+    
+    const exportData = {
+      patient: {
+        id: patient.id,
+        name: `${patient.firstName} ${patient.lastName}`,
+        dateOfBirth: patient.dateOfBirth,
+        email: patient.email,
+        phone: patient.phone,
+        address: patient.address,
+        occupation: patient.occupation,
+        medicalHistory: patient.medicalHistory,
+        aestheticGoals: patient.aestheticGoals,
+        allergies: patient.allergies,
+      },
+      consultations: allRecords.map((r: any) => ({
+        date: r.date,
+        diagnosis: r.diagnosis,
+        treatmentPlan: r.treatmentPlan,
+        historyOfPresentIllness: r.historyOfPresentIllness,
+      })),
+      prescriptions: allPrescriptions.map((p: any) => ({
+        prescriptionNumber: p.prescriptionNumber,
+        drugName: p.drugName,
+        dosage: p.dosage,
+        frequency: p.frequency,
+        createdAt: p.createdAt,
+      })),
+      exportedAt: new Date().toISOString(),
+      exportedBy: doctor.displayName || doctor.email || 'Doctor',
+    };
+    
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PatientRecord xmlns="http://health.gov.ph/patient-record/v1" version="1.0">
+  <ExportInfo>
+    <ExportedAt>${exportData.exportedAt}</ExportedAt>
+    <ExportedBy>${exportData.exportedBy}</ExportedBy>
+    <Clinic>Castillo Health &amp; Aesthetics</Clinic>
+  </ExportInfo>
+  <Patient>
+    <ID>${patient.id}</ID>
+    <Name>${exportData.patient.name}</Name>
+    <DateOfBirth>${exportData.patient.dateOfBirth || ''}</DateOfBirth>
+    <Email>${exportData.patient.email || ''}</Email>
+    <Phone>${exportData.patient.phone || ''}</Phone>
+    <Address>${exportData.patient.address || ''}</Address>
+    <Occupation>${exportData.patient.occupation || ''}</Occupation>
+    <MedicalHistory>${exportData.patient.medicalHistory || ''}</MedicalHistory>
+    <AestheticGoals>${exportData.patient.aestheticGoals || ''}</AestheticGoals>
+    <Allergies>${exportData.patient.allergies || ''}</Allergies>
+  </Patient>
+  <Consultations>
+    ${exportData.consultations.map((c: any) => `
+    <Consultation>
+      <Date>${c.date || ''}</Date>
+      <Diagnosis>${c.diagnosis || ''}</Diagnosis>
+      <TreatmentPlan>${c.treatmentPlan || ''}</TreatmentPlan>
+    </Consultation>`).join('')}
+  </Consultations>
+  <Prescriptions>
+    ${exportData.prescriptions.map((p: any) => `
+    <Prescription>
+      <Number>${p.prescriptionNumber || ''}</Number>
+      <Drug>${p.drugName || ''}</Drug>
+      <Dosage>${p.dosage || ''}</Dosage>
+      <Frequency>${p.frequency || ''}</Frequency>
+      <Date>${p.createdAt || ''}</Date>
+    </Prescription>`).join('')}
+  </Prescriptions>
+</PatientRecord>`;
+    
+    const filename = `PatientRecord_${patient.firstName}_${patient.lastName}_${new Date().toISOString().split('T')[0]}.xml`;
+    downloadXmlFile(xml, filename);
+    
+    toast({ 
+      title: "Patient Data Exported", 
+      description: `Complete patient record saved as ${filename}` 
+    });
+  };
+
+  // Update patient workflow status
+  const handleUpdatePatientStatus = (newStatus: string) => {
+    if (!firestore || !doctor || !patientId) return;
+    
+    const doctorPatientRef = doc(firestore, 'doctors', doctor.uid, 'patients', patientId as string);
+    setDocumentNonBlocking(doctorPatientRef, { 
+      status: newStatus, 
+      statusUpdatedAt: serverTimestamp(),
+      patientId: patientId as string,
+    }, { merge: true });
+    
+    setPatientStatus(newStatus);
+    
+    const statusLabel = PATIENT_STATUSES.find(s => s.value === newStatus)?.label || newStatus;
+    toast({ 
+      title: "Status Updated", 
+      description: `Patient status changed to "${statusLabel}"` 
     });
   };
   
@@ -426,6 +559,8 @@ export default function PatientDetailsPage() {
   }
 
   const patientName = `${patient.firstName} ${patient.lastName}`;
+  
+  const currentStatus = PATIENT_STATUSES.find(s => s.value === patientStatus) || PATIENT_STATUSES[0];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -442,6 +577,29 @@ export default function PatientDetailsPage() {
               </Avatar>
               <CardTitle className="text-2xl">{patientName}</CardTitle>
               <CardDescription>Patient ID: {patient.id}</CardDescription>
+              
+              {/* Workflow Status */}
+              <div className="w-full mt-4">
+                <Label className="text-xs text-muted-foreground mb-2 block">Patient Status</Label>
+                <Select value={patientStatus} onValueChange={handleUpdatePatientStatus}>
+                  <SelectTrigger className="w-full">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${currentStatus.color}`} />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PATIENT_STATUSES.map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${status.color}`} />
+                          {status.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="flex items-center gap-3">
@@ -491,6 +649,9 @@ export default function PatientDetailsPage() {
                   </a>
                 </Button>
               )}
+              <Button variant="outline" onClick={handleExportAllPatientData}>
+                <Download className="w-4 h-4 mr-2" /> Export All Data (XML)
+              </Button>
                <Button variant="ghost" className="text-muted-foreground" onClick={() => setReportModalOpen(true)}>
                 <Flag className="w-4 h-4 mr-2" /> Report Patient
               </Button>
@@ -504,6 +665,17 @@ export default function PatientDetailsPage() {
               <p className="text-xs text-blue-700 dark:text-blue-300">
                 Chat sessions are automatically closed 24 hours after the last message. 
                 All chat data is deleted permanently after closing for patient privacy.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Data Export Info */}
+          <Card className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900">
+            <CardContent className="p-4 text-sm text-green-800 dark:text-green-200">
+              <p className="font-medium mb-1">Data Portability</p>
+              <p className="text-xs text-green-700 dark:text-green-300">
+                You can export patient data in XML format for record-keeping or transfer to other systems.
+                Exports include all medical records, prescriptions, and patient information.
               </p>
             </CardContent>
           </Card>
