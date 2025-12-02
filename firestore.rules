@@ -134,7 +134,8 @@ service cloud.firestore {
      * @description Manages patient profiles. 
      */
     match /patients/{patientId} {
-      allow get, update: if canAccessPatientData(patientId) && isValidDocumentSize();
+      allow get: if canAccessPatientData(patientId);
+      allow update: if canAccessPatientData(patientId) && isValidDocumentSize();
       allow list: if isAdmin();
       allow create: if isOwner(patientId) 
         && isValidDocumentSize()

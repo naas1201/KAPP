@@ -11,7 +11,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:rules": "jest --testPathPattern=firestore.rules.test.ts",
+    "test:rules": "jest --testPathPatterns=firestore.rules.test.ts",
     "test:e2e": "playwright test",
     "seed:prod-staff-accounts": "tsx ./scripts/create-prod-staff-accounts.ts"
   },
