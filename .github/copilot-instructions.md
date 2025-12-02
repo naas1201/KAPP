@@ -84,3 +84,7 @@ If anything here is unclear or you want the instructions to emphasize additional
 - `docs/STORAGE_SETUP.md` — Firebase Storage configuration.
 - `docs/ADMIN_DOCTOR_SETUP.md` — Admin and doctor account setup.
 - `E2E_TESTING.md` — End-to-end testing with Playwright and Firebase emulators.
+
+## Debug Token
+
+Firebase App Check debug token for development and testing: `F62EFE3C-5DF9-4636-ACBE-ED57D7793FB4`
