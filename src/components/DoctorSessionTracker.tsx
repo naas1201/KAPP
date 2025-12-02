@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { format, formatDuration, intervalToDuration } from 'date-fns';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { format, intervalToDuration } from 'date-fns';
 import { doc, serverTimestamp, increment } from 'firebase/firestore';
 import { firestore } from '@/firebase/client';
-import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { setDocumentNonBlocking } from '@/firebase';
 import { Clock, Monitor, Globe, Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -75,31 +75,46 @@ function generateSessionId(): string {
   return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
+// Configuration constants
+const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const IP_LOOKUP_TIMEOUT_MS = 3000; // 3 seconds timeout for IP lookup
+
 export function DoctorSessionTracker({ doctorId, doctorName, showTimer = true }: DoctorSessionTrackerProps) {
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
-  const [isLogging, setIsLogging] = useState(false);
+  const sessionInfoRef = useRef<SessionInfo | null>(null);
 
-  // Fetch IP address (using a free service)
+  // Keep ref in sync with state for use in cleanup
+  useEffect(() => {
+    sessionInfoRef.current = sessionInfo;
+  }, [sessionInfo]);
+
+  // Fetch IP address with timeout (optional feature - fails gracefully)
   const fetchIP = useCallback(async (): Promise<string> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), IP_LOOKUP_TIMEOUT_MS);
+    
     try {
-      const response = await fetch('https://api.ipify.org?format=json');
+      const response = await fetch('https://api.ipify.org?format=json', {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       const data = await response.json();
       return data.ip || 'Unknown';
     } catch {
+      clearTimeout(timeoutId);
       return 'Unknown';
     }
   }, []);
 
-  // Log session to Firestore
-  const logSession = useCallback(async (info: SessionInfo, action: 'start' | 'heartbeat' | 'end') => {
-    if (!firestore || !doctorId || isLogging) return;
+  // Log session to Firestore (non-blocking, fire-and-forget)
+  const logSession = useCallback((info: SessionInfo, action: 'start' | 'heartbeat' | 'end') => {
+    if (!firestore || !doctorId) return;
     
-    setIsLogging(true);
+    const sessionLogRef = doc(firestore, 'doctors', doctorId, 'sessionLogs', info.sessionId);
+    const now = new Date();
+    
     try {
-      const sessionLogRef = doc(firestore, 'doctors', doctorId, 'sessionLogs', info.sessionId);
-      const now = new Date();
-      
       if (action === 'start') {
         // Create new session log
         setDocumentNonBlocking(sessionLogRef, {
@@ -151,17 +166,15 @@ export function DoctorSessionTracker({ doctorId, doctorName, showTimer = true }:
 
         // Update doctor's total session time
         const doctorRef = doc(firestore, 'doctors', doctorId);
-        await setDocumentNonBlocking(doctorRef, {
+        setDocumentNonBlocking(doctorRef, {
           'stats.totalSessionTime': increment(duration),
           'stats.lastActiveAt': serverTimestamp(),
         }, { merge: true });
       }
     } catch (error) {
       console.error('Error logging session:', error);
-    } finally {
-      setIsLogging(false);
     }
-  }, [doctorId, doctorName, isLogging]);
+  }, [doctorId, doctorName]);
 
   // Initialize session on mount
   useEffect(() => {
@@ -185,7 +198,7 @@ export function DoctorSessionTracker({ doctorId, doctorName, showTimer = true }:
       setSessionInfo(info);
       
       // Log session start
-      await logSession(info, 'start');
+      logSession(info, 'start');
     };
 
     initSession();
@@ -218,26 +231,30 @@ export function DoctorSessionTracker({ doctorId, doctorName, showTimer = true }:
 
     const heartbeatInterval = setInterval(() => {
       logSession(sessionInfo, 'heartbeat');
-    }, 5 * 60 * 1000); // 5 minutes
+    }, HEARTBEAT_INTERVAL_MS);
 
     return () => clearInterval(heartbeatInterval);
   }, [sessionInfo, logSession]);
 
   // Log session end on unmount or page close
   useEffect(() => {
-    if (!sessionInfo) return;
-
     const handleBeforeUnload = () => {
-      logSession(sessionInfo, 'end');
+      // Use ref to get current session info for cleanup
+      if (sessionInfoRef.current) {
+        logSession(sessionInfoRef.current, 'end');
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      logSession(sessionInfo, 'end');
+      // Log end on component unmount
+      if (sessionInfoRef.current) {
+        logSession(sessionInfoRef.current, 'end');
+      }
     };
-  }, [sessionInfo, logSession]);
+  }, [logSession]);
 
   if (!sessionInfo) return null;
 

@@ -67,12 +67,21 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
+// Configuration constants
+const QUOTE_SHOW_DELAY_MS = 800;
+const AUTO_DISMISS_DELAY_MS = 6000;
+
 interface DoctorWelcomeAnimationProps {
   doctorName?: string;
   onDismiss?: () => void;
+  autoDismissMs?: number;
 }
 
-export function DoctorWelcomeAnimation({ doctorName = 'Doctor', onDismiss }: DoctorWelcomeAnimationProps) {
+export function DoctorWelcomeAnimation({ 
+  doctorName = 'Doctor', 
+  onDismiss,
+  autoDismissMs = AUTO_DISMISS_DELAY_MS 
+}: DoctorWelcomeAnimationProps) {
   const [isVisible, setIsVisible] = useState(true);
   const [quote, setQuote] = useState<typeof motivationalQuotes[0] | null>(null);
   const [showQuote, setShowQuote] = useState(false);
@@ -94,18 +103,19 @@ export function DoctorWelcomeAnimation({ doctorName = 'Doctor', onDismiss }: Doc
     // Show quote after greeting animation
     const quoteTimer = setTimeout(() => {
       setShowQuote(true);
-    }, 800);
+    }, QUOTE_SHOW_DELAY_MS);
 
-    // Auto-dismiss after 6 seconds
+    // Auto-dismiss after configured delay
     const dismissTimer = setTimeout(() => {
       handleDismiss();
-    }, 6000);
+    }, autoDismissMs);
 
     return () => {
       clearTimeout(quoteTimer);
       clearTimeout(dismissTimer);
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDismissMs]);
 
   const handleDismiss = () => {
     setIsVisible(false);
