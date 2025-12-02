@@ -67,6 +67,7 @@ import { useHapticFeedback } from '@/hooks/use-haptic-feedback';
 import { motion } from 'framer-motion';
 import { StripePaymentForm } from '@/components/StripePaymentForm';
 import { generateBookingId } from '@/lib/booking-id';
+import { SecureBookingBadge } from '@/components/TrustIndicators';
 
 
 // Default consultation fee in PHP when price cannot be parsed
@@ -607,6 +608,9 @@ export default function BookingPage() {
             Schedule your visit in just a few easy steps. We look forward to
             seeing you.
           </p>
+          <div className="mt-4 flex justify-center">
+            <SecureBookingBadge />
+          </div>
         </div>
       </section>
 

@@ -59,6 +59,7 @@ import { PATIENT_BADGES, calculatePatientLevel, type PatientBadge } from '@/lib/
 import { ProfileCompleteness } from '@/components/profile-completeness';
 import { NextAppointmentCountdown } from '@/components/next-appointment-countdown';
 import { WelcomeNotification } from '@/components/welcome-notification';
+import { HealthTipsWidget } from '@/components/HealthTipsWidget';
 
 export default function PatientDashboard() {
   const { firestore, user, isUserLoading } = useFirebase();
@@ -617,6 +618,11 @@ export default function PatientDashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Health Tips Section */}
+      <div className="mt-6">
+        <HealthTipsWidget patientName={patient?.firstName} />
       </div>
 
       {/* Edit Profile Dialog */}

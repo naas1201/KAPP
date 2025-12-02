@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/carousel';
 import { useState } from 'react';
 import { BookingSheet } from '@/components/BookingSheet';
+import { TrustIndicators } from '@/components/TrustIndicators';
 
 export default function Home() {
   const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
@@ -89,6 +90,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Trust Indicators Section */}
+      <TrustIndicators />
 
       <section id="services" className="py-16 bg-card md:py-24">
         <div className="container max-w-7xl">
