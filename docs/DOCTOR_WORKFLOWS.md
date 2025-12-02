@@ -367,5 +367,13 @@ Levels 21-30: Elite progression (Platinum Healer → Diamond Physician)
 - [x] Firebase rules updated for new features
 - [x] Next Up section for upcoming appointments
 - [x] Today's schedule view
+- [x] Welcome animation with motivational quotes
+- [x] Session tracking (duration, IP, device logging)
 
 All features interact with Firebase Firestore for real-time data synchronization.
+
+## Firebase Storage
+
+Patient documents and medical files are stored in Firebase Storage:
+- **Bucket**: `gs://studio-8822072999-a4137.firebasestorage.app`
+- See `docs/STORAGE_SETUP.md` for configuration details.

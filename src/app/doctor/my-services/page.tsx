@@ -26,7 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Info, Plus, Edit, Trash2, Check, X, Sparkles } from 'lucide-react';
+import { Info, Plus, Edit, Trash2, Check, X, Sparkles, Stethoscope } from 'lucide-react';
 import { useMemoFirebase } from '@/firebase/hooks';
 import {
   Dialog,
@@ -324,6 +324,18 @@ export default function MyServicesPage() {
                         <Skeleton className="h-9 w-32" />
                     </div>
                 ))
+              ) : !allTreatments || allTreatments.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+                  <Stethoscope className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <h3 className="font-semibold text-lg mb-2">No Clinic Services Available</h3>
+                  <p className="text-sm max-w-md mx-auto mb-4">
+                    The clinic hasn't added any procedures yet. Please ask your administrator to add treatments 
+                    via the Admin Panel &gt; Procedures page, or run the seed script.
+                  </p>
+                  <div className="text-xs bg-muted p-3 rounded max-w-sm mx-auto font-mono">
+                    npm run seed:firestore
+                  </div>
+                </div>
               ) : (
                 allTreatments?.map((treatment) => {
                   const isProviding = myServices[treatment.id]?.providesService || false;

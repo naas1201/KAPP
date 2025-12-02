@@ -498,7 +498,7 @@ If you need to access Storage from different domains, configure CORS:
 
 2. Apply CORS configuration:
 ```bash
-gsutil cors set cors.json gs://YOUR_BUCKET_NAME.appspot.com
+gsutil cors set cors.json gs://studio-8822072999-a4137.firebasestorage.app
 ```
 
 ## Support
@@ -509,3 +509,10 @@ gsutil cors set cors.json gs://YOUR_BUCKET_NAME.appspot.com
 ---
 
 **Note**: This guide assumes you already have Firebase configured for your project. If not, please complete the Firebase setup first before configuring Storage.
+
+## Storage Bucket Configuration
+
+The Firebase Storage bucket for this project is:
+- **Bucket URL**: `gs://studio-8822072999-a4137.firebasestorage.app`
+
+This is already configured in `src/firebase/config.ts`.
