@@ -6,7 +6,41 @@ This guide explains how to set up the Firestore database collections required fo
 
 The KAPP application requires several Firestore collections to function properly. This document provides step-by-step instructions to create the necessary collections and seed data.
 
-## Required Collections
+## Complete Collection Reference
+
+Here is the complete list of collections and their relationships:
+
+### Core Collections
+
+| Collection | Document ID | Purpose |
+|------------|-------------|---------|
+| `users` | User's Firebase Auth UID | Stores user roles (patient/doctor/admin) |
+| `patients` | User's Firebase Auth UID | Stores patient profile data |
+| `doctors` | Doctor's Firebase Auth UID | Stores doctor profile data |
+| `treatments` | Auto-generated or slugified name | Master list of clinic treatments |
+| `appointments` | Auto-generated | Top-level appointment records (for doctor/admin access) |
+| `staffCredentials` | Auto-generated | Staff login verification |
+| `pendingStaff` | Email address | Pending staff invitations |
+
+### Patient Subcollections
+
+| Path | Purpose |
+|------|---------|
+| `/patients/{patientId}/appointments/{appointmentId}` | Patient's appointment records |
+| `/patients/{patientId}/treatmentRecords/{recordId}` | Patient's medical consultation records |
+| `/patients/{patientId}/prescriptions/{prescriptionId}` | Patient's prescriptions |
+
+### Doctor Subcollections
+
+| Path | Purpose |
+|------|---------|
+| `/doctors/{doctorId}/services/{treatmentId}` | Which standard treatments doctor provides + pricing |
+| `/doctors/{doctorId}/customServices/{serviceId}` | Doctor's custom services |
+| `/doctors/{doctorId}/patients/{patientId}` | Doctor's patient list with workflow status |
+| `/doctors/{doctorId}/authorizedPatients/{patientId}` | Patients authorized for data access |
+| `/doctors/{doctorId}/sessionLogs/{sessionId}` | Doctor session tracking logs |
+
+## Required Collections - Detailed Setup
 
 ### 1. `treatments` Collection
 
@@ -69,11 +103,33 @@ This collection stores the master list of all procedures/treatments offered by t
 ]
 ```
 
-### 2. `doctors` Collection
+### 2. `users` Collection (IMPORTANT)
 
-This collection stores doctor profiles and their services.
+**This is the most critical collection for authentication and authorization.**
 
-**Path**: `/doctors/{doctorId}`
+The document ID **MUST** be the user's Firebase Auth UID. This is how the security rules verify user roles.
+
+**Path**: `/users/{userId}` (where userId = Firebase Auth UID)
+
+**Structure**:
+```typescript
+{
+  email: string;         // User's email (must match Firebase Auth token)
+  role: 'patient' | 'doctor' | 'admin';
+  createdAt: Timestamp;
+}
+```
+
+**Important Notes**:
+- When users sign up, they automatically get `role: 'patient'`
+- Only admins can change a user's role to `doctor` or `admin`
+- The document ID MUST be the Firebase Auth UID, NOT the email
+
+### 3. `doctors` Collection
+
+This collection stores doctor profiles and their service configurations.
+
+**Path**: `/doctors/{doctorId}` (where doctorId = Firebase Auth UID)
 
 **Structure**:
 ```typescript
@@ -87,6 +143,8 @@ This collection stores doctor profiles and their services.
   licenseNumber?: string;
   bio?: string;
   address?: string;
+  status?: 'active' | 'inactive' | 'pending';
+  onboardingCompleted?: boolean;
   defaultPatientStatus?: string;
   gamification?: {
     xp: number;
@@ -96,52 +154,67 @@ This collection stores doctor profiles and their services.
     currentStreak: number;
     longestStreak: number;
     lastActivityAt: Timestamp;
+    servicesConfigured?: number;
+    servicesUpdatedAt?: Timestamp;
+    appointmentsApproved?: number;
   };
 }
 ```
 
 **Subcollections**:
-- `/doctors/{doctorId}/services/{treatmentId}` - Doctor's service offerings
-- `/doctors/{doctorId}/customServices/{serviceId}` - Doctor's custom services
-- `/doctors/{doctorId}/patients/{patientId}` - Doctor's patient list
-- `/doctors/{doctorId}/authorizedPatients/{patientId}` - Authorized patients for access control
 
-### 3. `appointments` Collection
+#### `/doctors/{doctorId}/services/{treatmentId}`
+Tracks which standard treatments the doctor provides and their pricing.
 
-Top-level appointments for doctor/admin access.
+```typescript
+{
+  treatmentId: string;       // References treatments collection
+  providesService: boolean;  // Whether doctor offers this treatment
+  price: number;             // Doctor's price for this treatment
+}
+```
 
-**Path**: `/appointments/{appointmentId}`
+#### `/doctors/{doctorId}/customServices/{serviceId}`
+Custom services created by the doctor.
 
-**Structure**:
+```typescript
+{
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  isCustom: boolean;         // Always true
+  createdAt: string;         // ISO date string
+  createdBy: string;         // Doctor's UID
+  updatedAt?: string;
+}
+```
+
+#### `/doctors/{doctorId}/patients/{patientId}`
+Doctor's patient list with workflow status.
+
 ```typescript
 {
   patientId: string;
-  doctorId: string;
-  serviceType: string;
-  dateTime: string;      // ISO date string
-  status: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'cancelled';
-  paymentStatus: 'pending' | 'paid' | 'refunded';
-  originalPrice: number;
-  finalPrice: number;
-  phoneNumber: string;
-  medicalCondition?: string;
-  patientNotes?: string;
-  doctorNoteToPatient?: string;
-  doctorNoteToAdmin?: string;
-  confirmedAt?: Timestamp;
-  confirmedBy?: string;
-  rejectedAt?: Timestamp;
-  rejectedBy?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  addedAt: Timestamp;
+  status?: 'new' | 'accepted' | 'waiting_consultation' | 'in_consultation' | 'treated' | 'follow_up' | 'completed';
+  statusUpdatedAt?: Timestamp;
+}
+```
+
+#### `/doctors/{doctorId}/authorizedPatients/{patientId}`
+Patients the doctor is authorized to access data for.
+
+```typescript
+{
+  patientId: string;
+  addedAt: Timestamp;
 }
 ```
 
 ### 4. `patients` Collection
 
-This collection stores patient profiles.
-
-**Path**: `/patients/{patientId}`
+**Path**: `/patients/{patientId}` (where patientId = Firebase Auth UID)
 
 **Structure**:
 ```typescript
@@ -150,36 +223,78 @@ This collection stores patient profiles.
   lastName: string;
   email: string;
   phone?: string;
+  dateOfBirth?: string;
+  address?: string;
+  occupation?: string;
+  medicalHistory?: string;
+  aestheticGoals?: string;
+  allergies?: string;
   appointmentCount?: number;
+  firstVisitCelebrated?: boolean;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 ```
 
 **Subcollections**:
-- `/patients/{patientId}/appointments/{appointmentId}` - Patient's appointments
 
-### 5. `users` Collection
+#### `/patients/{patientId}/appointments/{appointmentId}`
+Patient's appointment records.
 
-This collection stores user roles and authentication info.
-
-**Path**: `/users/{userId}`
-
-**Structure**:
 ```typescript
 {
-  email: string;
-  role: 'patient' | 'doctor' | 'admin';
+  bookingId: string;                    // Professional booking reference
+  patientId: string;
+  doctorId: string;
+  serviceType: string;
+  dateTime: string;                     // ISO date string
+  status: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'cancelled';
+  paymentStatus: 'pending_payment' | 'paid' | 'refunded';
+  paymentIntentId?: string;             // Stripe payment reference
+  originalPrice: number;
+  finalPrice: number;
+  phoneNumber: string;
+  medicalCondition?: string;
+  patientNotes?: string;
+  doctorNoteToPatient?: string;
+  doctorNoteToAdmin?: string;
+  couponCode?: string;
+  couponDiscount?: number;
+  confirmedAt?: Timestamp;
+  confirmedBy?: string;
+  rejectedAt?: Timestamp;
+  rejectedBy?: string;
+  // Reschedule fields
+  timeRescheduled?: boolean;
+  originalDateTime?: string;
+  rescheduledBy?: 'doctor' | 'patient';
+  rescheduledAt?: Timestamp;
+  rescheduledTime?: string;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+### 5. `appointments` Collection (Top-Level)
+
+Denormalized copy of appointments for doctor/admin access.
+
+**Path**: `/appointments/{appointmentId}`
+
+Same structure as patient appointments, plus:
+```typescript
+{
+  id: string;   // The appointment document ID
+  // ... all appointment fields
 }
 ```
 
 ### 6. `staffCredentials` Collection
 
-This collection stores staff login credentials.
+For staff login verification.
 
 **Path**: `/staffCredentials/{credentialId}`
 
-**Structure**:
 ```typescript
 {
   email: string;
@@ -187,6 +302,21 @@ This collection stores staff login credentials.
   accessCode: string;
   name: string;
   isActive: boolean;
+}
+```
+
+### 7. `pendingStaff` Collection
+
+For pending staff invitations.
+
+**Path**: `/pendingStaff/{email}`
+
+```typescript
+{
+  email: string;
+  role: 'admin' | 'doctor';
+  invitedAt: Timestamp;
+  invitedBy: string;
 }
 ```
 
@@ -338,6 +468,215 @@ After setting up, verify the collections:
 2. Ensure users have the correct role in the `users` collection
 3. Check that the user's Firebase Auth UID matches their document ID
 
+### "Custom services not appearing in booking"
+
+1. Ensure the custom service has `createdBy` field set to the doctor's UID
+2. Verify the doctor has `status: 'active'` or `onboardingCompleted: true`
+3. Check that the customServices subcollection exists under the doctor's document
+
+### "Doctor not available as option"
+
+1. Verify the doctor document exists in `/doctors/{doctorId}` where doctorId = Firebase Auth UID
+2. Check that `status` is 'active' or `onboardingCompleted` is true
+3. Ensure the doctor has configured at least one service in their `/services` subcollection
+
+## Additional Collections
+
+### 8. `chatRooms` Collection
+
+For doctor-patient messaging.
+
+**Path**: `/chatRooms/{roomId}`
+
+```typescript
+{
+  participants: string[];    // Array of user UIDs
+  patientId: string;
+  doctorId: string;
+  status: 'open' | 'closed';
+  createdAt: Timestamp;
+  lastMessageAt?: Timestamp;
+}
+```
+
+**Subcollection**: `/chatRooms/{roomId}/messages/{messageId}`
+```typescript
+{
+  senderId: string;
+  content: string;
+  createdAt: Timestamp;
+  read?: boolean;
+}
+```
+
+### 9. `ratings` Collection
+
+Patient ratings for consultations.
+
+**Path**: `/ratings/{ratingId}`
+
+```typescript
+{
+  raterId: string;           // Patient UID
+  ratedId: string;           // Doctor UID
+  appointmentId?: string;
+  rating: number;            // 1-5
+  comment?: string;
+  createdAt: Timestamp;
+}
+```
+
+### 10. `reports` Collection
+
+Patient/user reports filed by doctors.
+
+**Path**: `/reports/{reportId}`
+
+```typescript
+{
+  reporterId: string;        // Doctor UID
+  reportedId: string;        // Patient UID
+  reason: string;
+  createdAt: string;
+}
+```
+
+### 11. `discountCodes` Collection
+
+Coupon/discount codes for bookings.
+
+**Path**: `/discountCodes/{codeId}`
+
+```typescript
+{
+  code: string;              // The coupon code (uppercase)
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  isActive: boolean;
+  expiresAt?: string;        // ISO date
+  usageLimit?: number;
+  usageCount: number;
+  criteriaType?: 'none' | 'service' | 'category' | 'minimum_amount' | 'returning_client';
+  serviceId?: string;
+  categorySlug?: string;
+  minimumAmount?: number;
+  minAppointmentCount?: number;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+```
+
+### 12. `announcements` Collection
+
+System announcements for users.
+
+**Path**: `/announcements/{announcementId}`
+
+```typescript
+{
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success';
+  active: boolean;
+  expiresAt?: Timestamp;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+```
+
+### 13. `featureFlags` Collection
+
+Feature toggles for the application.
+
+**Path**: `/featureFlags/{flagId}`
+
+```typescript
+{
+  name: string;
+  enabled: boolean;
+  description?: string;
+}
+```
+
+### 14. `auditLogs` Collection
+
+Audit trail for admin actions.
+
+**Path**: `/auditLogs/{logId}`
+
+```typescript
+{
+  action: string;
+  performedBy: string;       // Admin UID
+  targetType: string;        // 'user' | 'doctor' | 'appointment' etc.
+  targetId: string;
+  details: Record<string, any>;
+  createdAt: Timestamp;
+}
+```
+
+## Gamification System
+
+The gamification system tracks doctor and patient progress using embedded objects in their profile documents.
+
+### Doctor Gamification Fields
+
+Located in `/doctors/{doctorId}`:
+
+```typescript
+gamification: {
+  xp: number;                    // Experience points
+  level: number;                 // Current level
+  totalConsultations: number;    // Total completed consultations
+  totalPatients: number;         // Unique patients seen
+  currentStreak: number;         // Current daily streak
+  longestStreak: number;         // Best streak achieved
+  lastActivityAt: Timestamp;     // Last activity timestamp
+  servicesConfigured: number;    // Number of services configured
+  servicesUpdatedAt: Timestamp;  // Last service update
+  appointmentsApproved: number;  // Total approved appointments
+}
+```
+
+### Patient Gamification
+
+Tracked via the following fields in `/patients/{patientId}`:
+
+```typescript
+{
+  appointmentCount: number;      // Used for badges and level
+  firstVisitCelebrated: boolean; // Show first visit celebration
+}
+```
+
+Patient badges are calculated client-side based on:
+- First visit (1+ appointment)
+- Health Hero (5+ appointments)  
+- Wellness Warrior (10+ appointments)
+- Profile Complete (all fields filled)
+- Prepared Patient (has added notes to appointment)
+
+## Data Flow Summary
+
+### Booking Flow
+1. Patient selects service → checks `treatments` + doctors' `services` + `customServices`
+2. Patient selects doctor → shows only doctors who provide the service
+3. Patient selects date/time → checks `appointments` for availability
+4. Payment → creates appointment in `/patients/{patientId}/appointments` AND `/appointments`
+5. Doctor approves/reschedules → updates both locations
+
+### Doctor Service Configuration Flow
+1. Admin adds treatment to `treatments` collection
+2. Doctor goes to "My Services" page
+3. Doctor enables treatment and sets price → writes to `/doctors/{doctorId}/services/{treatmentId}`
+4. Doctor creates custom service → writes to `/doctors/{doctorId}/customServices/{serviceId}`
+5. Patients see available services when booking
+
+### Availability System
+- When doctor approves appointment with status 'confirmed', that time slot becomes unavailable
+- Booking page checks `/appointments` where `status == 'confirmed'` for the selected doctor/date
+- Unavailable time slots are grayed out in the booking calendar
+
 ## Security Rules
 
 The Firestore security rules are defined in `firestore.rules`. Key points:
@@ -346,6 +685,7 @@ The Firestore security rules are defined in `firestore.rules`. Key points:
 - Doctors can only read/write their own profile and services
 - Patients can only access their own appointments
 - Admins have elevated access to all collections
+- Document IDs for users/patients/doctors MUST match Firebase Auth UIDs
 
 ---
 
