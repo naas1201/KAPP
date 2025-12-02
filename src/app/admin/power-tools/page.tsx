@@ -48,6 +48,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { useStaffAuth } from '@/hooks/use-staff-auth';
 import {
   useCollection,
   useFirebase,
@@ -138,6 +139,10 @@ export default function PowerToolsPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('bulk-actions');
 
+  // Get current admin session
+  const { session } = useStaffAuth();
+  const currentAdminEmail = session?.email || 'admin@system';
+
   // Fetch users
   const usersRef = useMemoFirebase(() => (firestore ? collection(firestore, 'users') : null), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<User>(usersRef);
@@ -205,7 +210,7 @@ export default function PowerToolsPage() {
 
         {/* 1. Bulk Actions Tab */}
         <TabsContent value="bulk-actions">
-          <BulkActionsPanel users={users} isLoading={isLoadingUsers} firestore={firestore} toast={toast} />
+          <BulkActionsPanel users={users} isLoading={isLoadingUsers} firestore={firestore} toast={toast} adminEmail={currentAdminEmail} />
         </TabsContent>
 
         {/* 2. Announcements Tab */}
@@ -262,11 +267,12 @@ export default function PowerToolsPage() {
 // =============================================================================
 // 1. BULK ACTIONS PANEL - Bulk role changes, suspend/activate users
 // =============================================================================
-function BulkActionsPanel({ users, isLoading, firestore, toast }: { 
+function BulkActionsPanel({ users, isLoading, firestore, toast, adminEmail }: { 
   users: User[] | null; 
   isLoading: boolean;
   firestore: any;
   toast: any;
+  adminEmail: string;
 }) {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState<string>('');
@@ -333,8 +339,8 @@ function BulkActionsPanel({ users, isLoading, firestore, toast }: {
       const logRef = doc(collection(firestore, 'auditLogs'));
       setDocumentNonBlocking(logRef, {
         action: `Bulk ${bulkAction}`,
-        userId: 'admin',
-        userEmail: 'admin@system',
+        userId: adminEmail,
+        userEmail: adminEmail,
         details: `Applied ${bulkAction} to ${selectedUsers.length} users`,
         timestamp: serverTimestamp(),
         category: 'user-management',
