@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { notFound, useParams, useRouter } from 'next/navigation';
 import {
   useDoc,
@@ -88,6 +88,7 @@ import {
   exportMedicalRecordToXml, 
   downloadXmlFile, 
   generateMedicalRecordFilename,
+  escapeXml,
   type MedicalRecord 
 } from '@/lib/medical-records';
 import {
@@ -173,7 +174,7 @@ export default function PatientDetailsPage() {
   const { data: doctorPatientData } = useDoc(doctorPatientRef);
 
   // Update patient status from doctor's record
-  useMemo(() => {
+  useEffect(() => {
     if (doctorPatientData?.status) {
       setPatientStatus(doctorPatientData.status);
     }
@@ -303,38 +304,38 @@ export default function PatientDetailsPage() {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <PatientRecord xmlns="http://health.gov.ph/patient-record/v1" version="1.0">
   <ExportInfo>
-    <ExportedAt>${exportData.exportedAt}</ExportedAt>
-    <ExportedBy>${exportData.exportedBy}</ExportedBy>
+    <ExportedAt>${escapeXml(exportData.exportedAt)}</ExportedAt>
+    <ExportedBy>${escapeXml(exportData.exportedBy)}</ExportedBy>
     <Clinic>Castillo Health &amp; Aesthetics</Clinic>
   </ExportInfo>
   <Patient>
-    <ID>${patient.id}</ID>
-    <Name>${exportData.patient.name}</Name>
-    <DateOfBirth>${exportData.patient.dateOfBirth || ''}</DateOfBirth>
-    <Email>${exportData.patient.email || ''}</Email>
-    <Phone>${exportData.patient.phone || ''}</Phone>
-    <Address>${exportData.patient.address || ''}</Address>
-    <Occupation>${exportData.patient.occupation || ''}</Occupation>
-    <MedicalHistory>${exportData.patient.medicalHistory || ''}</MedicalHistory>
-    <AestheticGoals>${exportData.patient.aestheticGoals || ''}</AestheticGoals>
-    <Allergies>${exportData.patient.allergies || ''}</Allergies>
+    <ID>${escapeXml(patient.id)}</ID>
+    <Name>${escapeXml(exportData.patient.name)}</Name>
+    <DateOfBirth>${escapeXml(exportData.patient.dateOfBirth)}</DateOfBirth>
+    <Email>${escapeXml(exportData.patient.email)}</Email>
+    <Phone>${escapeXml(exportData.patient.phone)}</Phone>
+    <Address>${escapeXml(exportData.patient.address)}</Address>
+    <Occupation>${escapeXml(exportData.patient.occupation)}</Occupation>
+    <MedicalHistory>${escapeXml(exportData.patient.medicalHistory)}</MedicalHistory>
+    <AestheticGoals>${escapeXml(exportData.patient.aestheticGoals)}</AestheticGoals>
+    <Allergies>${escapeXml(exportData.patient.allergies)}</Allergies>
   </Patient>
   <Consultations>
     ${exportData.consultations.map((c: any) => `
     <Consultation>
-      <Date>${c.date || ''}</Date>
-      <Diagnosis>${c.diagnosis || ''}</Diagnosis>
-      <TreatmentPlan>${c.treatmentPlan || ''}</TreatmentPlan>
+      <Date>${escapeXml(c.date)}</Date>
+      <Diagnosis>${escapeXml(c.diagnosis)}</Diagnosis>
+      <TreatmentPlan>${escapeXml(c.treatmentPlan)}</TreatmentPlan>
     </Consultation>`).join('')}
   </Consultations>
   <Prescriptions>
     ${exportData.prescriptions.map((p: any) => `
     <Prescription>
-      <Number>${p.prescriptionNumber || ''}</Number>
-      <Drug>${p.drugName || ''}</Drug>
-      <Dosage>${p.dosage || ''}</Dosage>
-      <Frequency>${p.frequency || ''}</Frequency>
-      <Date>${p.createdAt || ''}</Date>
+      <Number>${escapeXml(p.prescriptionNumber)}</Number>
+      <Drug>${escapeXml(p.drugName)}</Drug>
+      <Dosage>${escapeXml(p.dosage)}</Dosage>
+      <Frequency>${escapeXml(p.frequency)}</Frequency>
+      <Date>${escapeXml(p.createdAt)}</Date>
     </Prescription>`).join('')}
   </Prescriptions>
 </PatientRecord>`;

@@ -149,16 +149,18 @@ export default function DoctorProfilePage() {
     setIsSaving(true);
 
     try {
+      if (!doctorRef) return;
+      
       const profileData = {
         ...formData,
         profileUpdatedAt: new Date().toISOString(),
         updatedAt: serverTimestamp(),
       };
 
-      setDocumentNonBlocking(doctorRef!, profileData, { merge: true });
+      setDocumentNonBlocking(doctorRef, profileData, { merge: true });
 
       // Update gamification data for profile completion
-      updateDocumentNonBlocking(doctorRef!, {
+      updateDocumentNonBlocking(doctorRef, {
         'gamification.profileComplete': true,
         'gamification.lastActivityAt': serverTimestamp(),
       });

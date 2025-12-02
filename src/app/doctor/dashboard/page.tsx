@@ -26,7 +26,7 @@ import {
   useMemoFirebase,
 } from '@/firebase/hooks';
 import { updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, doc, collectionGroup, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, doc, collectionGroup, serverTimestamp, orderBy, limit, increment } from 'firebase/firestore';
 import { format, formatDistanceToNow, isAfter, isBefore, addHours } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
@@ -176,7 +176,7 @@ export default function DoctorDashboard() {
       // Update gamification data
       const doctorRef = doc(firestore, 'doctors', user.uid);
       updateDocumentNonBlocking(doctorRef, {
-        'gamification.appointmentsApproved': (appointments?.length || 0) + 1,
+        'gamification.appointmentsApproved': increment(1),
         'gamification.lastActivityAt': serverTimestamp()
       });
 
