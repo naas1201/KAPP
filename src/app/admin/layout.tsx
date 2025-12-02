@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, Stethoscope, Calendar, Tag, Settings, Mail, LogOut } from 'lucide-react';
+import { FileQuestion, Home, Users, ClipboardList, UserPlus, UserCog, Flag, Stethoscope, Calendar, Tag, Settings, Mail, LogOut, Shield } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -218,6 +218,18 @@ export default function AdminLayout({
                 <Link href="/admin/settings">
                   <Settings />
                   <span>Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/admin/power-tools'}
+                tooltip={{ children: 'Admin Power Tools' }}
+              >
+                <Link href="/admin/power-tools">
+                  <Shield />
+                  <span>Power Tools</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
