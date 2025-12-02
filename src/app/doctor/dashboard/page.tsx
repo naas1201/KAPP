@@ -27,7 +27,7 @@ import {
 } from '@/firebase/hooks';
 import { updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc, collectionGroup, serverTimestamp, orderBy, limit, increment } from 'firebase/firestore';
-import { format, formatDistanceToNow, isAfter, isBefore, addHours, parse, set } from 'date-fns';
+import { format, formatDistanceToNow, isAfter, isBefore, addHours } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Video, Users, Stethoscope, Hourglass, Star, Quote, Clock, CalendarCheck, ChevronRight, MessageSquare, CalendarClock } from 'lucide-react';

@@ -1079,28 +1079,23 @@ export default function BookingPage() {
                                 <p className="text-sm">Please select a different date.</p>
                               </div>
                             ) : (
-                              availableTimeSlotsForSelection.map((time) => {
-                                const isUnavailable = !isTimeSlotAvailable(selectedDoctorId, selectedDate, time);
-                                return (
-                                  <FormItem key={time}>
-                                    <FormControl>
-                                      <RadioGroupItem value={time} id={time} className="sr-only" disabled={isUnavailable} />
-                                    </FormControl>
-                                    <Label 
-                                      htmlFor={time} 
-                                      className={cn(
-                                        "flex items-center justify-center p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
-                                        selectedTime === time && "border-primary bg-primary/10 text-primary",
-                                        isUnavailable && "opacity-50 cursor-not-allowed line-through"
-                                      )}
-                                    >
-                                      <Clock className="w-4 h-4 mr-2" />
-                                      {time}
-                                      {isUnavailable && <span className="ml-2 text-xs">(Booked)</span>}
-                                    </Label>
-                                  </FormItem>
-                                );
-                              })
+                              availableTimeSlotsForSelection.map((time) => (
+                                <FormItem key={time}>
+                                  <FormControl>
+                                    <RadioGroupItem value={time} id={time} className="sr-only" />
+                                  </FormControl>
+                                  <Label 
+                                    htmlFor={time} 
+                                    className={cn(
+                                      "flex items-center justify-center p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
+                                      selectedTime === time && "border-primary bg-primary/10 text-primary"
+                                    )}
+                                  >
+                                    <Clock className="w-4 h-4 mr-2" />
+                                    {time}
+                                  </Label>
+                                </FormItem>
+                              ))
                             )}
                           </RadioGroup>
                           <FormMessage />
