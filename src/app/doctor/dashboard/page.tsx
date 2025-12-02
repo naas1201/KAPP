@@ -51,11 +51,15 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { DoctorWelcomeAnimation } from '@/components/DoctorWelcomeAnimation';
+import { DoctorSessionTracker } from '@/components/DoctorSessionTracker';
+import { useStaffAuth } from '@/hooks/use-staff-auth';
 
 export default function DoctorDashboard() {
   const { firestore } = useFirebase();
   const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
+  const { session } = useStaffAuth();
   
   // State for approval dialog with notes
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
@@ -325,11 +329,26 @@ export default function DoctorDashboard() {
       </TableRow>
     ));
 
+  // Get doctor name for welcome animation
+  const doctorDisplayName = session?.name?.split(' ')[0] || 'Doctor';
+
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold font-headline mb-6">
-        Doctor Dashboard
-      </h1>
+      {/* Welcome Animation */}
+      <DoctorWelcomeAnimation doctorName={doctorDisplayName} />
+      
+      {/* Header with Session Tracker */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold font-headline">
+          Doctor Dashboard
+        </h1>
+        {user && (
+          <DoctorSessionTracker 
+            doctorId={user.uid} 
+            doctorName={session?.name || user.displayName || undefined}
+          />
+        )}
+      </div>
 
       <div className="mb-6">
         {isLoading ? (

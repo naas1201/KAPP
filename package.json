@@ -13,7 +13,8 @@
     "test": "jest",
     "test:rules": "jest --testPathPatterns=firestore.rules.test.ts",
     "test:e2e": "playwright test",
-    "seed:prod-staff-accounts": "tsx ./scripts/create-prod-staff-accounts.ts"
+    "seed:prod-staff-accounts": "tsx ./scripts/create-prod-staff-accounts.ts",
+    "seed:firestore": "tsx ./scripts/seed-firestore.ts"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

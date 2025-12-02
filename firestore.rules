@@ -210,6 +210,13 @@ service cloud.firestore {
       match /patients/{patientId} {
         allow read, write: if isOwner(doctorId) || isAdmin();
       }
+
+      // Session logs for security tracking
+      match /sessionLogs/{sessionId} {
+        allow read: if isOwner(doctorId) || isAdmin();
+        allow create, update: if isOwner(doctorId);
+        allow delete: if false; // Session logs are immutable
+      }
     }
 
     /**
