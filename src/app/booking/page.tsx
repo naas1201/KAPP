@@ -56,11 +56,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { services, doctors } from '@/lib/data';
+import { services } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { useDoc, useMemoFirebase } from '@/firebase/hooks';
-import { collection, serverTimestamp, doc, increment, query, where, getDocs } from 'firebase/firestore';
+import { useDoc, useMemoFirebase, useCollection } from '@/firebase/hooks';
+import { collection, serverTimestamp, doc, increment, query, where, getDocs, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { useHapticFeedback } from '@/hooks/use-haptic-feedback';
@@ -130,6 +130,23 @@ export default function BookingPage() {
   const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { triggerHaptic } = useHapticFeedback();
+
+  // Fetch doctors from Firestore instead of using static data
+  // Only show active doctors who have completed onboarding
+  const doctorsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'doctors'),
+      orderBy('lastName', 'asc')
+    );
+  }, [firestore]);
+
+  const { data: firestoreDoctors, isLoading: isLoadingDoctors } = useCollection(doctorsQuery);
+
+  // Filter to only show active doctors
+  const doctors = firestoreDoctors?.filter((d: any) => 
+    d.status === 'active' || d.onboardingCompleted
+  ) || [];
 
   // Fetch patient data to check appointment count for returning client discounts
   const patientRef = useMemoFirebase(() => {
@@ -695,20 +712,31 @@ export default function BookingPage() {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-lg font-semibold">Choose a Doctor</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a doctor..." />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {doctors.map(doctor => (
-                                                <SelectItem key={doctor.id} value={doctor.id}>
-                                                    Dr. {doctor.firstName} {doctor.lastName} - {doctor.specialization}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    {isLoadingDoctors ? (
+                                      <div className="flex items-center gap-2 text-muted-foreground py-4">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Loading doctors...
+                                      </div>
+                                    ) : doctors.length === 0 ? (
+                                      <div className="text-muted-foreground py-4">
+                                        No doctors available at this time. Please try again later.
+                                      </div>
+                                    ) : (
+                                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                          <FormControl>
+                                              <SelectTrigger>
+                                                  <SelectValue placeholder="Select a doctor..." />
+                                              </SelectTrigger>
+                                          </FormControl>
+                                          <SelectContent>
+                                              {doctors.map((doctor: any) => (
+                                                  <SelectItem key={doctor.id} value={doctor.id}>
+                                                      Dr. {doctor.firstName} {doctor.lastName} - {doctor.specialization}
+                                                  </SelectItem>
+                                              ))}
+                                          </SelectContent>
+                                      </Select>
+                                    )}
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -1096,7 +1124,7 @@ export default function BookingPage() {
                         <div className="p-4 mt-6 text-left border rounded-lg bg-muted/50">
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
-                            <p><strong>Doctor:</strong> Dr. {doctors.find(d => d.id === form.getValues('doctorId'))?.firstName} {doctors.find(d => d.id === form.getValues('doctorId'))?.lastName}</p>
+                            <p><strong>Doctor:</strong> Dr. {doctors.find((d: any) => d.id === form.getValues('doctorId'))?.firstName} {doctors.find((d: any) => d.id === form.getValues('doctorId'))?.lastName}</p>
                             <p><strong>Date:</strong> {form.getValues('date') instanceof Date ? format(form.getValues('date'), 'EEEE, MMMM d, yyyy') : 'N/A'}</p>
                             <p><strong>Time:</strong> {form.getValues('time')}</p>
                             <p><strong>Amount:</strong> ₱{finalPrice.toLocaleString()}</p>

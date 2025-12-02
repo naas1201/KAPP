@@ -60,7 +60,6 @@ import {
   AlertTriangle,
   Send
 } from 'lucide-react';
-import { doctors } from '@/lib/data';
 
 export default function AdminAppointmentsPage() {
   const { firestore, user, isUserLoading } = useFirebase();
@@ -95,6 +94,14 @@ export default function AdminAppointmentsPage() {
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection(patientsQuery);
 
+  // Fetch doctors from Firestore for lookup
+  const doctorsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'doctors');
+  }, [firestore]);
+
+  const { data: doctors, isLoading: isLoadingDoctors } = useCollection(doctorsQuery);
+
   // Create lookup map for patients
   const patientMap = useMemo(() => {
     if (!patients) return {};
@@ -104,6 +111,16 @@ export default function AdminAppointmentsPage() {
     });
     return map;
   }, [patients]);
+
+  // Create lookup map for doctors
+  const doctorMap = useMemo(() => {
+    if (!doctors) return {};
+    const map: Record<string, any> = {};
+    doctors.forEach((d: any) => {
+      map[d.id] = d;
+    });
+    return map;
+  }, [doctors]);
 
   // Categorize appointments
   const { upcomingAppointments, todayAppointments, pastAppointments } = useMemo(() => {
@@ -118,7 +135,7 @@ export default function AdminAppointmentsPage() {
       const enrichedApt = {
         ...apt,
         patient: patientMap[apt.patientId] || null,
-        doctor: doctors.find(d => d.id === apt.doctorId) || null,
+        doctor: doctorMap[apt.doctorId] || null,
       };
       
       if (isToday(aptDate)) {
@@ -135,7 +152,7 @@ export default function AdminAppointmentsPage() {
     today.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
     
     return { upcomingAppointments: upcoming, todayAppointments: today, pastAppointments: past };
-  }, [appointments, patientMap]);
+  }, [appointments, patientMap, doctorMap]);
 
   const handleOpenEdit = (appointment: any) => {
     setSelectedAppointment(appointment);
@@ -280,7 +297,7 @@ export default function AdminAppointmentsPage() {
     }
   };
 
-  const isLoading = isUserLoading || isLoadingAppointments || isLoadingPatients;
+  const isLoading = isUserLoading || isLoadingAppointments || isLoadingPatients || isLoadingDoctors;
 
   if (isLoading) {
     return (

@@ -35,6 +35,7 @@ import {
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
   deleteDocumentNonBlocking,
+  setDocumentNonBlocking,
 } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -94,6 +95,14 @@ export default function ProceduresPage() {
     setModalOpen(true);
   };
 
+  // Helper function to create a slug from treatment name
+  const slugify = (text: string): string => {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  };
+
   const handleSave = () => {
     if (!firestore) return;
 
@@ -102,7 +111,10 @@ export default function ProceduresPage() {
       updateDocumentNonBlocking(treatmentRef, treatmentDetails);
       toast({ title: 'Procedure updated successfully.' });
     } else {
-      addDocumentNonBlocking(treatmentsRef, treatmentDetails);
+      // Use slugified name as the document ID for new treatments
+      const treatmentId = slugify(treatmentDetails.name);
+      const treatmentRef = doc(firestore, 'treatments', treatmentId);
+      setDocumentNonBlocking(treatmentRef, treatmentDetails, {});
       toast({ title: 'New procedure added.' });
     }
     setModalOpen(false);
