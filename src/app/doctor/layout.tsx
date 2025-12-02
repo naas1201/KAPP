@@ -2,7 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, ListPlus, Trophy, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ListPlus, Trophy, LogOut, UserCircle, Settings } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -135,6 +135,18 @@ export default function DoctorLayout({
                 <Link href="/doctor/achievements">
                   <Trophy />
                   <span>Achievements</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/doctor/profile'}
+                tooltip={{ children: 'My Profile' }}
+              >
+                <Link href="/doctor/profile">
+                  <UserCircle />
+                  <span>My Profile</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

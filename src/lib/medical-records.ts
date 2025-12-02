@@ -60,7 +60,7 @@ export interface MedicalRecord {
 /**
  * Escapes special XML characters in a string
  */
-function escapeXml(str: string | undefined | null): string {
+export function escapeXml(str: string | undefined | null): string {
   if (!str) return '';
   return str
     .replace(/&/g, '&amp;')

@@ -193,13 +193,22 @@ service cloud.firestore {
       allow delete: if isAdmin();
       
       match /authorizedPatients/{patientId} {
-        allow write: if isAdmin();
-        allow read: if isAuthorizedDoctorForPatient(patientId);
+        allow write: if isOwner(doctorId) || isAdmin();
+        allow read: if isOwner(doctorId) || isAdmin();
       }
 
       match /services/{serviceId} {
         allow read: if isSignedIn();
         allow write: if isOwner(doctorId) || isAdmin();
+      }
+
+      match /customServices/{serviceId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(doctorId) || isAdmin();
+      }
+
+      match /patients/{patientId} {
+        allow read, write: if isOwner(doctorId) || isAdmin();
       }
     }
 
