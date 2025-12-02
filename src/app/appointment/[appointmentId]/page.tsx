@@ -79,6 +79,15 @@ const availableTimes = [
   '04:00 PM',
 ];
 
+// Doctor interface for Firestore doctor documents
+interface Doctor {
+  id: string;
+  firstName: string;
+  lastName: string;
+  specialization: string;
+  email?: string;
+}
+
 interface PatientProfile {
   id?: string;
   firstName?: string;
@@ -154,7 +163,7 @@ export default function AppointmentDetailsPage() {
 
   const { data: appointment, isLoading } = useDoc(appointmentRef);
   const { data: patientData } = useDoc<PatientProfile>(patientRef);
-  const { data: doctors } = useCollection(doctorsRef);
+  const { data: doctors } = useCollection<Doctor>(doctorsRef);
 
   // Initialize notes and profile from data
   useEffect(() => {
@@ -331,7 +340,7 @@ export default function AppointmentDetailsPage() {
   const appointmentStatus = appointment.status || 'pending';
   const isCancelled = appointmentStatus === 'cancelled';
   const isPast = appointmentDate < new Date();
-  const doctorInfo = doctors?.find((d: any) => d.id === appointment.doctorId);
+  const doctorInfo = doctors?.find((d) => d.id === appointment.doctorId);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

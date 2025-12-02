@@ -113,6 +113,17 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+// Doctor interface for Firestore doctor documents
+interface Doctor {
+  id: string;
+  firstName: string;
+  lastName: string;
+  specialization: string;
+  email?: string;
+  status?: 'active' | 'inactive' | 'pending';
+  onboardingCompleted?: boolean;
+}
+
 export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [showStripePayment, setShowStripePayment] = useState(false);
@@ -141,10 +152,10 @@ export default function BookingPage() {
     );
   }, [firestore]);
 
-  const { data: firestoreDoctors, isLoading: isLoadingDoctors } = useCollection(doctorsQuery);
+  const { data: firestoreDoctors, isLoading: isLoadingDoctors } = useCollection<Doctor>(doctorsQuery);
 
   // Filter to only show active doctors
-  const doctors = firestoreDoctors?.filter((d: any) => 
+  const doctors: Doctor[] = firestoreDoctors?.filter((d) => 
     d.status === 'active' || d.onboardingCompleted
   ) || [];
 
@@ -729,7 +740,7 @@ export default function BookingPage() {
                                               </SelectTrigger>
                                           </FormControl>
                                           <SelectContent>
-                                              {doctors.map((doctor: any) => (
+                                              {doctors.map((doctor) => (
                                                   <SelectItem key={doctor.id} value={doctor.id}>
                                                       Dr. {doctor.firstName} {doctor.lastName} - {doctor.specialization}
                                                   </SelectItem>
@@ -1124,7 +1135,10 @@ export default function BookingPage() {
                         <div className="p-4 mt-6 text-left border rounded-lg bg-muted/50">
                             <h3 className="font-semibold">Appointment Details:</h3>
                             <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
-                            <p><strong>Doctor:</strong> Dr. {doctors.find((d: any) => d.id === form.getValues('doctorId'))?.firstName} {doctors.find((d: any) => d.id === form.getValues('doctorId'))?.lastName}</p>
+                            {(() => {
+                              const selectedDoctor = doctors.find((d) => d.id === form.getValues('doctorId'));
+                              return <p><strong>Doctor:</strong> Dr. {selectedDoctor?.firstName} {selectedDoctor?.lastName}</p>;
+                            })()}
                             <p><strong>Date:</strong> {form.getValues('date') instanceof Date ? format(form.getValues('date'), 'EEEE, MMMM d, yyyy') : 'N/A'}</p>
                             <p><strong>Time:</strong> {form.getValues('time')}</p>
                             <p><strong>Amount:</strong> ₱{finalPrice.toLocaleString()}</p>

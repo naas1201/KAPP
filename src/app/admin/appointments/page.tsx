@@ -61,6 +61,15 @@ import {
   Send
 } from 'lucide-react';
 
+// Doctor interface for Firestore doctor documents
+interface Doctor {
+  id: string;
+  firstName: string;
+  lastName: string;
+  specialization: string;
+  email?: string;
+}
+
 export default function AdminAppointmentsPage() {
   const { firestore, user, isUserLoading } = useFirebase();
   const { toast } = useToast();
@@ -100,7 +109,7 @@ export default function AdminAppointmentsPage() {
     return collection(firestore, 'doctors');
   }, [firestore]);
 
-  const { data: doctors, isLoading: isLoadingDoctors } = useCollection(doctorsQuery);
+  const { data: doctors, isLoading: isLoadingDoctors } = useCollection<Doctor>(doctorsQuery);
 
   // Create lookup map for patients
   const patientMap = useMemo(() => {
@@ -115,8 +124,8 @@ export default function AdminAppointmentsPage() {
   // Create lookup map for doctors
   const doctorMap = useMemo(() => {
     if (!doctors) return {};
-    const map: Record<string, any> = {};
-    doctors.forEach((d: any) => {
+    const map: Record<string, Doctor> = {};
+    doctors.forEach((d) => {
       map[d.id] = d;
     });
     return map;
