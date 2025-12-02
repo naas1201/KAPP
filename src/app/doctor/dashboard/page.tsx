@@ -27,10 +27,10 @@ import {
 } from '@/firebase/hooks';
 import { updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, doc, collectionGroup, serverTimestamp, orderBy, limit, increment } from 'firebase/firestore';
-import { format, formatDistanceToNow, isAfter, isBefore, addHours } from 'date-fns';
+import { format, formatDistanceToNow, isAfter, isBefore, addHours, parse, set } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
-import { Video, Users, Stethoscope, Hourglass, Star, Quote, Clock, CalendarCheck, ChevronRight, MessageSquare } from 'lucide-react';
+import { Video, Users, Stethoscope, Hourglass, Star, Quote, Clock, CalendarCheck, ChevronRight, MessageSquare, CalendarClock } from 'lucide-react';
 import {
   Carousel,
   CarouselContent,
@@ -54,6 +54,24 @@ import { useToast } from '@/hooks/use-toast';
 import { DoctorWelcomeAnimation } from '@/components/DoctorWelcomeAnimation';
 import { DoctorSessionTracker } from '@/components/DoctorSessionTracker';
 import { useStaffAuth } from '@/hooks/use-staff-auth';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+// Available times for rescheduling
+const availableTimes = [
+  '09:00 AM',
+  '10:00 AM',
+  '11:00 AM',
+  '01:00 PM',
+  '02:00 PM',
+  '03:00 PM',
+  '04:00 PM',
+];
 
 export default function DoctorDashboard() {
   const { firestore } = useFirebase();
@@ -67,6 +85,11 @@ export default function DoctorDashboard() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [patientNote, setPatientNote] = useState('');
   const [adminNote, setAdminNote] = useState('');
+  
+  // State for reschedule dialog
+  const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleNote, setRescheduleNote] = useState('');
 
   // NOTE: For this small clinic setup, ALL doctors can see ALL appointments.
   // This is intentional as the clinic operates with shared visibility among staff.
@@ -221,6 +244,78 @@ export default function DoctorDashboard() {
     } catch (err) {
       console.error(err);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to decline appointment.' });
+    }
+  };
+
+  // Open reschedule dialog
+  const openRescheduleDialog = (apt: any) => {
+    setSelectedRequest(apt);
+    // Parse the current time from the appointment
+    const currentTime = format(new Date(apt.dateTime), 'hh:mm a').toUpperCase();
+    setRescheduleTime(currentTime);
+    setRescheduleNote('');
+    setRescheduleDialogOpen(true);
+  };
+
+  // Handle reschedule - changes only the time, keeps the date
+  const handleRescheduleRequest = async () => {
+    if (!firestore || !user || !selectedRequest || !rescheduleTime) return;
+    const apt = selectedRequest;
+    
+    try {
+      // Parse the original date and new time
+      const originalDate = new Date(apt.dateTime);
+      const [timePart, period] = rescheduleTime.split(' ');
+      let [hours, minutes] = timePart.split(':').map(Number);
+      if (period === 'PM' && hours < 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      
+      // Create new datetime with same date but new time
+      const newDateTime = new Date(originalDate);
+      newDateTime.setHours(hours, minutes, 0, 0);
+      
+      const originalTimeFormatted = format(originalDate, 'h:mm a');
+      const newTimeFormatted = format(newDateTime, 'h:mm a');
+      
+      const updateData: any = { 
+        status: 'confirmed', // Approve with reschedule
+        confirmedAt: serverTimestamp(),
+        confirmedBy: user.uid,
+        dateTime: newDateTime.toISOString(),
+        originalDateTime: apt.dateTime, // Keep the original for reference
+        rescheduledBy: 'doctor',
+        rescheduledAt: serverTimestamp(),
+        rescheduledTime: rescheduleTime,
+        timeRescheduled: true,
+        doctorNoteToPatient: rescheduleNote.trim() || `Your appointment time has been rescheduled from ${originalTimeFormatted} to ${newTimeFormatted}. If this time doesn't work for you, please cancel and book a new appointment.`,
+      };
+
+      // Update patient appointment
+      const patientAppointmentRef = doc(firestore, 'patients', apt.patientId, 'appointments', apt.id);
+      setDocumentNonBlocking(patientAppointmentRef, updateData, { merge: true });
+
+      // Update top-level appointment
+      const topLevelRef = doc(firestore, 'appointments', apt.id);
+      setDocumentNonBlocking(topLevelRef, { ...apt, ...updateData }, { merge: true });
+
+      // Add patient to doctor's lists
+      const doctorPatientRef = doc(firestore, 'doctors', user.uid, 'patients', apt.patientId);
+      setDocumentNonBlocking(doctorPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
+      
+      const authorizedPatientRef = doc(firestore, 'doctors', user.uid, 'authorizedPatients', apt.patientId);
+      setDocumentNonBlocking(authorizedPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
+
+      toast({ 
+        title: 'Appointment Rescheduled', 
+        description: `Rescheduled from ${originalTimeFormatted} to ${newTimeFormatted}. Patient will be notified.` 
+      });
+      setRescheduleDialogOpen(false);
+      setSelectedRequest(null);
+      setRescheduleTime('');
+      setRescheduleNote('');
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to reschedule appointment.' });
     }
   };
 
@@ -571,6 +666,10 @@ export default function DoctorDashboard() {
                     <TableCell>{format(appointmentDate, 'PPpp')}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button data-testid={`consultation-approve-${req.id}`} size="sm" onClick={() => openApprovalDialog(req)}>Approve</Button>
+                      <Button data-testid={`consultation-reschedule-${req.id}`} size="sm" variant="secondary" onClick={() => openRescheduleDialog(req)}>
+                        <CalendarClock className="h-4 w-4 mr-1" />
+                        Reschedule
+                      </Button>
                       <Button data-testid={`consultation-reject-${req.id}`} size="sm" variant="outline" onClick={() => openRejectionDialog(req)}>Reject</Button>
                       <Button data-testid={`consultation-view-${req.id}`} size="sm" variant="ghost" asChild>
                         <Link href={`/doctor/patient/${req.patientId}`}>View</Link>
@@ -740,6 +839,76 @@ export default function DoctorDashboard() {
               <Button variant="outline">Cancel</Button>
             </DialogClose>
             <Button variant="destructive" onClick={handleRejectRequest}>Decline Appointment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Dialog - Change Time Only */}
+      <Dialog open={rescheduleDialogOpen} onOpenChange={setRescheduleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5" />
+              Reschedule Appointment Time
+            </DialogTitle>
+            <DialogDescription>
+              Change the appointment time (the date will remain the same). The patient will be notified of the new time and can cancel if needed.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-4 py-4">
+              <div className="p-4 rounded-lg bg-muted/50">
+                <p className="font-semibold">Current Appointment</p>
+                <p className="text-sm text-muted-foreground">
+                  {format(new Date(selectedRequest.dateTime || Date.now()), 'EEEE, MMMM d, yyyy')} at{' '}
+                  {format(new Date(selectedRequest.dateTime || Date.now()), 'h:mm a')}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newTime">New Time</Label>
+                <Select value={rescheduleTime} onValueChange={setRescheduleTime}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a new time..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTimes.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rescheduleNote">Note for Patient (Optional)</Label>
+                <Textarea
+                  id="rescheduleNote"
+                  placeholder="e.g., I have an earlier appointment that I need to attend to. This new time works better for me..."
+                  value={rescheduleNote}
+                  onChange={(e) => setRescheduleNote(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This message will be shown to the patient explaining the time change.
+                </p>
+              </div>
+              
+              {/* Warning for patient */}
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>⚠️ Patient Notice:</strong> The patient will see a warning message about the time change and will have the option to cancel if the new time doesn't work for them.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleRescheduleRequest} disabled={!rescheduleTime}>
+              <CalendarClock className="h-4 w-4 mr-2" />
+              Approve & Reschedule
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

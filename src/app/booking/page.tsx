@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import {
   ArrowRight,
   ArrowLeft,
@@ -22,7 +22,8 @@ import {
   Loader2,
   Tag,
   X,
-  AlertCircle
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,11 +57,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { services } from '@/lib/data';
+import { services as staticServices } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useDoc, useMemoFirebase, useCollection } from '@/firebase/hooks';
-import { collection, serverTimestamp, doc, increment, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, increment, query, where, getDocs, orderBy, collectionGroup } from 'firebase/firestore';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import { useHapticFeedback } from '@/hooks/use-haptic-feedback';
@@ -124,6 +125,52 @@ interface Doctor {
   onboardingCompleted?: boolean;
 }
 
+// Interface for treatment from Firestore
+interface FirestoreTreatment {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+// Interface for doctor's service configuration
+interface DoctorService {
+  id: string;
+  treatmentId: string;
+  providesService: boolean;
+  price: number;
+}
+
+// Interface for doctor's custom service
+interface CustomService {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  isCustom: boolean;
+  createdBy: string;
+}
+
+// Interface for confirmed appointments (for availability checking)
+interface ConfirmedAppointment {
+  id: string;
+  doctorId: string;
+  dateTime: string;
+  status: string;
+}
+
+// Combined service for display
+interface AvailableService {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  price?: number;
+  isCustom: boolean;
+  doctorIds: string[];  // List of doctors who offer this service
+}
+
 export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [showStripePayment, setShowStripePayment] = useState(false);
@@ -142,8 +189,7 @@ export default function BookingPage() {
   const router = useRouter();
   const { triggerHaptic } = useHapticFeedback();
 
-  // Fetch doctors from Firestore instead of using static data
-  // Only show active doctors who have completed onboarding
+  // Fetch doctors from Firestore
   const doctorsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
@@ -155,9 +201,167 @@ export default function BookingPage() {
   const { data: firestoreDoctors, isLoading: isLoadingDoctors } = useCollection<Doctor>(doctorsQuery);
 
   // Filter to only show active doctors
-  const doctors: Doctor[] = firestoreDoctors?.filter((d) => 
+  const allDoctors: Doctor[] = firestoreDoctors?.filter((d) => 
     d.status === 'active' || d.onboardingCompleted
   ) || [];
+
+  // Fetch treatments from Firestore
+  const treatmentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'treatments');
+  }, [firestore]);
+
+  const { data: firestoreTreatments, isLoading: isLoadingTreatments } = useCollection<FirestoreTreatment>(treatmentsQuery);
+
+  // Fetch all doctor services (which doctors provide which treatments)
+  const doctorServicesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collectionGroup(firestore, 'services'),
+      where('providesService', '==', true)
+    );
+  }, [firestore]);
+
+  const { data: doctorServices, isLoading: isLoadingServices } = useCollection<DoctorService>(doctorServicesQuery);
+
+  // Fetch all custom services from all doctors
+  const customServicesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collectionGroup(firestore, 'customServices');
+  }, [firestore]);
+
+  const { data: customServices, isLoading: isLoadingCustomServices } = useCollection<CustomService>(customServicesQuery);
+
+  // Fetch confirmed appointments for availability checking
+  const confirmedAppointmentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'appointments'),
+      where('status', '==', 'confirmed')
+    );
+  }, [firestore]);
+
+  const { data: confirmedAppointments } = useCollection<ConfirmedAppointment>(confirmedAppointmentsQuery);
+
+  // Build available services list combining Firestore treatments and custom services
+  const availableServices: AvailableService[] = useMemo(() => {
+    const servicesList: AvailableService[] = [];
+    
+    // Add treatments from Firestore that at least one doctor provides
+    if (firestoreTreatments && doctorServices) {
+      firestoreTreatments.forEach((treatment) => {
+        // Find doctors who provide this service
+        const doctorsForService = doctorServices
+          .filter((ds) => ds.treatmentId === treatment.id && ds.providesService)
+          .map((ds) => {
+            // Extract doctor ID from the document path
+            // The path format is: doctors/{doctorId}/services/{serviceId}
+            const pathMatch = (ds as any)._path?.segments || [];
+            return pathMatch[1] || '';
+          })
+          .filter((id: string) => id && allDoctors.some(d => d.id === id));
+        
+        if (doctorsForService.length > 0) {
+          // Get the lowest price from doctors who provide this service
+          const prices = doctorServices
+            .filter((ds) => ds.treatmentId === treatment.id && ds.providesService && ds.price > 0)
+            .map((ds) => ds.price);
+          const minPrice = prices.length > 0 ? Math.min(...prices) : undefined;
+          
+          servicesList.push({
+            id: treatment.id,
+            name: treatment.name,
+            description: treatment.description,
+            category: treatment.category,
+            price: minPrice,
+            isCustom: false,
+            doctorIds: doctorsForService,
+          });
+        }
+      });
+    }
+
+    // Add custom services from doctors
+    if (customServices) {
+      customServices.forEach((customService) => {
+        // Extract doctor ID from the document path
+        const doctorId = customService.createdBy;
+        if (doctorId && allDoctors.some(d => d.id === doctorId)) {
+          servicesList.push({
+            id: `custom-${customService.id}`,
+            name: customService.name,
+            description: customService.description,
+            category: customService.category,
+            price: customService.price,
+            isCustom: true,
+            doctorIds: [doctorId],
+          });
+        }
+      });
+    }
+
+    // If no Firestore services available, fall back to static services
+    if (servicesList.length === 0 && staticServices) {
+      staticServices.forEach((category) => {
+        category.treatments.forEach((treatment) => {
+          servicesList.push({
+            id: treatment.id,
+            name: treatment.name,
+            description: treatment.description,
+            category: category.title,
+            price: treatment.price ? parseInt(treatment.price.replace(/[^0-9]/g, '')) || undefined : undefined,
+            isCustom: false,
+            doctorIds: allDoctors.map(d => d.id), // All doctors can provide static services
+          });
+        });
+      });
+    }
+
+    return servicesList;
+  }, [firestoreTreatments, doctorServices, customServices, allDoctors]);
+
+  // Group services by category for display
+  const servicesByCategory = useMemo(() => {
+    const grouped: Record<string, AvailableService[]> = {};
+    availableServices.forEach((service) => {
+      if (!grouped[service.category]) {
+        grouped[service.category] = [];
+      }
+      grouped[service.category].push(service);
+    });
+    return grouped;
+  }, [availableServices]);
+
+  // Get doctors who can provide the selected service
+  const getAvailableDoctorsForService = useCallback((serviceId: string): Doctor[] => {
+    const service = availableServices.find(s => s.id === serviceId);
+    if (!service) return allDoctors;
+    return allDoctors.filter(d => service.doctorIds.includes(d.id));
+  }, [availableServices, allDoctors]);
+
+  // Check if a time slot is available for a doctor on a given date
+  const isTimeSlotAvailable = useCallback((doctorId: string, date: Date, time: string): boolean => {
+    if (!confirmedAppointments) return true;
+    
+    // Parse the time string to get hours
+    const [timePart, period] = time.split(' ');
+    let [hours, minutes] = timePart.split(':').map(Number);
+    if (period === 'PM' && hours < 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    
+    // Check if there's already a confirmed appointment at this time
+    return !confirmedAppointments.some((apt) => {
+      if (apt.doctorId !== doctorId || apt.status !== 'confirmed') return false;
+      const aptDate = new Date(apt.dateTime);
+      if (!isSameDay(aptDate, date)) return false;
+      return aptDate.getHours() === hours && aptDate.getMinutes() === minutes;
+    });
+  }, [confirmedAppointments]);
+
+  // Get available time slots for a doctor on a given date
+  const getAvailableTimeSlots = useCallback((doctorId: string, date: Date): string[] => {
+    return availableTimes.filter(time => isTimeSlotAvailable(doctorId, date, time));
+  }, [isTimeSlotAvailable]);
 
   // Fetch patient data to check appointment count for returning client discounts
   const patientRef = useMemoFirebase(() => {
@@ -210,7 +414,8 @@ export default function BookingPage() {
     dateTime.setHours(hours, minutes, 0, 0);
 
     const patientId = user.uid;
-    const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
+    const selectedService = availableServices.find(s => s.id === data.service);
+    const serviceName = selectedService?.name;
     
     if (!serviceName) {
       toast({
@@ -324,7 +529,8 @@ export default function BookingPage() {
     dateTime.setHours(hours, minutes, 0, 0);
 
     const patientId = user.uid;
-    const serviceName = services.flatMap(s => s.treatments).find(t => t.id === data.service)?.name;
+    const selectedService = availableServices.find(s => s.id === data.service);
+    const serviceName = selectedService?.name;
     
     if (!serviceName) {
       toast({
@@ -422,8 +628,8 @@ export default function BookingPage() {
     
     try {
       const selectedServiceId = form.getValues('service');
-      const selectedService = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
-      const serviceCategory = services.find(s => s.treatments.some(t => t.id === selectedServiceId))?.slug;
+      const selectedService = availableServices.find(s => s.id === selectedServiceId);
+      const serviceCategory = selectedService?.category;
       
       // Query for the coupon code
       const couponsRef = collection(firestore, 'discountCodes');
@@ -462,15 +668,14 @@ export default function BookingPage() {
       
       // Check criteria
       if (coupon.criteriaType === 'service' && coupon.serviceId !== selectedServiceId) {
-        const requiredService = services.flatMap(s => s.treatments).find(t => t.id === coupon.serviceId);
+        const requiredService = availableServices.find(s => s.id === coupon.serviceId);
         setCouponError(`This coupon is only valid for "${requiredService?.name || 'a specific service'}".`);
         setIsValidatingCoupon(false);
         return;
       }
       
-      if (coupon.criteriaType === 'category' && coupon.categorySlug !== serviceCategory) {
-        const requiredCategory = services.find(s => s.slug === coupon.categorySlug);
-        setCouponError(`This coupon is only valid for "${requiredCategory?.title || 'a specific category'}".`);
+      if (coupon.criteriaType === 'category' && coupon.categorySlug !== serviceCategory?.toLowerCase().replace(/\s+/g, '-')) {
+        setCouponError(`This coupon is only valid for "${coupon.categorySlug || 'a specific category'}".`);
         setIsValidatingCoupon(false);
         return;
       }
@@ -550,11 +755,9 @@ export default function BookingPage() {
     if (currentStep === 2) {
       // Move to payment step - set initial prices
       const selectedServiceId = form.getValues('service');
-      const service = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
-      const priceString = service?.price || `₱${DEFAULT_CONSULTATION_FEE.toLocaleString()}`;
-      // Parse price from string like "₱2,500" or "Starts at ₱5,000"
-      const priceMatch = priceString.match(/[\d,]+/);
-      const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : DEFAULT_CONSULTATION_FEE;
+      const service = availableServices.find(s => s.id === selectedServiceId);
+      // Use price from service or default consultation fee
+      const price = service?.price || DEFAULT_CONSULTATION_FEE;
       setOriginalPrice(price);
       setFinalPrice(price);
       setCurrentStep(3);
@@ -578,7 +781,28 @@ export default function BookingPage() {
   const selectedTime = form.watch('time');
   const selectedPaymentMethod = form.watch('paymentMethod');
   const selectedServiceId = form.watch('service');
-  const selectedService = services.flatMap(s => s.treatments).find(t => t.id === selectedServiceId);
+  const selectedDoctorId = form.watch('doctorId');
+  const selectedDate = form.watch('date');
+  const selectedService = availableServices.find(s => s.id === selectedServiceId);
+  
+  // Get doctors who can provide the selected service
+  const doctorsForSelectedService = useMemo(() => {
+    if (!selectedServiceId) return allDoctors;
+    return getAvailableDoctorsForService(selectedServiceId);
+  }, [selectedServiceId, getAvailableDoctorsForService, allDoctors]);
+
+  // Get available time slots for the selected doctor and date
+  const availableTimeSlotsForSelection = useMemo(() => {
+    if (!selectedDoctorId || !selectedDate) return availableTimes;
+    return getAvailableTimeSlots(selectedDoctorId, selectedDate);
+  }, [selectedDoctorId, selectedDate, getAvailableTimeSlots]);
+
+  // Auto-select doctor if only one provides the service
+  useEffect(() => {
+    if (doctorsForSelectedService.length === 1 && selectedServiceId && !form.getValues('doctorId')) {
+      form.setValue('doctorId', doctorsForSelectedService[0].id);
+    }
+  }, [doctorsForSelectedService, selectedServiceId, form]);
 
   // Show loading state while checking auth
   if (isUserLoading) {
@@ -681,33 +905,53 @@ export default function BookingPage() {
                           <FormLabel className="text-lg font-semibold">
                             Which service would you like to book?
                           </FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a service..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {services.map((service) => (
-                                <div key={service.slug}>
-                                  <h3 className="px-4 py-2 text-sm font-semibold text-muted-foreground">
-                                    {service.title}
-                                  </h3>
-                                  {service.treatments.map((treatment) => (
-                                    <SelectItem
-                                      key={treatment.id}
-                                      value={treatment.id}
-                                    >
-                                      {treatment.name}
-                                    </SelectItem>
-                                  ))}
-                                </div>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {(isLoadingTreatments || isLoadingServices || isLoadingCustomServices) ? (
+                            <div className="flex items-center gap-2 text-muted-foreground py-4">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading services...
+                            </div>
+                          ) : availableServices.length === 0 ? (
+                            <div className="text-muted-foreground py-4">
+                              <p>No services available at this time.</p>
+                              <p className="text-sm mt-2">Please contact the clinic for assistance.</p>
+                            </div>
+                          ) : (
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a service..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
+                                  <div key={category}>
+                                    <h3 className="px-4 py-2 text-sm font-semibold text-muted-foreground">
+                                      {category}
+                                    </h3>
+                                    {categoryServices.map((service) => (
+                                      <SelectItem
+                                        key={service.id}
+                                        value={service.id}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          {service.name}
+                                          {service.isCustom && (
+                                            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">Custom</span>
+                                          )}
+                                          {service.price && (
+                                            <span className="text-xs text-muted-foreground">₱{service.price.toLocaleString()}</span>
+                                          )}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </div>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -728,9 +972,22 @@ export default function BookingPage() {
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading doctors...
                                       </div>
-                                    ) : doctors.length === 0 ? (
+                                    ) : doctorsForSelectedService.length === 0 ? (
                                       <div className="text-muted-foreground py-4">
-                                        No doctors available at this time. Please try again later.
+                                        No doctors available for this service at this time. Please try again later.
+                                      </div>
+                                    ) : doctorsForSelectedService.length === 1 ? (
+                                      <div className="space-y-4">
+                                        <Alert className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800">
+                                          <Info className="h-4 w-4 text-green-600" />
+                                          <AlertDescription className="text-green-800 dark:text-green-200">
+                                            Dr. {doctorsForSelectedService[0].firstName} {doctorsForSelectedService[0].lastName} is the specialist for this service.
+                                          </AlertDescription>
+                                        </Alert>
+                                        <div className="p-4 border rounded-lg bg-primary/5 border-primary/20">
+                                          <p className="font-semibold">Dr. {doctorsForSelectedService[0].firstName} {doctorsForSelectedService[0].lastName}</p>
+                                          <p className="text-sm text-muted-foreground">{doctorsForSelectedService[0].specialization}</p>
+                                        </div>
                                       </div>
                                     ) : (
                                       <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -740,7 +997,7 @@ export default function BookingPage() {
                                               </SelectTrigger>
                                           </FormControl>
                                           <SelectContent>
-                                              {doctors.map((doctor) => (
+                                              {doctorsForSelectedService.map((doctor) => (
                                                   <SelectItem key={doctor.id} value={doctor.id}>
                                                       Dr. {doctor.firstName} {doctor.lastName} - {doctor.specialization}
                                                   </SelectItem>
@@ -815,20 +1072,36 @@ export default function BookingPage() {
                             defaultValue={field.value}
                             className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4"
                           >
-                            {availableTimes.map((time) => (
-                                <FormItem key={time}>
-                                  <FormControl>
-                                    <RadioGroupItem value={time} id={time} className="sr-only" />
-                                  </FormControl>
-                                  <Label htmlFor={time} className={cn(
-                                    "flex items-center justify-center p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
-                                    selectedTime === time && "border-primary bg-primary/10 text-primary"
-                                    )}>
-                                    <Clock className="w-4 h-4 mr-2" />
-                                    {time}
-                                  </Label>
-                                </FormItem>
-                            ))}
+                            {availableTimeSlotsForSelection.length === 0 ? (
+                              <div className="col-span-full text-center py-6 text-muted-foreground">
+                                <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                <p>No available times on this date.</p>
+                                <p className="text-sm">Please select a different date.</p>
+                              </div>
+                            ) : (
+                              availableTimeSlotsForSelection.map((time) => {
+                                const isUnavailable = !isTimeSlotAvailable(selectedDoctorId, selectedDate, time);
+                                return (
+                                  <FormItem key={time}>
+                                    <FormControl>
+                                      <RadioGroupItem value={time} id={time} className="sr-only" disabled={isUnavailable} />
+                                    </FormControl>
+                                    <Label 
+                                      htmlFor={time} 
+                                      className={cn(
+                                        "flex items-center justify-center p-4 border rounded-md cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground",
+                                        selectedTime === time && "border-primary bg-primary/10 text-primary",
+                                        isUnavailable && "opacity-50 cursor-not-allowed line-through"
+                                      )}
+                                    >
+                                      <Clock className="w-4 h-4 mr-2" />
+                                      {time}
+                                      {isUnavailable && <span className="ml-2 text-xs">(Booked)</span>}
+                                    </Label>
+                                  </FormItem>
+                                );
+                              })
+                            )}
                           </RadioGroup>
                           <FormMessage />
                         </FormItem>
@@ -1134,9 +1407,9 @@ export default function BookingPage() {
                         
                         <div className="p-4 mt-6 text-left border rounded-lg bg-muted/50">
                             <h3 className="font-semibold">Appointment Details:</h3>
-                            <p><strong>Service:</strong> {services.flatMap(s => s.treatments).find(t => t.id === form.getValues('service'))?.name}</p>
+                            <p><strong>Service:</strong> {availableServices.find(s => s.id === form.getValues('service'))?.name}</p>
                             {(() => {
-                              const selectedDoctor = doctors.find((d) => d.id === form.getValues('doctorId'));
+                              const selectedDoctor = allDoctors.find((d) => d.id === form.getValues('doctorId'));
                               return <p><strong>Doctor:</strong> Dr. {selectedDoctor?.firstName} {selectedDoctor?.lastName}</p>;
                             })()}
                             <p><strong>Date:</strong> {form.getValues('date') instanceof Date ? format(form.getValues('date'), 'EEEE, MMMM d, yyyy') : 'N/A'}</p>

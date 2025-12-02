@@ -496,6 +496,29 @@ export default function PatientDashboard() {
                     key={apt.id} 
                     className="flex flex-col p-4 rounded-lg border bg-card"
                   >
+                    {/* Reschedule Warning Banner */}
+                    {apt.timeRescheduled && apt.status === 'confirmed' && (
+                      <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-800">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                              ⚠️ Appointment Time Changed
+                            </p>
+                            <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                              {apt.doctorNoteToPatient || `Your appointment has been approved but the doctor has rescheduled the time to ${format(new Date(apt.dateTime), 'h:mm a')}.`}
+                            </p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                              If this time doesn't work for you, please{' '}
+                              <Link href="/patient/appointments" className="underline font-medium">
+                                cancel this appointment
+                              </Link>{' '}
+                              and book a new one.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="p-3 rounded-full bg-primary/10">
@@ -523,6 +546,13 @@ export default function PatientDashboard() {
                         </Button>
                       </div>
                     </div>
+                    {/* Show doctor's note to patient (non-reschedule) */}
+                    {apt.doctorNoteToPatient && !apt.timeRescheduled && (
+                      <div className="mt-3 ml-16 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
+                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Note from Doctor:</p>
+                        <p className="text-sm text-blue-800 dark:text-blue-200">{apt.doctorNoteToPatient}</p>
+                      </div>
+                    )}
                     {/* Show saved notes */}
                     {apt.patientNotes && (
                       <div className="mt-3 ml-16 p-3 bg-muted/50 rounded-md">
