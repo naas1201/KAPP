@@ -23,11 +23,11 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Metadata, ResolvingMetadata } from 'next'
-import { useState } from 'react';
+import { useState, use } from 'react';
 import { BookingSheet } from '@/components/BookingSheet';
 
 type Props = {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
  
 // This function is still useful for server-side metadata generation
@@ -56,8 +56,9 @@ type Props = {
 //   }));
 // }
 
-export default function ServiceDetailPage(props: any) {
-  const { slug } = props.params || { slug: undefined };
+export default function ServiceDetailPage(props: Props) {
+  const params = use(props.params);
+  const { slug } = params;
   const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
   const service = services.find((s) => s.slug === slug);
 
