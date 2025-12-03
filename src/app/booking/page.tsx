@@ -206,11 +206,10 @@ export default function BookingPage() {
   const { data: firestoreDoctors, isLoading: isLoadingDoctors } = useCollection<Doctor>(doctorsQuery);
 
   // Use Firestore doctors if available, otherwise fall back to static doctors
-  // Note: We include all doctors from Firestore (not just active ones) because
-  // doctors who have configured services should be selectable for those services
-  // even if their account status isn't explicitly 'active'
+  // Filter out explicitly suspended/inactive doctors, but include those without status
+  // (doctors who have configured services but may not have formal status yet)
   const allDoctors: Doctor[] = firestoreDoctors && firestoreDoctors.length > 0 
-    ? firestoreDoctors 
+    ? firestoreDoctors.filter((d) => d.status !== 'inactive') 
     : staticDoctors;
 
   // Fetch treatments from Firestore
@@ -347,8 +346,9 @@ export default function BookingPage() {
   }, [availableServices]);
 
   // Get doctors who can provide the selected service
-  // This function returns doctors who have configured this service, creating placeholder
-  // entries for doctors whose info isn't in the doctors collection yet
+  // This function returns doctors who have configured this service
+  // If a doctor has configured services but doesn't have a doctor document yet,
+  // we include them with basic info (they can still be booked)
   const getAvailableDoctorsForService = useCallback((serviceId: string): Doctor[] => {
     const service = availableServices.find(s => s.id === serviceId);
     if (!service) return allDoctors;
@@ -357,17 +357,19 @@ export default function BookingPage() {
     const knownDoctors = allDoctors.filter(d => service.doctorIds.includes(d.id));
     
     // Find any doctor IDs that aren't in allDoctors but have configured the service
+    // This can happen when a doctor configures services before their profile is complete
     const unknownDoctorIds = service.doctorIds.filter(id => !allDoctors.some(d => d.id === id));
     
-    // Create placeholder entries for unknown doctors
-    const placeholderDoctors: Doctor[] = unknownDoctorIds.map(id => ({
+    // For unknown doctors, create basic entries so they can still be selected
+    // Their full profile will be loaded once they complete their profile setup
+    const unknownDoctors: Doctor[] = unknownDoctorIds.map(id => ({
       id,
-      firstName: 'Dr.',
-      lastName: 'Available',
-      specialization: 'General Practice',
+      firstName: 'Doctor',
+      lastName: '(Profile Pending)',
+      specialization: 'Medical Professional',
     }));
     
-    return [...knownDoctors, ...placeholderDoctors];
+    return [...knownDoctors, ...unknownDoctors];
   }, [availableServices, allDoctors]);
 
   // Check if a time slot is available for a doctor on a given date
