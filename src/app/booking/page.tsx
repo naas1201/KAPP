@@ -57,7 +57,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { services as staticServices } from '@/lib/data';
+import { services as staticServices, doctors as staticDoctors } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useDoc, useMemoFirebase, useCollection } from '@/firebase/hooks';
@@ -200,10 +200,13 @@ export default function BookingPage() {
 
   const { data: firestoreDoctors, isLoading: isLoadingDoctors } = useCollection<Doctor>(doctorsQuery);
 
-  // Filter to only show active doctors
-  const allDoctors: Doctor[] = firestoreDoctors?.filter((d) => 
+  // Filter to only show active doctors, or fall back to static doctors if none available
+  const activeDoctors: Doctor[] = firestoreDoctors?.filter((d) => 
     d.status === 'active' || d.onboardingCompleted
   ) || [];
+  
+  // Use Firestore doctors if available, otherwise fall back to static doctors
+  const allDoctors: Doctor[] = activeDoctors.length > 0 ? activeDoctors : staticDoctors;
 
   // Fetch treatments from Firestore
   const treatmentsQuery = useMemoFirebase(() => {
@@ -256,8 +259,9 @@ export default function BookingPage() {
           .map((ds) => {
             // Extract doctor ID from the document path
             // The path format is: doctors/{doctorId}/services/{serviceId}
-            const pathMatch = (ds as any)._path?.segments || [];
-            return pathMatch[1] || '';
+            const pathParts = ds._path?.split('/') || [];
+            // pathParts will be ['doctors', '{doctorId}', 'services', '{serviceId}']
+            return pathParts[1] || '';
           })
           .filter((id: string) => id && allDoctors.some(d => d.id === id));
         
@@ -905,17 +909,7 @@ export default function BookingPage() {
                           <FormLabel className="text-lg font-semibold">
                             Which service would you like to book?
                           </FormLabel>
-                          {(isLoadingTreatments || isLoadingServices || isLoadingCustomServices) ? (
-                            <div className="flex items-center gap-2 text-muted-foreground py-4">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Loading services...
-                            </div>
-                          ) : availableServices.length === 0 ? (
-                            <div className="text-muted-foreground py-4">
-                              <p>No services available at this time.</p>
-                              <p className="text-sm mt-2">Please contact the clinic for assistance.</p>
-                            </div>
-                          ) : (
+                          {availableServices.length > 0 ? (
                             <Select
                               onValueChange={field.onChange}
                               defaultValue={field.value}
@@ -951,6 +945,16 @@ export default function BookingPage() {
                                 ))}
                               </SelectContent>
                             </Select>
+                          ) : (isLoadingTreatments || isLoadingServices || isLoadingCustomServices) ? (
+                            <div className="flex items-center gap-2 text-muted-foreground py-4">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading services...
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground py-4">
+                              <p>No services available at this time.</p>
+                              <p className="text-sm mt-2">Please contact the clinic for assistance.</p>
+                            </div>
                           )}
                           <FormMessage />
                         </FormItem>
@@ -967,43 +971,45 @@ export default function BookingPage() {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-lg font-semibold">Choose a Doctor</FormLabel>
-                                    {isLoadingDoctors ? (
+                                    {doctorsForSelectedService.length > 0 ? (
+                                      doctorsForSelectedService.length === 1 ? (
+                                        <div className="space-y-4">
+                                          <Alert className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800">
+                                            <Info className="h-4 w-4 text-green-600" />
+                                            <AlertDescription className="text-green-800 dark:text-green-200">
+                                              Dr. {doctorsForSelectedService[0].firstName} {doctorsForSelectedService[0].lastName} is the specialist for this service.
+                                            </AlertDescription>
+                                          </Alert>
+                                          <div className="p-4 border rounded-lg bg-primary/5 border-primary/20">
+                                            <p className="font-semibold">Dr. {doctorsForSelectedService[0].firstName} {doctorsForSelectedService[0].lastName}</p>
+                                            <p className="text-sm text-muted-foreground">{doctorsForSelectedService[0].specialization}</p>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a doctor..." />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {doctorsForSelectedService.map((doctor) => (
+                                                    <SelectItem key={doctor.id} value={doctor.id}>
+                                                        Dr. {doctor.firstName} {doctor.lastName} - {doctor.specialization}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                      )
+                                    ) : isLoadingDoctors ? (
                                       <div className="flex items-center gap-2 text-muted-foreground py-4">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading doctors...
                                       </div>
-                                    ) : doctorsForSelectedService.length === 0 ? (
+                                    ) : (
                                       <div className="text-muted-foreground py-4">
                                         No doctors available for this service at this time. Please try again later.
                                       </div>
-                                    ) : doctorsForSelectedService.length === 1 ? (
-                                      <div className="space-y-4">
-                                        <Alert className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800">
-                                          <Info className="h-4 w-4 text-green-600" />
-                                          <AlertDescription className="text-green-800 dark:text-green-200">
-                                            Dr. {doctorsForSelectedService[0].firstName} {doctorsForSelectedService[0].lastName} is the specialist for this service.
-                                          </AlertDescription>
-                                        </Alert>
-                                        <div className="p-4 border rounded-lg bg-primary/5 border-primary/20">
-                                          <p className="font-semibold">Dr. {doctorsForSelectedService[0].firstName} {doctorsForSelectedService[0].lastName}</p>
-                                          <p className="text-sm text-muted-foreground">{doctorsForSelectedService[0].specialization}</p>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                          <FormControl>
-                                              <SelectTrigger>
-                                                  <SelectValue placeholder="Select a doctor..." />
-                                              </SelectTrigger>
-                                          </FormControl>
-                                          <SelectContent>
-                                              {doctorsForSelectedService.map((doctor) => (
-                                                  <SelectItem key={doctor.id} value={doctor.id}>
-                                                      Dr. {doctor.firstName} {doctor.lastName} - {doctor.specialization}
-                                                  </SelectItem>
-                                              ))}
-                                          </SelectContent>
-                                      </Select>
                                     )}
                                     <FormMessage />
                                 </FormItem>

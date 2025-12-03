@@ -53,6 +53,7 @@ export function useFirestore() {
 }
 
 export type WithId<T> = T & { id: string };
+export type WithIdAndPath<T> = T & { id: string; _path: string };
 
 export function useDoc<T>(docRef: DocumentReference<T> | DocumentReference<any> | null | undefined) {
   const [data, setData] = useState<WithId<T> | null>(null);
@@ -91,7 +92,7 @@ export function useDoc<T>(docRef: DocumentReference<T> | DocumentReference<any> 
 }
 
 export function useCollection<T>(queryRef: Query<T> | Query<any> | CollectionReference<T> | CollectionReference<any> | null | undefined) {
-  const [data, setData] = useState<WithId<T>[] | null>(null);
+  const [data, setData] = useState<WithIdAndPath<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -108,6 +109,7 @@ export function useCollection<T>(queryRef: Query<T> | Query<any> | CollectionRef
       (snapshot) => {
         const docs = snapshot.docs.map((d) => ({
           id: d.id,
+          _path: d.ref.path,
           ...(d.data() as T),
         }));
         setData(docs);
