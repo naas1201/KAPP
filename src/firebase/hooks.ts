@@ -53,7 +53,7 @@ export function useFirestore() {
 }
 
 export type WithId<T> = T & { id: string };
-export type WithIdAndPath<T> = T & { id: string; _path: string };
+export type WithIdAndPath<T> = T & { id: string; _path?: string };
 
 export function useDoc<T>(docRef: DocumentReference<T> | DocumentReference<any> | null | undefined) {
   const [data, setData] = useState<WithId<T> | null>(null);

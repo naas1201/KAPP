@@ -74,6 +74,10 @@ import { SecureBookingBadge } from '@/components/TrustIndicators';
 // Default consultation fee in PHP when price cannot be parsed
 const DEFAULT_CONSULTATION_FEE = 2500;
 
+// Index of doctor ID in Firestore subcollection path: doctors/{doctorId}/services/{serviceId}
+// Path splits to: ['doctors', '{doctorId}', 'services', '{serviceId}']
+const DOCTOR_ID_PATH_INDEX = 1;
+
 const steps = [
   { id: 'Step 1', name: 'Select Service', icon: <Sparkles /> },
   { id: 'Step 2', name: 'Choose Doctor', icon: <BriefcaseMedical /> },
@@ -257,11 +261,9 @@ export default function BookingPage() {
         const doctorsForService = doctorServices
           .filter((ds) => ds.treatmentId === treatment.id && ds.providesService)
           .map((ds) => {
-            // Extract doctor ID from the document path
-            // The path format is: doctors/{doctorId}/services/{serviceId}
+            // Extract doctor ID from the document path using the defined index
             const pathParts = ds._path?.split('/') || [];
-            // pathParts will be ['doctors', '{doctorId}', 'services', '{serviceId}']
-            return pathParts[1] || '';
+            return pathParts[DOCTOR_ID_PATH_INDEX] || '';
           })
           .filter((id: string) => id && allDoctors.some(d => d.id === id));
         
