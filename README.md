@@ -72,13 +72,15 @@
 |----------|------------|
 | **Framework** | Next.js 15 (App Router, Turbopack) |
 | **Language** | TypeScript |
-| **Database** | Firebase Firestore |
+| **Database** | Cloudflare D1 (SQLite) / Firebase Firestore |
 | **Authentication** | Firebase Auth |
+| **Storage** | Cloudflare R2 / Firebase Storage |
+| **Hosting** | Cloudflare Workers (via OpenNext) |
 | **Payments** | Stripe (Cards + GCash) |
 | **UI Components** | Radix UI + Shadcn/UI |
 | **Styling** | Tailwind CSS |
 | **Forms** | React Hook Form + Zod |
-| **AI** | Google GenKit |
+| **AI** | Cloudflare Workers AI / Google GenKit |
 | **Testing** | Jest + Playwright |
 
 ---
@@ -137,11 +139,13 @@ KAPP/
 │   ├── components/    # React components
 │   │   └── ui/        # Shadcn/UI primitives
 │   ├── firebase/      # Firebase configuration & hooks
+│   ├── cloudflare/    # Cloudflare D1, R2, AI utilities
 │   ├── ai/            # GenKit AI flows
 │   │   ├── genkit.ts  # AI client setup
 │   │   └── flows/     # AI flow implementations
 │   └── lib/           # Utilities and types
 ├── docs/              # Documentation
+├── migrations/        # D1 database schema
 ├── e2e/               # Playwright E2E tests
 ├── __tests__/         # Jest unit tests
 └── scripts/           # Utility scripts
@@ -155,10 +159,11 @@ Comprehensive documentation is available in the [`docs/`](./docs/README.md) dire
 
 | Document | Description |
 |----------|-------------|
+| [**Cloudflare Deployment**](./docs/CLOUDFLARE_DEPLOYMENT.md) | **Complete guide for deploying to Cloudflare** |
 | [Development Guide](./docs/DEVELOPMENT_GUIDE.md) | Adding features, pages, and collections |
 | [Admin & Doctor Setup](./docs/ADMIN_DOCTOR_SETUP.md) | Setting up staff accounts |
 | [Doctor Workflows](./docs/DOCTOR_WORKFLOWS.md) | Doctor functionality guide |
-| [Firebase Setup](./docs/FIREBASE_SETUP.md) | Firestore and Auth configuration |
+| [Firebase Setup](./docs/FIREBASE_SETUP.md) | Firebase Auth configuration |
 | [Stripe Setup](./docs/STRIPE_SETUP.md) | Payment integration guide |
 | [Storage Setup](./docs/STORAGE_SETUP.md) | File upload configuration |
 | [E2E Testing](./docs/E2E_TESTING.md) | End-to-end testing guide |
@@ -197,6 +202,9 @@ RUN_FULL_E2E=1 DOCTOR_EMAIL=info@lpp.ovh DOCTOR_PASS=1q2w3e4r5t6y pnpm test:e2e
 | `pnpm test:e2e` | Run Playwright tests |
 | `pnpm genkit:dev` | Start GenKit AI dev server |
 | `pnpm seed:prod-staff-accounts` | Create initial admin/doctor accounts |
+| `pnpm cf:build` | Build for Cloudflare Workers |
+| `pnpm cf:dev` | Local development with wrangler |
+| `pnpm cf:deploy` | Deploy to Cloudflare Workers |
 
 ---
 
