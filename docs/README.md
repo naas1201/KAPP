@@ -9,14 +9,16 @@ Welcome to the KAPP Medical Booking Application documentation. This guide will h
 - [Quick Start](#quick-start) - Get up and running in minutes
 
 ### Setup & Configuration
-- [Firebase Setup](./FIREBASE_SETUP.md) - Firestore database and authentication configuration
+- [Firebase Setup](./FIREBASE_SETUP.md) - Firebase authentication configuration
 - [Admin & Doctor Setup](./ADMIN_DOCTOR_SETUP.md) - Setting up staff accounts and roles
 - [Stripe Payment Setup](./STRIPE_SETUP.md) - Payment integration guide
-- [Storage Setup](./STORAGE_SETUP.md) - Firebase Storage configuration for file uploads
+- [Storage Setup](./STORAGE_SETUP.md) - File upload configuration
+
+### Deployment
+- [**Cloudflare Deployment**](./CLOUDFLARE_DEPLOYMENT.md) - **Complete deployment guide for Cloudflare Workers**
 
 ### Features & Workflows
 - [Doctor Workflows](./DOCTOR_WORKFLOWS.md) - Complete guide to doctor functionality
-- [Application Blueprint](./blueprint.md) - Core features and design specifications
 
 ### Testing
 - [E2E Testing Guide](./E2E_TESTING.md) - Playwright end-to-end testing
@@ -133,11 +135,19 @@ pnpm genkit:dev       # GenKit AI development server
 # Seeding
 pnpm seed:prod-staff-accounts  # Create admin/doctor accounts
 pnpm seed:firestore            # Seed initial database
+
+# Cloudflare Deployment
+pnpm cf:build         # Build for Cloudflare Workers
+pnpm cf:dev           # Local development with wrangler
+pnpm cf:deploy        # Deploy to Cloudflare Workers
+pnpm cf:preview       # Preview deployment locally
 ```
 
 ---
 
 ## Architecture Overview
+
+### Current Architecture (Firebase)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -161,22 +171,47 @@ pnpm seed:firestore            # Seed initial database
 └────────────────────────────────────────────────────────────┘
 ```
 
+### Target Architecture (Cloudflare + Firebase Auth)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Cloudflare Workers                         │
+│                  (OpenNext Adapter)                         │
+├─────────────┬─────────────┬─────────────┬──────────────────┤
+│   Admin     │   Doctor    │   Patient   │    Public        │
+│  Dashboard  │  Dashboard  │   Portal    │   Booking        │
+├─────────────┴─────────────┴─────────────┴──────────────────┤
+│                    React Components                         │
+│                 (Radix UI + Shadcn/UI)                      │
+├────────────────────────────────────────────────────────────┤
+│  Firebase Auth  │  Cloudflare D1  │  Cloudflare R2        │
+│    (kept)       │   (database)    │   (file storage)      │
+├────────────────────────────────────────────────────────────┤
+│               External Services                             │
+│    ┌────────────┬────────────┬──────────────┐              │
+│    │   Stripe   │ Workers AI │ Firebase Auth│              │
+│    └────────────┴────────────┴──────────────┘              │
+└────────────────────────────────────────────────────────────┘
+```
+
+See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md) for complete deployment instructions.
+
 ---
 
 ## Directory Structure
 
 ```
 docs/
-├── README.md                 # This file - Documentation index
-├── DEVELOPMENT_GUIDE.md      # Developer guide
-├── ADMIN_DOCTOR_SETUP.md     # Staff account setup
-├── DOCTOR_WORKFLOWS.md       # Doctor functionality
-├── FIREBASE_SETUP.md         # Firebase configuration
-├── STRIPE_SETUP.md           # Payment setup
-├── STORAGE_SETUP.md          # File upload setup
-├── E2E_TESTING.md            # Testing guide
-├── API_REFERENCE.md          # Data schema reference
-└── blueprint.md              # Application design specs
+├── README.md                     # This file - Documentation index
+├── DEVELOPMENT_GUIDE.md          # Developer guide
+├── ADMIN_DOCTOR_SETUP.md         # Staff account setup
+├── DOCTOR_WORKFLOWS.md           # Doctor functionality
+├── FIREBASE_SETUP.md             # Firebase configuration
+├── STRIPE_SETUP.md               # Payment setup
+├── STORAGE_SETUP.md              # File upload setup
+├── E2E_TESTING.md                # Testing guide
+├── API_REFERENCE.md              # Data schema reference
+└── CLOUDFLARE_DEPLOYMENT.md      # Cloudflare deployment guide
 ```
 
 ---
