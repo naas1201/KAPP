@@ -177,13 +177,42 @@ Key elements use `data-testid` for testing:
 
 If anything here is unclear or you want the instructions to emphasize additional workflows (CI, test commands, or specific conventions), tell me what to expand and I will update this file.
 
+## Cloudflare Deployment (December 2024 Update)
+
+The application can be deployed to Cloudflare Workers using the OpenNext adapter. Key points:
+
+- **Old approach deprecated**: `@cloudflare/next-on-pages` is deprecated; use `@opennextjs/cloudflare` instead.
+- **Firebase Auth kept**: Authentication remains with Firebase (50k MAU free tier).
+- **Database**: Cloudflare D1 (SQLite-based) replaces Firestore in Cloudflare deployment.
+- **Storage**: Cloudflare R2 replaces Firebase Storage.
+- **AI**: Workers AI replaces Google GenKit in production.
+
+### Cloudflare Commands
+
+```bash
+pnpm cf:build    # Build for Cloudflare Workers
+pnpm cf:dev      # Local development with wrangler
+pnpm cf:deploy   # Deploy to Cloudflare Workers
+pnpm cf:preview  # Preview deployment locally
+```
+
+### Key Cloudflare Files
+
+- `wrangler.toml` — Cloudflare Workers configuration
+- `open-next.config.ts` — OpenNext adapter configuration
+- `migrations/schema.sql` — D1 database schema
+- `docs/CLOUDFLARE_DEPLOYMENT_SETUP.md` — Step-by-step online setup guide (no CLI)
+- `docs/CLOUDFLARE_DEPLOYMENT_PLAN.md` — Architecture and migration strategy
+
 ## Additional documentation
 
 - `docs/DEVELOPMENT_GUIDE.md` — Detailed guide for adding pages, components, and Firestore collections.
 - `docs/STRIPE_SETUP.md` — Stripe payment integration instructions.
 - `docs/STORAGE_SETUP.md` — Firebase Storage configuration.
 - `docs/ADMIN_DOCTOR_SETUP.md` — Admin and doctor account setup.
-- `E2E_TESTING.md` — End-to-end testing with Playwright and Firebase emulators.
+- `docs/E2E_TESTING.md` — End-to-end testing with Playwright and Firebase emulators.
+- `docs/CLOUDFLARE_DEPLOYMENT_PLAN.md` — Cloudflare migration architecture.
+- `docs/CLOUDFLARE_DEPLOYMENT_SETUP.md` — Online Cloudflare setup guide.
 
 ## Debug Token
 

@@ -14,7 +14,11 @@
     "test:rules": "jest --testPathPatterns=firestore.rules.test.ts",
     "test:e2e": "playwright test",
     "seed:prod-staff-accounts": "tsx ./scripts/create-prod-staff-accounts.ts",
-    "seed:firestore": "tsx ./scripts/seed-firestore.ts"
+    "seed:firestore": "tsx ./scripts/seed-firestore.ts",
+    "cf:build": "npx @opennextjs/cloudflare build",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "npx @opennextjs/cloudflare deploy",
+    "cf:preview": "npx @opennextjs/cloudflare preview"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
@@ -69,6 +73,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.0",
+    "@opennextjs/cloudflare": "^1.14.1",
     "@playwright/test": "^1.36.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
@@ -85,6 +90,7 @@
     "tailwindcss": "^3.4.1",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.52.1"
   }
 }

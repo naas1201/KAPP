@@ -1,19 +1,25 @@
 # Cloudflare Free Plan Deployment Guide
 
-This document provides a comprehensive plan for deploying the KAPP Medical Booking Application entirely on Cloudflare's free tier, replacing all Firebase and Google services.
+This document provides a comprehensive plan for deploying the KAPP Medical Booking Application on Cloudflare's free tier.
+
+> **Important Note (December 2024)**: This plan keeps **Firebase Auth** as the authentication provider while migrating other services to Cloudflare. This is the recommended approach because:
+> 1. Firebase Auth works well with any hosting provider
+> 2. Cloudflare Access free tier only allows 50 users
+> 3. Building custom auth is complex and error-prone for medical applications
+> 4. Firebase Auth free tier has generous limits (50k monthly active users)
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Cloudflare Free Tier Limits](#cloudflare-free-tier-limits)
-3. [Service Mapping: Firebase → Cloudflare](#service-mapping-firebase--cloudflare)
-4. [Branch Management Strategy](#branch-management-strategy)
+2. [What Changed: OpenNext Adapter](#what-changed-opennext-adapter)
+3. [Cloudflare Free Tier Limits](#cloudflare-free-tier-limits)
+4. [Service Mapping: Firebase → Cloudflare](#service-mapping-firebase--cloudflare)
 5. [Phase 1: Project Setup](#phase-1-project-setup)
 6. [Phase 2: Database Migration (Firestore → D1)](#phase-2-database-migration-firestore--d1)
-7. [Phase 3: Authentication (Firebase Auth → Custom Auth with D1)](#phase-3-authentication-firebase-auth--custom-auth-with-d1)
+7. [Phase 3: Keep Firebase Auth](#phase-3-keep-firebase-auth)
 8. [Phase 4: File Storage (Firebase Storage → R2)](#phase-4-file-storage-firebase-storage--r2)
 9. [Phase 5: AI Migration (Google AI → Workers AI)](#phase-5-ai-migration-google-ai--workers-ai)
-10. [Phase 6: Deployment (Firebase Hosting → Cloudflare Pages)](#phase-6-deployment-firebase-hosting--cloudflare-pages)
+10. [Phase 6: Deployment (Cloudflare Workers)](#phase-6-deployment-cloudflare-workers)
 11. [Implementation Checklist](#implementation-checklist)
 12. [Environment Variables](#environment-variables)
 13. [Security Considerations](#security-considerations)
@@ -30,22 +36,47 @@ This document provides a comprehensive plan for deploying the KAPP Medical Booki
 - **Hosting**: Firebase Hosting / App Hosting
 - **AI**: Google GenKit with Gemini model
 
-### Target Architecture (Cloudflare)
-- **Authentication**: Custom auth with D1 database + JWT sessions
+### Target Architecture (Cloudflare + Firebase Auth)
+- **Authentication**: **Firebase Auth** (KEPT - free tier supports 50k MAU)
 - **Database**: Cloudflare D1 (SQLite-based)
 - **File Storage**: Cloudflare R2 (S3-compatible)
-- **Hosting**: Cloudflare Pages (with Next.js)
+- **Hosting**: Cloudflare Workers (via OpenNext adapter)
 - **AI**: Cloudflare Workers AI
+
+---
+
+## What Changed: OpenNext Adapter
+
+> ⚠️ **IMPORTANT**: The old `@cloudflare/next-on-pages` package is **DEPRECATED**.
+
+As of late 2024, Cloudflare recommends using the **OpenNext adapter** (`@opennextjs/cloudflare`) for deploying Next.js applications. Key benefits:
+
+1. **Unified Deployment**: Deploy to Cloudflare Workers directly (no separate Pages + Workers setup)
+2. **Better Next.js Support**: Full support for App Router, Server Components, and edge runtime
+3. **Active Development**: OpenNext is actively maintained and supports latest Next.js versions
+4. **Simpler Configuration**: Uses standard `wrangler.toml` configuration
+
+### Migration from `@cloudflare/next-on-pages`
+
+If you were planning to use the old approach, update your dependencies:
+
+```bash
+# Remove old package (if installed)
+pnpm remove @cloudflare/next-on-pages
+
+# Install new OpenNext adapter
+pnpm add -D @opennextjs/cloudflare wrangler
+```
 
 ---
 
 ## Cloudflare Free Tier Limits
 
-### Cloudflare Pages (Free)
-- **Builds**: 500 builds/month
-- **Bandwidth**: Unlimited
-- **Sites**: Unlimited
-- **Functions**: 100,000 requests/day
+### Cloudflare Workers (Free)
+- **Requests**: 100,000 requests/day
+- **CPU time**: 10ms per request
+- **Script size**: 1 MB (after compression)
+- **Subrequests**: 50 per request
 
 ### Cloudflare D1 (Free)
 - **Storage**: 5 GB total
@@ -63,95 +94,41 @@ This document provides a comprehensive plan for deploying the KAPP Medical Booki
 - **Neurons**: 10,000/day
 - **Models**: Various text, image, and code models available
 
-### Cloudflare Access (Important!)
-- ⚠️ **Free tier**: Only 50 users for Zero Trust
-- **For authentication**: We will NOT use Cloudflare Access
-- **Solution**: Custom authentication stored in D1 database
+### Firebase Auth (Free - KEPT)
+- **Monthly Active Users**: 50,000 (generous free tier!)
+- **Phone Auth**: 10k verifications/month
+- **Social Logins**: Unlimited
+- **Email/Password**: Unlimited
 
 ---
 
 ## Service Mapping: Firebase → Cloudflare
 
-| Firebase Service | Cloudflare Replacement | Free Tier Limit |
-|-----------------|----------------------|-----------------|
-| Firebase Auth | Custom Auth + D1 + JWT | Unlimited users |
-| Firestore | D1 (SQLite) | 5 GB, 5M reads/day |
-| Firebase Storage | R2 | 10 GB storage |
-| Firebase Hosting | Cloudflare Pages | Unlimited bandwidth |
-| Google GenKit/Gemini | Workers AI | 10k neurons/day |
-| Firestore Rules | D1 + Middleware | N/A |
-| Real-time Subscriptions | Polling / WebSockets | Via Durable Objects |
-
----
-
-## Branch Management Strategy
-
-### Creating the Cloudflare Branch
-
-```bash
-# From the main branch
-git checkout main
-git pull origin main
-
-# Create a new branch for Cloudflare version
-git checkout -b cloudflare
-
-# Push the new branch to remote
-git push -u origin cloudflare
-```
-
-### Branch Structure
-
-```
-main (Firebase version)
-│
-└── cloudflare (Cloudflare free tier version)
-```
-
-### Keeping Branches in Sync
-
-When making changes that should apply to both versions:
-
-```bash
-# Make changes in main branch
-git checkout main
-git add .
-git commit -m "feat: Add new feature"
-git push origin main
-
-# Cherry-pick to cloudflare branch (if applicable)
-git checkout cloudflare
-git cherry-pick <commit-hash>
-git push origin cloudflare
-```
-
-### Merging Strategy
-
-- Keep `main` as the Firebase production version
-- Keep `cloudflare` as the Cloudflare production version
-- Use feature branches for both: `feature/xyz-firebase` and `feature/xyz-cloudflare`
+| Firebase Service | Target Service | Free Tier Limit | Notes |
+|-----------------|----------------|-----------------|-------|
+| **Firebase Auth** | **Firebase Auth (KEEP)** | 50k MAU | Best for medical apps |
+| Firestore | D1 (SQLite) | 5 GB, 5M reads/day | Schema migration needed |
+| Firebase Storage | R2 | 10 GB storage | S3-compatible |
+| Firebase Hosting | Workers (OpenNext) | 100k req/day | Modern approach |
+| Google GenKit/Gemini | Workers AI | 10k neurons/day | Different models |
 
 ---
 
 ## Phase 1: Project Setup
 
-### Step 1.1: Install Cloudflare Dependencies
+### Step 1.1: Install Dependencies
 
 ```bash
 # Navigate to your project
 cd KAPP
 
-# Install Cloudflare tools
-pnpm add @cloudflare/next-on-pages wrangler
+# Install OpenNext adapter and wrangler (dev dependencies)
+pnpm add -D @opennextjs/cloudflare wrangler
 
-# Install authentication libraries (jose is edge-compatible JWT library)
-pnpm add jose
-
-# Install R2/S3 compatible library
+# Install R2/S3 compatible library for storage
 pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 
-# Note: uuid is already installed in this project
-# If not installed, run: pnpm add uuid
+# Note: uuid, firebase, jose are already installed
 ```
 
 ### Step 1.2: Create Wrangler Configuration
@@ -159,15 +136,19 @@ pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 Create `wrangler.toml` in project root:
 
 ```toml
+#:schema node_modules/wrangler/config-schema.json
+
 name = "kapp-medical"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
+main = ".open-next/worker.js"
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
 
 # D1 Database binding
 [[d1_databases]]
 binding = "DB"
-database_name = "kapp-production"
-database_id = "your-database-id-here"
+database_name = "kapp-db"
+database_id = "" # Set after creating database in Cloudflare dashboard
 
 # R2 Storage binding
 [[r2_buckets]]
@@ -178,29 +159,40 @@ bucket_name = "kapp-files"
 [ai]
 binding = "AI"
 
-# Environment variables (secrets set via wrangler secret)
+# Environment variables (non-sensitive)
 [vars]
 ENVIRONMENT = "production"
+
+# Note: Sensitive variables (secrets) should be set via:
+# - Cloudflare Dashboard > Workers > Settings > Variables
+# - Or via: wrangler secret put SECRET_NAME
 ```
 
-### Step 1.3: Update Next.js Configuration
+### Step 1.3: Create OpenNext Configuration
 
-Update `next.config.ts`:
+Create `open-next.config.ts` in project root:
 
 ```typescript
-import type { NextConfig } from 'next';
+import type { OpenNextConfig } from "@opennextjs/cloudflare";
 
-const nextConfig: NextConfig = {
-  // Note: Edge runtime is configured per-route using `export const runtime = 'edge'`
-  // in individual API routes and pages, not globally here.
+const config: OpenNextConfig = {
+  default: {
+    override: {
+      wrapper: "cloudflare-node",
+      converter: "edge",
+      // Use ISR with D1 for caching (optional)
+      // incrementalCache: "cloudflare-kv",
+      // tagCache: "cloudflare-kv",
+    },
+  },
   
-  // Disable image optimization (use Cloudflare Images instead)
-  images: {
-    unoptimized: true,
+  // Configure middleware behavior
+  middleware: {
+    external: true,
   },
 };
 
-export default nextConfig;
+export default config;
 ```
 
 ### Step 1.4: Update package.json Scripts
@@ -210,13 +202,22 @@ Add these scripts to `package.json`:
 ```json
 {
   "scripts": {
-    "pages:build": "npx @cloudflare/next-on-pages",
-    "pages:preview": "wrangler pages dev .vercel/output/static",
-    "pages:deploy": "wrangler pages deploy .vercel/output/static",
-    "db:migrate": "wrangler d1 execute kapp-production --file=./migrations/schema.sql",
-    "db:seed": "wrangler d1 execute kapp-production --file=./migrations/seed.sql"
+    "cf:build": "npx @opennextjs/cloudflare build",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "npx @opennextjs/cloudflare deploy",
+    "cf:preview": "npx @opennextjs/cloudflare preview"
   }
 }
+```
+
+### Step 1.5: Update .gitignore
+
+Add to `.gitignore`:
+
+```
+# Cloudflare build output
+.open-next/
+.wrangler/
 ```
 
 ---
@@ -606,534 +607,118 @@ export function getDB(context: CloudflareRequestContext): D1Database {
 
 ---
 
-## Phase 3: Authentication (Firebase Auth → Custom Auth with D1)
+## Phase 3: Keep Firebase Auth
 
-Since Cloudflare Access only allows 50 users on the free tier, we'll implement custom authentication using D1 + JWT.
+> **Recommended Approach**: Keep Firebase Auth and don't migrate authentication to Cloudflare.
 
-### Step 3.1: Create Auth Utilities
+### Why Keep Firebase Auth?
 
-Create `src/cloudflare/auth/jwt.ts`:
+1. **Free Tier is Generous**: Firebase Auth supports 50,000 monthly active users for free
+2. **Security**: Firebase Auth is battle-tested for medical applications
+3. **Social Logins**: Built-in Google, Facebook, Apple sign-in
+4. **Phone Auth**: SMS verification included (10k/month free)
+5. **Works Anywhere**: Firebase Auth works with any hosting provider
+6. **No Custom Code**: No need to implement password hashing, session management, etc.
 
-```typescript
-import { SignJWT, jwtVerify } from 'jose';
+### What to Change
 
-// SECURITY: JWT_SECRET must be set in environment variables
-// Generate with: openssl rand -base64 32
-const JWT_SECRET_STRING = process.env.JWT_SECRET;
-if (!JWT_SECRET_STRING) {
-  throw new Error('JWT_SECRET environment variable is required');
-}
-const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
+The existing Firebase Auth code (`src/firebase/client.ts`, `src/firebase/hooks.ts`) continues to work unchanged. Firebase Auth is a client-side SDK that communicates directly with Firebase servers.
 
-export interface JWTPayload {
-  sub: string;     // user id
-  email: string;
-  role: 'patient' | 'doctor' | 'admin';
-  exp?: number;
-  iat?: number;
-}
+### Firebase Auth with D1 Database
 
-export async function createAccessToken(payload: Omit<JWTPayload, 'exp' | 'iat'>): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('15m') // Short-lived access token
-    .sign(JWT_SECRET);
-}
+When using Firebase Auth with D1, you need to sync user data:
 
-export async function createRefreshToken(payload: Omit<JWTPayload, 'exp' | 'iat'>): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('7d') // Long-lived refresh token
-    .sign(JWT_SECRET);
-}
-
-export async function verifyToken(token: string): Promise<JWTPayload | null> {
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload as JWTPayload;
-  } catch {
-    return null;
-  }
-}
-```
-
-Create `src/cloudflare/auth/password.ts`:
+Create `src/cloudflare/auth/sync-user.ts`:
 
 ```typescript
-// Using Web Crypto API for password hashing (Edge-compatible)
-const ITERATIONS = 100000;
-const KEY_LENGTH = 32;
-const SALT_LENGTH = 16;
+/**
+ * Sync Firebase Auth user to D1 database
+ * Call this after successful Firebase Auth login/signup
+ */
+export async function syncUserToD1(
+  db: D1Database,
+  firebaseUser: { uid: string; email: string; displayName?: string },
+  role: 'patient' | 'doctor' | 'admin' = 'patient'
+) {
+  const existingUser = await db
+    .prepare('SELECT id FROM users WHERE firebase_uid = ?')
+    .bind(firebaseUser.uid)
+    .first();
 
-async function deriveKey(password: string, salt: Uint8Array): Promise<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-  
-  return crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations: ITERATIONS,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    KEY_LENGTH * 8
-  );
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-  const derivedKey = await deriveKey(password, salt);
-  
-  // Combine salt and derived key
-  const combined = new Uint8Array(SALT_LENGTH + KEY_LENGTH);
-  combined.set(salt);
-  combined.set(new Uint8Array(derivedKey), SALT_LENGTH);
-  
-  // Return as base64
-  return btoa(String.fromCharCode(...combined));
-}
-
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  try {
-    const combined = new Uint8Array(
-      atob(hash).split('').map(c => c.charCodeAt(0))
-    );
-    
-    const salt = combined.slice(0, SALT_LENGTH);
-    const storedKey = combined.slice(SALT_LENGTH);
-    
-    const derivedKey = await deriveKey(password, salt);
-    const derivedKeyArray = new Uint8Array(derivedKey);
-    
-    // Constant-time comparison
-    if (storedKey.length !== derivedKeyArray.length) return false;
-    let result = 0;
-    for (let i = 0; i < storedKey.length; i++) {
-      result |= storedKey[i] ^ derivedKeyArray[i];
-    }
-    return result === 0;
-  } catch {
-    return false;
-  }
-}
-```
-
-### Step 3.2: Create Auth API Routes
-
-Create `src/app/api/auth/signup/route.ts`:
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { hashPassword } from '@/cloudflare/auth/password';
-import { createAccessToken, createRefreshToken } from '@/cloudflare/auth/jwt';
-import { getDB, getCloudflareContext } from '@/cloudflare/db';
-import { v4 as uuidv4 } from 'uuid';
-
-export const runtime = 'edge';
-
-export async function POST(request: NextRequest) {
-  const context = getCloudflareContext(request);
-  const db = getDB(context);
-  
-  try {
-    const { email, password, fullName } = await request.json();
-    
-    // Validate input
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
-    }
-    
-    const emailLower = email.toLowerCase().trim();
-    
-    // Check if user already exists
-    const existingUser = await db
-      .prepare('SELECT id FROM users WHERE email_lower = ?')
-      .bind(emailLower)
-      .first();
-    
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'Email already in use' },
-        { status: 409 }
-      );
-    }
-    
-    // Check for pending staff invite
-    const pendingStaff = await db
-      .prepare('SELECT * FROM pending_staff WHERE email = ?')
-      .bind(emailLower)
-      .first();
-    
-    // Hash password
-    const passwordHash = await hashPassword(password);
-    
-    // Generate user ID
-    const userId = uuidv4();
-    const role = pendingStaff?.role || 'patient';
-    
-    // Create user
+  if (!existingUser) {
+    // Create new user in D1
     await db
       .prepare(`
-        INSERT INTO users (id, email, email_lower, password_hash, role, name, staff_id, access_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, firebase_uid, email, email_lower, role, name, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
       `)
       .bind(
-        userId,
-        email,
-        emailLower,
-        passwordHash,
+        firebaseUser.uid, // Use Firebase UID as D1 user ID for consistency
+        firebaseUser.uid,
+        firebaseUser.email,
+        firebaseUser.email?.toLowerCase(),
         role,
-        fullName || '',
-        pendingStaff?.staff_id || null,
-        pendingStaff?.access_code || null
+        firebaseUser.displayName || ''
       )
       .run();
-    
-    // If staff invite exists, delete it and create staff credentials
-    if (pendingStaff) {
-      await db.prepare('DELETE FROM pending_staff WHERE email = ?').bind(emailLower).run();
-    }
-    
-    // Create patient profile if role is patient
-    if (role === 'patient') {
-      const nameParts = (fullName || '').split(' ');
-      await db
-        .prepare(`
-          INSERT INTO patients (id, first_name, last_name)
-          VALUES (?, ?, ?)
-        `)
-        .bind(userId, nameParts[0] || '', nameParts.slice(1).join(' ') || '')
-        .run();
-    }
-    
-    // Create tokens
-    const accessToken = await createAccessToken({ sub: userId, email: emailLower, role });
-    const refreshToken = await createRefreshToken({ sub: userId, email: emailLower, role });
-    
-    // Store refresh token with 7 day expiry
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-    
-    await db
-      .prepare(`
-        INSERT INTO sessions (id, user_id, refresh_token, expires_at)
-        VALUES (?, ?, ?, ?)
-      `)
-      .bind(uuidv4(), userId, refreshToken, expiresAt.toISOString())
-      .run();
-    
-    // Determine redirect based on role
-    let redirect = '/patient/dashboard';
-    if (role === 'admin') redirect = '/admin';
-    else if (role === 'doctor') redirect = '/doctor/dashboard';
-    
-    const response = NextResponse.json({
-      user: { id: userId, email: emailLower, role, name: fullName },
-      redirect,
-    });
-    
-    // Set cookies
-    response.cookies.set('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60, // 15 minutes
-    });
-    
-    response.cookies.set('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-    
-    return response;
-  } catch (error) {
-    console.error('Signup error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
   }
+
+  return { userId: firebaseUser.uid };
 }
 ```
 
-Create `src/app/api/auth/login/route.ts`:
+### Updated Schema for Firebase Auth
 
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyPassword } from '@/cloudflare/auth/password';
-import { createAccessToken, createRefreshToken } from '@/cloudflare/auth/jwt';
-import { getDB, getCloudflareContext } from '@/cloudflare/db';
-import { v4 as uuidv4 } from 'uuid';
+Update the D1 schema to support Firebase Auth UIDs:
 
-export const runtime = 'edge';
+```sql
+-- Users table (with Firebase Auth integration)
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,           -- Firebase UID
+    firebase_uid TEXT UNIQUE,      -- Firebase UID (for explicit reference)
+    email TEXT UNIQUE NOT NULL,
+    email_lower TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'patient' CHECK(role IN ('patient', 'doctor', 'admin')),
+    name TEXT,
+    staff_id TEXT,
+    access_code TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
-export async function POST(request: NextRequest) {
-  const context = getCloudflareContext(request);
-  const db = getDB(context);
-  
-  try {
-    const { email, password, rememberMe } = await request.json();
-    
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
-    }
-    
-    const emailLower = email.toLowerCase().trim();
-    
-    // Find user
-    const user = await db
-      .prepare('SELECT * FROM users WHERE email_lower = ?')
-      .bind(emailLower)
-      .first<{
-        id: string;
-        email: string;
-        password_hash: string;
-        role: string;
-        name: string;
-      }>();
-    
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-    
-    // Verify password
-    const isValid = await verifyPassword(password, user.password_hash);
-    
-    if (!isValid) {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-    
-    // Create tokens
-    const accessToken = await createAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role as 'patient' | 'doctor' | 'admin',
-    });
-    
-    const refreshToken = await createRefreshToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role as 'patient' | 'doctor' | 'admin',
-    });
-    
-    // Store refresh token
-    // Calculate expiry date - 30 days if remember me, else 7 days
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 7));
-    
-    await db
-      .prepare(`
-        INSERT INTO sessions (id, user_id, refresh_token, expires_at)
-        VALUES (?, ?, ?, ?)
-      `)
-      .bind(uuidv4(), user.id, refreshToken, expiresAt.toISOString())
-      .run();
-    
-    // Determine redirect
-    let redirect = '/patient/dashboard';
-    if (user.role === 'admin') redirect = '/admin';
-    else if (user.role === 'doctor') redirect = '/doctor/dashboard';
-    
-    const response = NextResponse.json({
-      user: { id: user.id, email: user.email, role: user.role, name: user.name },
-      redirect,
-    });
-    
-    // Set cookies
-    const refreshExpiryDays = rememberMe ? 30 : 7;
-    
-    response.cookies.set('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60,
-    });
-    
-    response.cookies.set('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: refreshExpiryDays * 24 * 60 * 60,
-    });
-    
-    return response;
-  } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
+CREATE INDEX idx_users_firebase_uid ON users(firebase_uid);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
 ```
 
-Create `src/app/api/auth/logout/route.ts`:
+### Middleware for API Routes
+
+Create `src/middleware.ts` to verify Firebase Auth tokens:
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { getDB, getCloudflareContext } from '@/cloudflare/db';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export const runtime = 'edge';
+export async function middleware(request: NextRequest) {
+  // Get Firebase ID token from Authorization header or cookie
+  const authHeader = request.headers.get('Authorization');
+  const token = authHeader?.replace('Bearer ', '');
 
-export async function POST(request: NextRequest) {
-  const context = getCloudflareContext(request);
-  const db = getDB(context);
-  
-  const refreshToken = request.cookies.get('refresh_token')?.value;
-  
-  if (refreshToken) {
-    // Delete the session
-    await db
-      .prepare('DELETE FROM sessions WHERE refresh_token = ?')
-      .bind(refreshToken)
-      .run();
+  if (!token) {
+    // For API routes that require auth
+    if (request.nextUrl.pathname.startsWith('/api/protected')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
-  
-  const response = NextResponse.json({ success: true });
-  
-  // Clear cookies
-  response.cookies.delete('access_token');
-  response.cookies.delete('refresh_token');
-  
-  return response;
-}
-```
 
-### Step 3.3: Create Auth Context and Hooks
-
-Create `src/cloudflare/hooks.ts`:
-
-```typescript
-'use client';
-
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  role: 'patient' | 'doctor' | 'admin';
-  name: string;
+  // Token verification is handled by Firebase Admin SDK in API routes
+  // or client-side by Firebase SDK
+  return NextResponse.next();
 }
 
-interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  error: Error | null;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ redirect: string }>;
-  signup: (email: string, password: string, fullName: string) => Promise<{ redirect: string }>;
-  logout: () => Promise<void>;
-  refreshAuth: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const refreshAuth = async () => {
-    try {
-      const response = await fetch('/api/auth/me');
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      } else {
-        setUser(null);
-      }
-    } catch (err) {
-      setError(err as Error);
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refreshAuth();
-  }, []);
-
-  const login = async (email: string, password: string, rememberMe = false) => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, rememberMe }),
-    });
-    
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Login failed');
-    }
-    
-    const data = await response.json();
-    setUser(data.user);
-    return { redirect: data.redirect };
-  };
-
-  const signup = async (email: string, password: string, fullName: string) => {
-    const response = await fetch('/api/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, fullName }),
-    });
-    
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || 'Signup failed');
-    }
-    
-    const data = await response.json();
-    setUser(data.user);
-    return { redirect: data.redirect };
-  };
-
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    setUser(null);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, isLoading, error, login, signup, logout, refreshAuth }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-}
-
-export function useUser() {
-  const { user, isLoading, error } = useAuth();
-  return { user, isLoading, error };
-}
+export const config = {
+  matcher: ['/api/protected/:path*'],
+};
 ```
 
 ---
@@ -1385,113 +970,128 @@ export async function POST(request: NextRequest) {
 
 ---
 
-## Phase 6: Deployment (Firebase Hosting → Cloudflare Pages)
+## Phase 6: Deployment (Cloudflare Workers via OpenNext)
 
-### Step 6.1: Configure Cloudflare Pages
+### Step 6.1: Build and Deploy with OpenNext
 
-1. Go to Cloudflare Dashboard → Pages
-2. Click "Create a project"
-3. Connect your GitHub repository
-4. Configure build settings:
-   - **Build command**: `npm run pages:build`
-   - **Build output directory**: `.vercel/output/static`
-   - **Root directory**: `/`
-
-### Step 6.2: Set Environment Variables
-
-In Cloudflare Pages dashboard:
-
-1. Go to Settings → Environment Variables
-2. Add the following variables:
-
-| Variable | Description |
-|----------|-------------|
-| `JWT_SECRET` | Random 32+ character string |
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
-| `R2_ACCESS_KEY_ID` | R2 API token access key |
-| `R2_SECRET_ACCESS_KEY` | R2 API token secret |
-| `STRIPE_SECRET_KEY` | Stripe secret key |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
-
-### Step 6.3: Bind D1 and R2 to Pages
-
-In Cloudflare Pages dashboard:
-
-1. Go to Settings → Functions
-2. Under "D1 database bindings", add:
-   - Variable name: `DB`
-   - D1 database: `kapp-production`
-3. Under "R2 bucket bindings", add:
-   - Variable name: `STORAGE`
-   - R2 bucket: `kapp-files`
-4. Under "AI bindings", add:
-   - Variable name: `AI`
-
-### Step 6.4: Deploy
+The OpenNext adapter handles the build and deployment process automatically:
 
 ```bash
-# Build for Cloudflare Pages
-pnpm run pages:build
+# Build for Cloudflare Workers
+pnpm run cf:build
 
-# Deploy to Cloudflare Pages
-pnpm run pages:deploy
+# Preview locally before deploying
+pnpm run cf:preview
+
+# Deploy to Cloudflare Workers
+pnpm run cf:deploy
 ```
 
-Or use automatic deployments via GitHub integration.
+### Step 6.2: Connect GitHub for Auto-Deployment
+
+For automatic deployments from GitHub:
+
+1. Go to **Cloudflare Dashboard** → **Workers & Pages**
+2. Click **Create** → **Pages** → **Connect to Git**
+3. Select your GitHub repository
+4. Configure build settings:
+   - **Framework preset**: None (we use custom build)
+   - **Build command**: `npx @opennextjs/cloudflare build`
+   - **Build output directory**: `.open-next/`
+5. Click **Save and Deploy**
+
+> See `docs/CLOUDFLARE_DEPLOYMENT_SETUP.md` for detailed step-by-step instructions.
+
+### Step 6.3: Set Environment Variables
+
+In Cloudflare Dashboard → Your Worker → **Settings** → **Variables and Secrets**:
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Plain text | Firebase API key |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Plain text | Firebase auth domain |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Plain text | Firebase project ID |
+| `CLOUDFLARE_ACCOUNT_ID` | Plain text | Your Cloudflare account ID |
+| `R2_ACCESS_KEY_ID` | Secret | R2 API access key |
+| `R2_SECRET_ACCESS_KEY` | Secret | R2 API secret key |
+| `STRIPE_SECRET_KEY` | Secret | Stripe secret key |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Plain text | Stripe publishable key |
+
+### Step 6.4: Bind D1 and R2 to Worker
+
+In Cloudflare Dashboard → Your Worker → **Settings** → **Bindings**:
+
+1. **D1 Database**:
+   - Click **Add binding**
+   - Variable name: `DB`
+   - D1 database: Select your `kapp-db` database
+
+2. **R2 Bucket**:
+   - Click **Add binding**
+   - Variable name: `STORAGE`
+   - R2 bucket: Select your `kapp-files` bucket
+
+3. **Workers AI** (optional):
+   - Click **Add binding**
+   - Variable name: `AI`
+   - Select Workers AI
+
+### Step 6.5: Custom Domain (Optional)
+
+1. Go to **Workers & Pages** → Your worker → **Settings** → **Domains & Routes**
+2. Click **Add** → **Custom domain**
+3. Enter your domain (e.g., `app.yourdomain.com`)
+4. Follow the DNS setup instructions
 
 ---
 
 ## Implementation Checklist
 
-### Branch Setup
-- [ ] Create `cloudflare` branch from `main`
-- [ ] Set up branch protection rules
-- [ ] Configure CI/CD for both branches
-
 ### Phase 1: Project Setup
-- [ ] Install Cloudflare dependencies
-- [ ] Create `wrangler.toml`
-- [ ] Update `next.config.ts` for edge runtime
-- [ ] Update `package.json` scripts
+- [ ] Install OpenNext adapter and wrangler: `pnpm add -D @opennextjs/cloudflare wrangler`
+- [ ] Create `wrangler.toml` configuration file
+- [ ] Create `open-next.config.ts` file
+- [ ] Update `package.json` scripts for Cloudflare builds
+- [ ] Update `.gitignore` to exclude build outputs
 
 ### Phase 2: Database Migration
-- [ ] Create D1 database schema
-- [ ] Create D1 database in Cloudflare
-- [ ] Run schema migrations
-- [ ] Create database utility functions
-- [ ] Migrate existing data (if any)
+- [ ] Create `migrations/schema.sql` with D1 schema
+- [ ] Create D1 database in Cloudflare dashboard
+- [ ] Run schema migrations via dashboard or wrangler CLI
+- [ ] Create `src/cloudflare/db.ts` database utilities
+- [ ] Migrate existing Firestore data (if any)
 
-### Phase 3: Authentication
-- [ ] Create JWT utilities
-- [ ] Create password hashing utilities
-- [ ] Create auth API routes (signup, login, logout, refresh)
-- [ ] Create auth context and hooks
-- [ ] Update login/signup pages to use new auth
-- [ ] Remove Firebase Auth imports
+### Phase 3: Authentication (Keep Firebase Auth)
+- [ ] Keep existing Firebase Auth code unchanged
+- [ ] Create `src/cloudflare/auth/sync-user.ts` for D1 sync
+- [ ] Update D1 schema to include `firebase_uid` column
+- [ ] Create middleware for API route protection
 
 ### Phase 4: File Storage
-- [ ] Create R2 bucket
-- [ ] Create storage utilities
-- [ ] Update file upload components
-- [ ] Remove Firebase Storage imports
+- [ ] Create R2 bucket in Cloudflare dashboard
+- [ ] Create `src/cloudflare/storage.ts` utilities
+- [ ] Update file upload components to use R2
+- [ ] Migrate existing files from Firebase Storage (if any)
 
 ### Phase 5: AI Migration
-- [ ] Create Workers AI utilities
-- [ ] Update AI flows to use Workers AI
-- [ ] Remove GenKit/Google AI imports
+- [ ] Create `src/cloudflare/ai.ts` Workers AI utilities
+- [ ] Update or create new AI flows using Workers AI
+- [ ] Keep GenKit for development, Workers AI for production (optional)
 
 ### Phase 6: Deployment
-- [ ] Configure Cloudflare Pages project
+- [ ] Connect GitHub repository to Cloudflare
+- [ ] Configure build settings in Cloudflare dashboard
 - [ ] Set environment variables
-- [ ] Bind D1 and R2 to Pages
+- [ ] Add D1, R2, and AI bindings
 - [ ] Test deployment
-- [ ] Set up custom domain (optional)
+- [ ] Configure custom domain (optional)
 
-### Final Steps
-- [ ] Remove all Firebase dependencies from `package.json`
-- [ ] Delete Firebase configuration files
-- [ ] Update documentation
-- [ ] Test all features end-to-end
+### Final Verification
+- [ ] Test authentication flow end-to-end
+- [ ] Test database operations
+- [ ] Test file uploads
+- [ ] Test AI features
+- [ ] Verify all routes work correctly
 
 ---
 
@@ -1500,8 +1100,10 @@ Or use automatic deployments via GitHub integration.
 ### Development (.env.local)
 
 ```env
-# JWT Authentication
-JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters
+# Firebase Auth (KEEP - same as before)
+NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
 
 # Cloudflare Account
 CLOUDFLARE_ACCOUNT_ID=your-account-id
@@ -1520,31 +1122,32 @@ NODE_ENV=development
 
 ### Production (Cloudflare Dashboard)
 
-Set these in Cloudflare Pages → Settings → Environment Variables:
-- `JWT_SECRET`
+Set these in **Workers & Pages** → **Your Worker** → **Settings** → **Variables and Secrets**:
+
+**Plain Text Variables:**
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
 - `CLOUDFLARE_ACCOUNT_ID`
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+
+**Secrets (encrypted):**
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
 - `STRIPE_SECRET_KEY`
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 
 ---
 
 ## Security Considerations
 
-### Password Security
-- Passwords are hashed using PBKDF2 with 100,000 iterations
-- Salt is randomly generated for each password
-- Hash comparison is done in constant time
-
-### JWT Security
-- Access tokens expire in 15 minutes
-- Refresh tokens expire in 7-30 days
-- Tokens are stored in httpOnly cookies
-- Tokens include user role for authorization
+### Firebase Auth Security (Kept)
+- Firebase handles password hashing and storage securely
+- JWT tokens are signed and verified by Firebase
+- Social login providers handle OAuth securely
+- Rate limiting and brute force protection built-in
 
 ### API Security
-- All API routes verify JWT before processing
+- Firebase ID tokens verified on API routes
 - Role-based access control on sensitive endpoints
 - Rate limiting via Cloudflare's built-in features
 - CORS properly configured
@@ -1553,6 +1156,13 @@ Set these in Cloudflare Pages → Settings → Environment Variables:
 - All connections are encrypted (HTTPS)
 - R2 files accessed via signed URLs with expiration
 - Sensitive data not exposed in client-side code
+- D1 database encrypted at rest
+
+### Cloudflare Security Features
+- DDoS protection included
+- Web Application Firewall (WAF) available
+- Bot management
+- SSL/TLS encryption automatic
 
 ---
 
@@ -1570,45 +1180,58 @@ Set these in Cloudflare Pages → Settings → Environment Variables:
 **Workers AI has different models than Google's Gemini.**
 
 **Available models on free tier:**
-- `@cf/meta/llama-2-7b-chat-int8` - General text generation
+- `@cf/meta/llama-3.1-8b-instruct` - General text generation (recommended)
+- `@cf/mistral/mistral-7b-instruct-v0.2-lora` - Instruction-following
 - `@cf/microsoft/phi-2` - Smaller, faster model
-- `@hf/thebloke/mistral-7b-instruct-v0.1-awq` - Instruction-following
 
-### No Google OAuth
-**Without Firebase, Google OAuth requires custom implementation.**
+### OAuth with Firebase Auth (Works!)
+**Since we keep Firebase Auth, Google OAuth works out of the box!**
 
-**Options:**
-1. Use email/password only (recommended for simplicity)
-2. Implement OAuth manually using Cloudflare Workers
-3. Use a third-party auth provider (Auth0, Clerk) - may have costs
+Firebase Auth supports:
+- Google Sign-in
+- Facebook Sign-in
+- Apple Sign-in
+- GitHub Sign-in
+- And more...
 
 ### Limited SQL Features
 **D1 is SQLite-based with some limitations.**
 
 **No support for:**
-- Full-text search (use LIKE queries instead)
+- Full-text search (use LIKE queries or FTS5 extension)
 - Complex joins across many tables
 - Some advanced SQL functions
 
-### Build Time Limits
-**Cloudflare Pages free tier has 500 builds/month.**
+### Build Limits
+**Cloudflare free tier limits:**
+- Workers: 100,000 requests/day
+- Builds: 500/month (via GitHub integration)
 
 **Tips:**
-- Only trigger builds on main/cloudflare branches
-- Use caching effectively
-- Avoid unnecessary commits
+- Only trigger builds on main branches
+- Use preview deployments wisely
 
 ---
 
 ## Support and Resources
 
+- [OpenNext Cloudflare Documentation](https://opennext.js.org/cloudflare)
 - [Cloudflare D1 Documentation](https://developers.cloudflare.com/d1/)
 - [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/)
-- [Cloudflare Pages Documentation](https://developers.cloudflare.com/pages/)
+- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 - [Cloudflare Workers AI Documentation](https://developers.cloudflare.com/workers-ai/)
-- [Next.js on Cloudflare Pages](https://developers.cloudflare.com/pages/framework-guides/nextjs/)
+- [Firebase Auth Documentation](https://firebase.google.com/docs/auth)
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: December 2024
+## Related Documentation
+
+- **[CLOUDFLARE_DEPLOYMENT_SETUP.md](./CLOUDFLARE_DEPLOYMENT_SETUP.md)** - Step-by-step online setup guide (no CLI required)
+- **[FIREBASE_SETUP.md](./FIREBASE_SETUP.md)** - Firebase configuration (for auth)
+- **[STRIPE_SETUP.md](./STRIPE_SETUP.md)** - Stripe payment integration
+
+---
+
+**Document Version**: 2.0  
+**Last Updated**: December 2024  
+**Changes**: Updated to use OpenNext adapter (deprecated @cloudflare/next-on-pages), kept Firebase Auth instead of custom auth
