@@ -154,6 +154,7 @@ interface CustomService {
   price: number;
   isCustom: boolean;
   createdBy: string;
+  _path?: string; // Document path from Firestore
 }
 
 // Interface for confirmed appointments (for availability checking)
@@ -204,13 +205,12 @@ export default function BookingPage() {
 
   const { data: firestoreDoctors, isLoading: isLoadingDoctors } = useCollection<Doctor>(doctorsQuery);
 
-  // Filter to only show active doctors, or fall back to static doctors if none available
-  const activeDoctors: Doctor[] = firestoreDoctors?.filter((d) => 
-    d.status === 'active' || d.onboardingCompleted
-  ) || [];
-  
   // Use Firestore doctors if available, otherwise fall back to static doctors
-  const allDoctors: Doctor[] = activeDoctors.length > 0 ? activeDoctors : staticDoctors;
+  // Filter out explicitly suspended/inactive doctors, but include those without status
+  // (doctors who have configured services but may not have formal status yet)
+  const allDoctors: Doctor[] = firestoreDoctors && firestoreDoctors.length > 0 
+    ? firestoreDoctors.filter((d) => d.status !== 'inactive') 
+    : staticDoctors;
 
   // Fetch treatments from Firestore
   const treatmentsQuery = useMemoFirebase(() => {
@@ -258,6 +258,9 @@ export default function BookingPage() {
     if (firestoreTreatments && doctorServices) {
       firestoreTreatments.forEach((treatment) => {
         // Find doctors who provide this service
+        // Note: We include ALL doctors who have configured this service, even if they
+        // don't have a formal doctor document. The doctor ID is extracted from the
+        // service document path (doctors/{doctorId}/services/{serviceId})
         const doctorsForService = doctorServices
           .filter((ds) => ds.treatmentId === treatment.id && ds.providesService)
           .map((ds) => {
@@ -265,7 +268,7 @@ export default function BookingPage() {
             const pathParts = ds._path?.split('/') || [];
             return pathParts[DOCTOR_ID_PATH_INDEX] || '';
           })
-          .filter((id: string) => id && allDoctors.some(d => d.id === id));
+          .filter((id: string) => !!id); // Only filter out empty IDs, don't require doctor doc
         
         if (doctorsForService.length > 0) {
           // Get the lowest price from doctors who provide this service
@@ -290,9 +293,13 @@ export default function BookingPage() {
     // Add custom services from doctors
     if (customServices) {
       customServices.forEach((customService) => {
-        // Extract doctor ID from the document path
-        const doctorId = customService.createdBy;
-        if (doctorId && allDoctors.some(d => d.id === doctorId)) {
+        // Extract doctor ID from the document path or use createdBy field
+        // The _path format is: doctors/{doctorId}/customServices/{serviceId}
+        const pathParts = customService._path?.split('/') || [];
+        const doctorIdFromPath = pathParts[DOCTOR_ID_PATH_INDEX] || '';
+        const doctorId = doctorIdFromPath || customService.createdBy;
+        
+        if (doctorId) {
           servicesList.push({
             id: `custom-${customService.id}`,
             name: customService.name,
@@ -339,10 +346,30 @@ export default function BookingPage() {
   }, [availableServices]);
 
   // Get doctors who can provide the selected service
+  // This function returns doctors who have configured this service
+  // If a doctor has configured services but doesn't have a doctor document yet,
+  // we include them with basic info (they can still be booked)
   const getAvailableDoctorsForService = useCallback((serviceId: string): Doctor[] => {
     const service = availableServices.find(s => s.id === serviceId);
     if (!service) return allDoctors;
-    return allDoctors.filter(d => service.doctorIds.includes(d.id));
+    
+    // Get doctors from allDoctors who are in the service's doctorIds
+    const knownDoctors = allDoctors.filter(d => service.doctorIds.includes(d.id));
+    
+    // Find any doctor IDs that aren't in allDoctors but have configured the service
+    // This can happen when a doctor configures services before their profile is complete
+    const unknownDoctorIds = service.doctorIds.filter(id => !allDoctors.some(d => d.id === id));
+    
+    // For unknown doctors, create basic entries so they can still be selected
+    // Their full profile will be loaded once they complete their profile setup
+    const unknownDoctors: Doctor[] = unknownDoctorIds.map(id => ({
+      id,
+      firstName: 'Doctor',
+      lastName: '(Profile Pending)',
+      specialization: 'Medical Professional',
+    }));
+    
+    return [...knownDoctors, ...unknownDoctors];
   }, [availableServices, allDoctors]);
 
   // Check if a time slot is available for a doctor on a given date

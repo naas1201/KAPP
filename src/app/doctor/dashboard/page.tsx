@@ -132,6 +132,13 @@ export default function DoctorDashboard() {
     return collection(firestore, 'doctors', user.uid, 'services');
   }, [user, firestore]);
   const { data: myServices, isLoading: isLoadingMyServices } = useCollection(doctorServicesRef);
+
+  // Custom services created by this doctor
+  const customServicesRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'doctors', user.uid, 'customServices');
+  }, [user, firestore]);
+  const { data: customServices, isLoading: isLoadingCustomServices } = useCollection(customServicesRef);
   
   const ratingsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -389,7 +396,10 @@ export default function DoctorDashboard() {
     }
     const totalAppointments = appointments.length;
     const uniquePatients = new Set(appointments.map((a: any) => a.patientId)).size;
-    const servicesOffered = myServices.filter((s: any) => s.providesService).length;
+    // Count clinic services where doctor provides the service + custom services
+    const clinicServicesCount = myServices.filter((s: any) => s.providesService).length;
+    const customServicesCount = customServices?.length || 0;
+    const servicesOffered = clinicServicesCount + customServicesCount;
     const consultationHours = Math.round(totalAppointments * 0.5); // Assuming 30 mins per consultation
     
     return {
@@ -399,9 +409,9 @@ export default function DoctorDashboard() {
       consultationHours,
       showStats: totalAppointments >= 5, // Show stats after 5 appointments
     };
-  }, [appointments, myServices]);
+  }, [appointments, myServices, customServices]);
 
-  const isLoading = isLoadingAppointments || isLoadingPatients || isUserLoading || isLoadingMyServices || isLoadingRatings;
+  const isLoading = isLoadingAppointments || isLoadingPatients || isUserLoading || isLoadingMyServices || isLoadingCustomServices || isLoadingRatings;
 
   const renderSkeleton = () =>
     Array.from({ length: 3 }).map((_, i) => (
