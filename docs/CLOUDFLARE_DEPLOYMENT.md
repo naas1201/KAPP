@@ -177,8 +177,15 @@ database_id = "YOUR_D1_DATABASE_ID_HERE"
 | **Project name** | `kapp-medical` (or your preferred name) |
 | **Production branch** | `main` |
 | **Framework preset** | None |
-| **Build command** | `npx @opennextjs/cloudflare build` |
+| **Build command** | `npm run pages:build` |
 | **Build output directory** | `.open-next` |
+
+> **⚠️ IMPORTANT**: Do NOT use `npm run build` or `pnpm run build` as the build command! 
+> These commands only run the standard Next.js build and will NOT generate the `.open-next/worker.js` file required for Cloudflare Workers.
+> 
+> Use one of these commands instead:
+> - `npm run pages:build` - Recommended (includes typecheck)
+> - `npx @opennextjs/cloudflare build` - Alternative (OpenNext direct)
 
 Click **Save and Deploy** (first deploy will fail - that's expected).
 
@@ -315,18 +322,28 @@ npm run cf:dev
 ### Key Commands
 
 ```bash
-npm run dev          # Start Next.js development server
-npm run cf:build     # Build for Cloudflare Workers
+npm run dev          # Start Next.js development server (local dev)
+npm run build        # Standard Next.js build (NOT for Cloudflare)
+npm run pages:build  # Build for Cloudflare Pages (use this as Cloudflare build command)
+npm run cf:build     # Same as pages:build - Build for Cloudflare Workers
 npm run cf:dev       # Local development with wrangler
-npm run cf:deploy    # Deploy to Cloudflare Workers
+npm run cf:deploy    # Deploy to Cloudflare Workers (CLI)
 npm run cf:preview   # Preview deployment locally
 ```
+
+> **Note**: For Cloudflare Pages deployment, always use `npm run pages:build` or `npm run cf:build` as the build command, NOT `npm run build`.
 
 ---
 
 ## Troubleshooting
 
 ### Build Fails
+
+**Error: "The entry-point file at .open-next/worker.js was not found"**
+- **Cause**: The build command is not generating the OpenNext output
+- **Solution**: Update your Cloudflare Pages build command to `npm run pages:build` or `npx @opennextjs/cloudflare build`
+- **Do NOT use**: `npm run build`, `pnpm run build`, or just `next build` - these only run the standard Next.js build without generating the Cloudflare Worker files
+- Go to Cloudflare Dashboard → Pages → Your project → Settings → Build & Deployment → Edit configurations → Change "Build command"
 
 **Error: "Module not found"**
 - Ensure all dependencies are in `package.json`

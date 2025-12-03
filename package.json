@@ -15,10 +15,11 @@
     "test:e2e": "playwright test",
     "seed:prod-staff-accounts": "tsx ./scripts/create-prod-staff-accounts.ts",
     "seed:firestore": "tsx ./scripts/seed-firestore.ts",
-    "cf:build": "npx @opennextjs/cloudflare build",
+    "cf:build": "npm run typecheck && npx @opennextjs/cloudflare build",
     "cf:dev": "wrangler dev",
     "cf:deploy": "npx @opennextjs/cloudflare deploy",
-    "cf:preview": "npx @opennextjs/cloudflare preview"
+    "cf:preview": "npx @opennextjs/cloudflare preview",
+    "pages:build": "npm run typecheck && npx @opennextjs/cloudflare build"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
