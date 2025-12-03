@@ -31,7 +31,10 @@ assets = { directory = ".open-next/assets", binding = "ASSETS" }
 [[d1_databases]]
 binding = "DB"
 database_name = "kapp-db"
-database_id = ""  # TODO: Replace with your D1 database ID from Cloudflare Dashboard
+# REQUIRED: Replace with your D1 database ID from Cloudflare Dashboard
+# This field cannot be empty - get the ID from:
+# Dashboard → Workers & Pages → D1 → Click your database → Copy "Database ID"
+database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
 
 # =============================================================================
 # R2 BUCKET BINDING
