@@ -528,3 +528,286 @@ describe('User Document Creation (Sign-up)', () => {
     }));
   });
 });
+
+// =============================================================================
+// Test Suite: Patient Appointment Operations
+// =============================================================================
+describe('Patient Appointment Operations', () => {
+  beforeEach(async () => {
+    await seedUserDocuments();
+  });
+
+  test('patient can create their own appointment with valid data', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Create appointment in patient's appointments subcollection
+    await assertSucceeds(setDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-1'), {
+      patientId: PATIENT_UID,
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: 'I have a headache',
+      phoneNumber: '09123456789',
+    }));
+  });
+
+  test('patient can create appointment with empty patientNotes', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Create appointment with empty notes (should pass noScriptTags validation)
+    await assertSucceeds(setDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-2'), {
+      patientId: PATIENT_UID,
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: '',
+      phoneNumber: '09123456789',
+    }));
+  });
+
+  test('patient can read their own appointment', async () => {
+    // First create the appointment with security rules disabled
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-3'), {
+        patientId: PATIENT_UID,
+        doctorId: DOCTOR_UID,
+        serviceType: 'Follow-up',
+        dateTime: new Date().toISOString(),
+        status: 'confirmed',
+        patientNotes: '',
+      });
+    });
+    
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    await assertSucceeds(getDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-3')));
+  });
+
+  test('patient cannot create appointment in another patient subcollection', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Try to create appointment under OTHER_PATIENT_UID's subcollection
+    await assertFails(setDoc(doc(db, `patients/${OTHER_PATIENT_UID}/appointments`, 'apt-4'), {
+      patientId: PATIENT_UID, // Even with own patientId in data
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: '',
+    }));
+  });
+
+  test('patient cannot read another patient appointment', async () => {
+    // Create appointment for other patient
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, `patients/${OTHER_PATIENT_UID}/appointments`, 'apt-5'), {
+        patientId: OTHER_PATIENT_UID,
+        doctorId: DOCTOR_UID,
+        serviceType: 'Checkup',
+        dateTime: new Date().toISOString(),
+        status: 'pending',
+        patientNotes: '',
+      });
+    });
+    
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    await assertFails(getDoc(doc(db, `patients/${OTHER_PATIENT_UID}/appointments`, 'apt-5')));
+  });
+
+  test('patient appointment rejects script injection in patientNotes', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Try to inject script tag - should fail noScriptTags validation
+    await assertFails(setDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-6'), {
+      patientId: PATIENT_UID,
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: '<script>alert("xss")</script>',
+    }));
+  });
+
+  test('patient appointment rejects javascript: in patientNotes', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    await assertFails(setDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-7'), {
+      patientId: PATIENT_UID,
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: 'javascript:alert(1)',
+    }));
+  });
+
+  test('patient appointment rejects event handlers in patientNotes', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    await assertFails(setDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-8'), {
+      patientId: PATIENT_UID,
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: '<img onerror=alert(1)>',
+    }));
+  });
+
+  test('patient appointment allows valid medical text with words like condition', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Text containing words like "condition" should be allowed
+    // This was previously blocked by the overly broad event handler regex
+    await assertSucceeds(setDoc(doc(db, `patients/${PATIENT_UID}/appointments`, 'apt-9'), {
+      patientId: PATIENT_UID,
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: 'My condition = chronic headaches. I have a question = is this normal?',
+    }));
+  });
+});
+
+// =============================================================================
+// Test Suite: Top-Level Appointments Collection
+// =============================================================================
+describe('Top-Level Appointments Collection', () => {
+  beforeEach(async () => {
+    await seedUserDocuments();
+  });
+
+  test('patient can create appointment in top-level collection', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Patient can create in top-level appointments with their patientId
+    await assertSucceeds(setDoc(doc(db, 'appointments', 'top-apt-1'), {
+      patientId: PATIENT_UID, // Must match auth.uid
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: 'Test notes',
+    }));
+  });
+
+  test('patient cannot create appointment with mismatched patientId', async () => {
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Try to create with different patientId - should fail
+    await assertFails(setDoc(doc(db, 'appointments', 'top-apt-2'), {
+      patientId: OTHER_PATIENT_UID, // Doesn't match auth.uid
+      doctorId: DOCTOR_UID,
+      serviceType: 'General Consultation',
+      dateTime: new Date().toISOString(),
+      status: 'pending',
+      patientNotes: '',
+    }));
+  });
+
+  test('patient cannot read from top-level appointments', async () => {
+    // Create appointment first
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'appointments', 'top-apt-3'), {
+        patientId: PATIENT_UID,
+        doctorId: DOCTOR_UID,
+        serviceType: 'Checkup',
+        status: 'pending',
+      });
+    });
+    
+    const patientContext = testEnv.authenticatedContext(PATIENT_UID, {
+      email: PATIENT_EMAIL,
+    });
+    const db = patientContext.firestore();
+    
+    // Patients cannot read from top-level appointments (only doctors/admins)
+    await assertFails(getDoc(doc(db, 'appointments', 'top-apt-3')));
+  });
+
+  test('doctor can read from top-level appointments', async () => {
+    // Create appointment first
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'appointments', 'top-apt-4'), {
+        patientId: PATIENT_UID,
+        doctorId: DOCTOR_UID,
+        serviceType: 'Checkup',
+        status: 'pending',
+      });
+    });
+    
+    const doctorContext = testEnv.authenticatedContext(DOCTOR_UID, {
+      email: DOCTOR_EMAIL,
+    });
+    const db = doctorContext.firestore();
+    
+    await assertSucceeds(getDoc(doc(db, 'appointments', 'top-apt-4')));
+  });
+
+  test('doctor can update appointments in top-level collection', async () => {
+    // Create appointment first
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'appointments', 'top-apt-5'), {
+        patientId: PATIENT_UID,
+        doctorId: DOCTOR_UID,
+        serviceType: 'Checkup',
+        status: 'pending',
+      });
+    });
+    
+    const doctorContext = testEnv.authenticatedContext(DOCTOR_UID, {
+      email: DOCTOR_EMAIL,
+    });
+    const db = doctorContext.firestore();
+    
+    // Doctor can approve/reject appointments
+    await assertSucceeds(setDoc(doc(db, 'appointments', 'top-apt-5'), {
+      patientId: PATIENT_UID,
+      doctorId: DOCTOR_UID,
+      serviceType: 'Checkup',
+      status: 'confirmed',
+    }));
+  });
+});

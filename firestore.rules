@@ -47,11 +47,15 @@ service cloud.firestore {
     }
 
     // OWASP: Prevent script injection in text fields
+    // Note: The event handler pattern matches dangerous patterns like onclick=, onerror=
+    // It requires the pattern to be at the start of string OR after < or whitespace
+    // to avoid false positives with words like "condition", "question", "mention"
     function noScriptTags(str) {
       return str is string 
         && !str.lower().matches('.*<script.*')
         && !str.lower().matches('.*javascript:.*')
-        && !str.lower().matches('.*on[a-z]+\\s*=.*');
+        && !str.lower().matches('^on[a-z]+\\s*=.*')
+        && !str.lower().matches('.*(<|\\s)on[a-z]+\\s*=.*');
     }
     
     // OWASP: Validate document size to prevent DoS

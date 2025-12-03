@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Table,
@@ -26,8 +26,9 @@ import {
   useCollection,
   useFirebase,
   useMemoFirebase,
+  useDoc,
 } from '@/firebase/hooks';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDoc } from 'firebase/firestore';
 import { format, formatDistanceToNow } from 'date-fns';
 import { 
   Search, 
@@ -37,8 +38,16 @@ import {
   Video, 
   ClipboardPlus,
   Calendar,
-  Users
+  Users,
+  Info
 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+interface PatientRef {
+  id: string;
+  patientId: string;
+  addedAt?: string;
+}
 
 interface Patient {
   id: string;
@@ -53,48 +62,88 @@ interface Patient {
 }
 
 export default function DoctorPatientsPage() {
-  const { firestore, user } = useFirebase();
+  const { firestore, user, isUserLoading } = useFirebase();
   const [searchQuery, setSearchQuery] = useState('');
+  const [patientsData, setPatientsData] = useState<Patient[]>([]);
+  const [isLoadingPatientDetails, setIsLoadingPatientDetails] = useState(true);
 
-  // Fetch all patients
-  const patientsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'patients'), orderBy('lastName', 'asc'));
-  }, [firestore]);
+  // Fetch doctor's authorized patients (patients the doctor has approved)
+  const authorizedPatientsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'doctors', user.uid, 'authorizedPatients'),
+      orderBy('addedAt', 'desc')
+    );
+  }, [firestore, user]);
 
-  const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
+  const { data: authorizedPatients, isLoading: isLoadingAuthorized } = useCollection<PatientRef>(authorizedPatientsQuery);
+
+  // Fetch individual patient details for each authorized patient
+  useEffect(() => {
+    async function fetchPatientDetails() {
+      if (!firestore || !authorizedPatients || authorizedPatients.length === 0) {
+        setPatientsData([]);
+        setIsLoadingPatientDetails(false);
+        return;
+      }
+
+      setIsLoadingPatientDetails(true);
+      try {
+        const patientPromises = authorizedPatients.map(async (patientRef) => {
+          // The patientId field is set when the doctor approves an appointment
+          // The document ID in authorizedPatients collection is also the patient's ID
+          const patientId = patientRef.patientId || patientRef.id;
+          const patientDoc = await getDoc(doc(firestore, 'patients', patientId));
+          if (patientDoc.exists()) {
+            return { id: patientDoc.id, ...patientDoc.data() } as Patient;
+          }
+          return null;
+        });
+
+        const results = await Promise.all(patientPromises);
+        const validPatients = results.filter((p): p is Patient => p !== null);
+        setPatientsData(validPatients);
+      } catch (error) {
+        console.error(`Error fetching patient details for doctor ${user?.uid}:`, error);
+      } finally {
+        setIsLoadingPatientDetails(false);
+      }
+    }
+
+    fetchPatientDetails();
+  }, [firestore, authorizedPatients, user]);
 
   // Filter patients based on search
   const filteredPatients = useMemo(() => {
-    if (!patients) return [];
-    if (!searchQuery.trim()) return patients;
+    if (!patientsData.length) return [];
+    if (!searchQuery.trim()) return patientsData;
     
     const query = searchQuery.toLowerCase();
-    return patients.filter((patient: Patient) => 
+    return patientsData.filter((patient: Patient) => 
       patient.firstName?.toLowerCase().includes(query) ||
       patient.lastName?.toLowerCase().includes(query) ||
       patient.email?.toLowerCase().includes(query) ||
       patient.phone?.includes(query)
     );
-  }, [patients, searchQuery]);
+  }, [patientsData, searchQuery]);
 
   // Stats
   const stats = useMemo(() => {
-    if (!patients) return { total: 0, recent: 0, activeThisMonth: 0 };
+    if (!patientsData.length) return { total: 0, recent: 0, activeThisMonth: 0 };
     
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     
     return {
-      total: patients.length,
-      recent: patients.filter((p: Patient) => 
+      total: patientsData.length,
+      recent: patientsData.filter((p: Patient) => 
         p.createdAt && new Date(p.createdAt) > thirtyDaysAgo
       ).length,
-      activeThisMonth: patients.filter((p: Patient) => 
+      activeThisMonth: patientsData.filter((p: Patient) => 
         p.lastVisit && new Date(p.lastVisit) > thirtyDaysAgo
       ).length,
     };
-  }, [patients]);
+  }, [patientsData]);
 
   const getAge = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -108,14 +157,26 @@ export default function DoctorPatientsPage() {
     return `${age} y/o`;
   };
 
+  const isLoading = isUserLoading || isLoadingAuthorized || isLoadingPatientDetails;
+
   return (
     <div className="p-4 sm:p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold font-headline">My Patients</h1>
         <p className="text-muted-foreground">
-          View and manage all your patients. Quick access to patient records.
+          View and manage patients you have approved for consultation.
         </p>
       </div>
+
+      {/* Info Alert */}
+      {!isLoading && patientsData.length === 0 && (
+        <Alert className="mb-6">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Patients will appear here after you approve their consultation requests from the Dashboard.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
@@ -155,7 +216,7 @@ export default function DoctorPatientsPage() {
             <div>
               <CardTitle>Patient List</CardTitle>
               <CardDescription>
-                Search and manage patient records
+                Patients you have approved for consultation
               </CardDescription>
             </div>
             <div className="relative w-64">
@@ -195,7 +256,9 @@ export default function DoctorPatientsPage() {
               {!isLoading && filteredPatients.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    {searchQuery ? 'No patients found matching your search.' : 'No patients yet.'}
+                    {searchQuery 
+                      ? 'No patients found matching your search.' 
+                      : 'No patients yet. Approve consultation requests from your Dashboard to see patients here.'}
                   </TableCell>
                 </TableRow>
               )}
