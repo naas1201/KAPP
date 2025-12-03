@@ -14,6 +14,10 @@ Welcome to the KAPP Medical Booking Application documentation. This guide will h
 - [Stripe Payment Setup](./STRIPE_SETUP.md) - Payment integration guide
 - [Storage Setup](./STORAGE_SETUP.md) - Firebase Storage configuration for file uploads
 
+### Deployment
+- [Cloudflare Deployment Plan](./CLOUDFLARE_DEPLOYMENT_PLAN.md) - Architecture and migration strategy
+- [Cloudflare Deployment Setup](./CLOUDFLARE_DEPLOYMENT_SETUP.md) - **Step-by-step online setup guide**
+
 ### Features & Workflows
 - [Doctor Workflows](./DOCTOR_WORKFLOWS.md) - Complete guide to doctor functionality
 - [Application Blueprint](./blueprint.md) - Core features and design specifications
@@ -133,11 +137,19 @@ pnpm genkit:dev       # GenKit AI development server
 # Seeding
 pnpm seed:prod-staff-accounts  # Create admin/doctor accounts
 pnpm seed:firestore            # Seed initial database
+
+# Cloudflare Deployment
+pnpm cf:build         # Build for Cloudflare Workers
+pnpm cf:dev           # Local development with wrangler
+pnpm cf:deploy        # Deploy to Cloudflare Workers
+pnpm cf:preview       # Preview deployment locally
 ```
 
 ---
 
 ## Architecture Overview
+
+### Current Architecture (Firebase)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -161,22 +173,47 @@ pnpm seed:firestore            # Seed initial database
 └────────────────────────────────────────────────────────────┘
 ```
 
+### Target Architecture (Cloudflare + Firebase Auth)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Cloudflare Workers                         │
+│                  (OpenNext Adapter)                         │
+├─────────────┬─────────────┬─────────────┬──────────────────┤
+│   Admin     │   Doctor    │   Patient   │    Public        │
+│  Dashboard  │  Dashboard  │   Portal    │   Booking        │
+├─────────────┴─────────────┴─────────────┴──────────────────┤
+│                    React Components                         │
+│                 (Radix UI + Shadcn/UI)                      │
+├────────────────────────────────────────────────────────────┤
+│  Firebase Auth  │  Cloudflare D1  │  Cloudflare R2        │
+│    (kept)       │   (database)    │   (file storage)      │
+├────────────────────────────────────────────────────────────┤
+│               External Services                             │
+│    ┌────────────┬────────────┬──────────────┐              │
+│    │   Stripe   │ Workers AI │ Firebase Auth│              │
+│    └────────────┴────────────┴──────────────┘              │
+└────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Directory Structure
 
 ```
 docs/
-├── README.md                 # This file - Documentation index
-├── DEVELOPMENT_GUIDE.md      # Developer guide
-├── ADMIN_DOCTOR_SETUP.md     # Staff account setup
-├── DOCTOR_WORKFLOWS.md       # Doctor functionality
-├── FIREBASE_SETUP.md         # Firebase configuration
-├── STRIPE_SETUP.md           # Payment setup
-├── STORAGE_SETUP.md          # File upload setup
-├── E2E_TESTING.md            # Testing guide
-├── API_REFERENCE.md          # Data schema reference
-└── blueprint.md              # Application design specs
+├── README.md                     # This file - Documentation index
+├── DEVELOPMENT_GUIDE.md          # Developer guide
+├── ADMIN_DOCTOR_SETUP.md         # Staff account setup
+├── DOCTOR_WORKFLOWS.md           # Doctor functionality
+├── FIREBASE_SETUP.md             # Firebase configuration
+├── STRIPE_SETUP.md               # Payment setup
+├── STORAGE_SETUP.md              # File upload setup
+├── E2E_TESTING.md                # Testing guide
+├── API_REFERENCE.md              # Data schema reference
+├── blueprint.md                  # Application design specs
+├── CLOUDFLARE_DEPLOYMENT_PLAN.md # Migration architecture
+└── CLOUDFLARE_DEPLOYMENT_SETUP.md # Online setup guide
 ```
 
 ---

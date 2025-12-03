@@ -1,0 +1,94 @@
+#:schema node_modules/wrangler/config-schema.json
+
+# KAPP Medical Booking Application - Cloudflare Workers Configuration
+# 
+# This file configures the deployment to Cloudflare Workers using OpenNext adapter.
+# 
+# SETUP INSTRUCTIONS:
+# 1. Create a D1 database named "kapp-db" in Cloudflare Dashboard
+# 2. Copy the database_id from the dashboard and paste it below
+# 3. Create an R2 bucket named "kapp-files" in Cloudflare Dashboard
+# 4. Set environment variables in Cloudflare Dashboard:
+#    - See docs/CLOUDFLARE_DEPLOYMENT_SETUP.md for full list
+#
+# For detailed setup instructions, see: docs/CLOUDFLARE_DEPLOYMENT_SETUP.md
+
+name = "kapp-medical"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# OpenNext output configuration
+main = ".open-next/worker.js"
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
+
+# =============================================================================
+# D1 DATABASE BINDING
+# =============================================================================
+# Create the database first in Cloudflare Dashboard:
+# Dashboard → Workers & Pages → D1 SQL Database → Create
+# Then copy the database_id here
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kapp-db"
+database_id = ""  # TODO: Replace with your D1 database ID from Cloudflare Dashboard
+
+# =============================================================================
+# R2 BUCKET BINDING
+# =============================================================================
+# Create the bucket first in Cloudflare Dashboard:
+# Dashboard → R2 Object Storage → Create bucket
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "kapp-files"
+
+# =============================================================================
+# WORKERS AI BINDING
+# =============================================================================
+# Enables AI features using Cloudflare Workers AI
+# Free tier: 10,000 neurons/day
+
+[ai]
+binding = "AI"
+
+# =============================================================================
+# ENVIRONMENT VARIABLES
+# =============================================================================
+# Non-sensitive variables can be set here
+# Sensitive variables (secrets) should be set in Cloudflare Dashboard:
+# Dashboard → Workers & Pages → Your Worker → Settings → Variables
+
+[vars]
+ENVIRONMENT = "production"
+
+# =============================================================================
+# LOCAL DEVELOPMENT (wrangler dev)
+# =============================================================================
+# For local development with emulated services
+# Run: pnpm cf:dev
+
+[dev]
+port = 8787
+local_protocol = "http"
+
+# =============================================================================
+# NOTES
+# =============================================================================
+# 
+# Firebase Auth:
+#   - Firebase Auth is kept and works client-side
+#   - Firebase environment variables are set in Cloudflare Dashboard
+#   - No server-side Firebase Admin SDK needed for basic auth
+#
+# Secrets to set in Cloudflare Dashboard:
+#   - STRIPE_SECRET_KEY (for payments)
+#   - R2_ACCESS_KEY_ID (if using R2 API directly)
+#   - R2_SECRET_ACCESS_KEY (if using R2 API directly)
+#
+# Public variables to set:
+#   - NEXT_PUBLIC_FIREBASE_API_KEY
+#   - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+#   - NEXT_PUBLIC_FIREBASE_PROJECT_ID
+#   - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+#   - CLOUDFLARE_ACCOUNT_ID
