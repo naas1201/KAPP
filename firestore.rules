@@ -146,11 +146,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /appointments/{appointmentId} {
-        allow read, create: if canAccessPatientData(patientId)
+        // Allow patient to read their own appointments, or authorized doctors/admins
+        // Also allow any doctor to read pending appointments so they can approve them
+        allow read: if canAccessPatientData(patientId)
+          || (isDoctor() && resource.data.status == 'pending');
+        
+        // Patient can create appointments for themselves with validation
+        allow create: if canAccessPatientData(patientId)
           && isValidDocumentSize()
           && isValidStringLength(request.resource.data.serviceType, 200)
           && noScriptTags(request.resource.data.patientNotes);
-        allow update, delete: if isAuthorizedDoctorForPatient(patientId) || isAdmin();
+        
+        // Doctors (authorized or for pending appointments) and admins can update/delete
+        allow update, delete: if isAuthorizedDoctorForPatient(patientId) 
+          || isAdmin()
+          || (isDoctor() && resource.data.status == 'pending');
       }
       
       match /treatmentRecords/{recordId} {
