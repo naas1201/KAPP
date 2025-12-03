@@ -511,9 +511,12 @@ export default function BookingPage() {
         }, { merge: true });
         
         const patientRef = doc(firestore, 'patients', patientId);
-        await updateDocumentNonBlocking(patientRef, {
-          appointmentCount: increment(1)
-        });
+        // Use setDoc with merge to create patient document if it doesn't exist
+        setDocumentNonBlocking(patientRef, {
+          appointmentCount: increment(1),
+          email: user.email || '',
+          updatedAt: serverTimestamp()
+        }, { merge: true });
         router.push(`/appointment/${newDoc.id}`);
       } else {
         toast({
@@ -625,9 +628,12 @@ export default function BookingPage() {
         }, { merge: true });
         
         const patientRef = doc(firestore, 'patients', patientId);
-        await updateDocumentNonBlocking(patientRef, {
-          appointmentCount: increment(1)
-        });
+        // Use setDoc with merge to create patient document if it doesn't exist
+        setDocumentNonBlocking(patientRef, {
+          appointmentCount: increment(1),
+          email: user.email || '',
+          updatedAt: serverTimestamp()
+        }, { merge: true });
         
         toast({
           title: 'Appointment Requested',
