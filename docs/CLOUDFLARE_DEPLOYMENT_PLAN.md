@@ -229,11 +229,14 @@ Create `migrations/schema.sql`:
 
 ```sql
 -- Users table (replaces Firestore users collection)
+-- Note: password_hash format is base64-encoded PBKDF2 hash
+-- Format: base64(salt[16 bytes] + derived_key[32 bytes])
+-- Expected length: ~64 characters
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     email_lower TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT NOT NULL,  -- Base64 encoded, ~64 chars
     role TEXT NOT NULL DEFAULT 'patient' CHECK(role IN ('patient', 'doctor', 'admin')),
     name TEXT,
     staff_id TEXT,
@@ -583,8 +586,20 @@ export type D1Result<T> = {
   };
 };
 
+// Type for Next.js request context in Cloudflare Pages
+// This is added by @cloudflare/next-on-pages
+export interface CloudflareRequestContext {
+  env: Env;
+  ctx: ExecutionContext;
+}
+
+// Helper to get typed context from request
+export function getCloudflareContext(request: Request): CloudflareRequestContext {
+  return (request as Request & { context: CloudflareRequestContext }).context;
+}
+
 // Get database from context (for API routes)
-export function getDB(context: { env: Env }): D1Database {
+export function getDB(context: CloudflareRequestContext): D1Database {
   return context.env.DB;
 }
 ```
@@ -602,7 +617,13 @@ Create `src/cloudflare/auth/jwt.ts`:
 ```typescript
 import { SignJWT, jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+// SECURITY: JWT_SECRET must be set in environment variables
+// Generate with: openssl rand -base64 32
+const JWT_SECRET_STRING = process.env.JWT_SECRET;
+if (!JWT_SECRET_STRING) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
 
 export interface JWTPayload {
   sub: string;     // user id
@@ -714,14 +735,14 @@ Create `src/app/api/auth/signup/route.ts`:
 import { NextRequest, NextResponse } from 'next/server';
 import { hashPassword } from '@/cloudflare/auth/password';
 import { createAccessToken, createRefreshToken } from '@/cloudflare/auth/jwt';
-import { getDB, Env } from '@/cloudflare/db';
+import { getDB, getCloudflareContext } from '@/cloudflare/db';
 import { v4 as uuidv4 } from 'uuid';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
-  const { env } = (request as any).context as { env: Env };
-  const db = getDB({ env });
+  const context = getCloudflareContext(request);
+  const db = getDB(context);
   
   try {
     const { email, password, fullName } = await request.json();
@@ -855,14 +876,14 @@ Create `src/app/api/auth/login/route.ts`:
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword } from '@/cloudflare/auth/password';
 import { createAccessToken, createRefreshToken } from '@/cloudflare/auth/jwt';
-import { getDB, Env } from '@/cloudflare/db';
+import { getDB, getCloudflareContext } from '@/cloudflare/db';
 import { v4 as uuidv4 } from 'uuid';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
-  const { env } = (request as any).context as { env: Env };
-  const db = getDB({ env });
+  const context = getCloudflareContext(request);
+  const db = getDB(context);
   
   try {
     const { email, password, rememberMe } = await request.json();
@@ -973,13 +994,13 @@ Create `src/app/api/auth/logout/route.ts`:
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server';
-import { getDB, Env } from '@/cloudflare/db';
+import { getDB, getCloudflareContext } from '@/cloudflare/db';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
-  const { env } = (request as any).context as { env: Env };
-  const db = getDB({ env });
+  const context = getCloudflareContext(request);
+  const db = getDB(context);
   
   const refreshToken = request.cookies.get('refresh_token')?.value;
   
@@ -1332,11 +1353,12 @@ Create `src/app/api/ai/generate-faq/route.ts`:
 import { NextRequest, NextResponse } from 'next/server';
 import { Ai } from '@cloudflare/ai';
 import { generateTreatmentFAQ } from '@/cloudflare/ai';
+import { getCloudflareContext } from '@/cloudflare/db';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
-  const { env } = (request as any).context as { env: { AI: Ai } };
+  const context = getCloudflareContext(request);
   
   try {
     const { treatmentName, treatmentDescription } = await request.json();
@@ -1348,7 +1370,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const faqs = await generateTreatmentFAQ(env.AI, treatmentName, treatmentDescription);
+    const faqs = await generateTreatmentFAQ(context.env.AI, treatmentName, treatmentDescription);
     
     return NextResponse.json({ faqs });
   } catch (error) {
