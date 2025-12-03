@@ -37,12 +37,11 @@ export function Header() {
     const [isBookingSheetOpen, setBookingSheetOpen] = useState(false);
     const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
     
-    // Fetch user role from Firestore - uses email as document ID
+    // Fetch user role from Firestore - uses UID as document ID (matches Firestore security rules)
     const userRoleRef = useMemoFirebase(() => {
-        if (!firestore || !user?.email) return null;
-        // Use lowercase email to match Firestore document ID
-        return doc(firestore, 'users', user.email.toLowerCase());
-    }, [firestore, user?.email]);
+        if (!firestore || !user?.uid) return null;
+        return doc(firestore, 'users', user.uid);
+    }, [firestore, user?.uid]);
     
     const { data: userRoleData, isLoading: isLoadingRole } = useDoc(userRoleRef);
     
