@@ -9,18 +9,16 @@ Welcome to the KAPP Medical Booking Application documentation. This guide will h
 - [Quick Start](#quick-start) - Get up and running in minutes
 
 ### Setup & Configuration
-- [Firebase Setup](./FIREBASE_SETUP.md) - Firestore database and authentication configuration
+- [Firebase Setup](./FIREBASE_SETUP.md) - Firebase authentication configuration
 - [Admin & Doctor Setup](./ADMIN_DOCTOR_SETUP.md) - Setting up staff accounts and roles
 - [Stripe Payment Setup](./STRIPE_SETUP.md) - Payment integration guide
-- [Storage Setup](./STORAGE_SETUP.md) - Firebase Storage configuration for file uploads
+- [Storage Setup](./STORAGE_SETUP.md) - File upload configuration
 
 ### Deployment
-- [Cloudflare Deployment Plan](./CLOUDFLARE_DEPLOYMENT_PLAN.md) - Architecture and migration strategy
-- [Cloudflare Deployment Setup](./CLOUDFLARE_DEPLOYMENT_SETUP.md) - **Step-by-step online setup guide**
+- [**Cloudflare Deployment**](./CLOUDFLARE_DEPLOYMENT.md) - **Complete deployment guide for Cloudflare Workers**
 
 ### Features & Workflows
 - [Doctor Workflows](./DOCTOR_WORKFLOWS.md) - Complete guide to doctor functionality
-- [Application Blueprint](./blueprint.md) - Core features and design specifications
 
 ### Testing
 - [E2E Testing Guide](./E2E_TESTING.md) - Playwright end-to-end testing
@@ -196,6 +194,8 @@ pnpm cf:preview       # Preview deployment locally
 └────────────────────────────────────────────────────────────┘
 ```
 
+See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md) for complete deployment instructions.
+
 ---
 
 ## Directory Structure
@@ -211,9 +211,7 @@ docs/
 ├── STORAGE_SETUP.md              # File upload setup
 ├── E2E_TESTING.md                # Testing guide
 ├── API_REFERENCE.md              # Data schema reference
-├── blueprint.md                  # Application design specs
-├── CLOUDFLARE_DEPLOYMENT_PLAN.md # Migration architecture
-└── CLOUDFLARE_DEPLOYMENT_SETUP.md # Online setup guide
+└── CLOUDFLARE_DEPLOYMENT.md      # Cloudflare deployment guide
 ```
 
 ---
