@@ -90,6 +90,8 @@ export default function DoctorPatientsPage() {
       setIsLoadingPatientDetails(true);
       try {
         const patientPromises = authorizedPatients.map(async (patientRef) => {
+          // The patientId field is set when the doctor approves an appointment
+          // The document ID in authorizedPatients collection is also the patient's ID
           const patientId = patientRef.patientId || patientRef.id;
           const patientDoc = await getDoc(doc(firestore, 'patients', patientId));
           if (patientDoc.exists()) {
@@ -102,14 +104,14 @@ export default function DoctorPatientsPage() {
         const validPatients = results.filter((p): p is Patient => p !== null);
         setPatientsData(validPatients);
       } catch (error) {
-        console.error('Error fetching patient details:', error);
+        console.error(`Error fetching patient details for doctor ${user?.uid}:`, error);
       } finally {
         setIsLoadingPatientDetails(false);
       }
     }
 
     fetchPatientDetails();
-  }, [firestore, authorizedPatients]);
+  }, [firestore, authorizedPatients, user]);
 
   // Filter patients based on search
   const filteredPatients = useMemo(() => {
