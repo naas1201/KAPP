@@ -144,12 +144,14 @@ cd KAPP
 # Install Cloudflare tools
 pnpm add @cloudflare/next-on-pages wrangler
 
-# Install authentication libraries
-pnpm add bcryptjs jsonwebtoken
-pnpm add -D @types/bcryptjs @types/jsonwebtoken
+# Install authentication libraries (jose is edge-compatible JWT library)
+pnpm add jose
 
 # Install R2/S3 compatible library
 pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+
+# Note: uuid is already installed in this project
+# If not installed, run: pnpm add uuid
 ```
 
 ### Step 1.2: Create Wrangler Configuration
@@ -189,10 +191,9 @@ Update `next.config.ts`:
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Enable edge runtime for Cloudflare Pages
-  experimental: {
-    runtime: 'edge',
-  },
+  // Note: Edge runtime is configured per-route using `export const runtime = 'edge'`
+  // in individual API routes and pages, not globally here.
+  
   // Disable image optimization (use Cloudflare Images instead)
   images: {
     unoptimized: true,
@@ -259,6 +260,28 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sessions_refresh_token ON sessions(refresh_token);
+
+-- Pending Staff (for staff invites before they sign up)
+CREATE TABLE IF NOT EXISTS pending_staff (
+    email TEXT PRIMARY KEY,
+    role TEXT NOT NULL CHECK(role IN ('doctor', 'admin')),
+    staff_id TEXT,
+    access_code TEXT,
+    invited_by TEXT REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME
+);
+
+-- Staff Credentials (for staff login verification)
+CREATE TABLE IF NOT EXISTS staff_credentials (
+    email TEXT PRIMARY KEY,
+    role TEXT NOT NULL CHECK(role IN ('doctor', 'admin')),
+    uid TEXT REFERENCES users(id),
+    staff_id TEXT,
+    access_code TEXT,
+    name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Patients table
 CREATE TABLE IF NOT EXISTS patients (
@@ -778,13 +801,16 @@ export async function POST(request: NextRequest) {
     const accessToken = await createAccessToken({ sub: userId, email: emailLower, role });
     const refreshToken = await createRefreshToken({ sub: userId, email: emailLower, role });
     
-    // Store refresh token
+    // Store refresh token with 7 day expiry
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    
     await db
       .prepare(`
         INSERT INTO sessions (id, user_id, refresh_token, expires_at)
-        VALUES (?, ?, ?, datetime('now', '+7 days'))
+        VALUES (?, ?, ?, ?)
       `)
-      .bind(uuidv4(), userId, refreshToken)
+      .bind(uuidv4(), userId, refreshToken, expiresAt.toISOString())
       .run();
     
     // Determine redirect based on role
@@ -893,13 +919,16 @@ export async function POST(request: NextRequest) {
     });
     
     // Store refresh token
-    const expiresIn = rememberMe ? 30 : 7; // 30 days if remember me, else 7 days
+    // Calculate expiry date - 30 days if remember me, else 7 days
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 7));
+    
     await db
       .prepare(`
         INSERT INTO sessions (id, user_id, refresh_token, expires_at)
-        VALUES (?, ?, ?, datetime('now', '+${expiresIn} days'))
+        VALUES (?, ?, ?, ?)
       `)
-      .bind(uuidv4(), user.id, refreshToken)
+      .bind(uuidv4(), user.id, refreshToken, expiresAt.toISOString())
       .run();
     
     // Determine redirect
@@ -913,6 +942,8 @@ export async function POST(request: NextRequest) {
     });
     
     // Set cookies
+    const refreshExpiryDays = rememberMe ? 30 : 7;
+    
     response.cookies.set('access_token', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -924,7 +955,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: expiresIn * 24 * 60 * 60,
+      maxAge: refreshExpiryDays * 24 * 60 * 60,
     });
     
     return response;
