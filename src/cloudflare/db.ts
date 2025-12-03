@@ -138,11 +138,17 @@ export async function getUserById(
 
 /**
  * Create a new user
+ * 
+ * Note: When creating users that sync from Firebase Auth, the id should be the Firebase UID
+ * and firebase_uid should also be set to the same value for consistency and to enable
+ * lookups by Firebase UID.
  */
 export async function createUser(
   db: D1Database,
   user: {
+    /** Primary key - typically the Firebase UID */
     id: string;
+    /** Firebase Auth UID - defaults to id if not provided */
     firebase_uid?: string;
     email: string;
     role?: 'patient' | 'doctor' | 'admin';
@@ -150,13 +156,17 @@ export async function createUser(
     phone?: string;
   }
 ): Promise<D1Result<unknown>> {
+  // firebase_uid defaults to id since we use Firebase UID as the primary key
+  // This ensures consistency and enables lookups by Firebase UID
+  const firebaseUid = user.firebase_uid ?? user.id;
+  
   return execute(
     db,
     `INSERT INTO users (id, firebase_uid, email, email_lower, role, name, phone, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
     [
       user.id,
-      user.firebase_uid ?? user.id,
+      firebaseUid,
       user.email,
       user.email.toLowerCase(),
       user.role ?? 'patient',

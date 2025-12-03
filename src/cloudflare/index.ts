@@ -92,6 +92,8 @@ export {
   isAllowedFileType,
   isAllowedFileSize,
   validateFile,
+  DEFAULT_ALLOWED_FILE_TYPES,
+  DEFAULT_MAX_FILE_SIZE_MB,
 } from './storage';
 
 export type {

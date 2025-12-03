@@ -245,13 +245,19 @@ export interface ExecutionContext {
  */
 export function getCloudflareContext(): CloudflareContext | null {
   // In Cloudflare Workers with OpenNext, the context is available globally
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const globalContext = (globalThis as any).cloudflare;
-  if (globalContext) {
-    return {
-      env: globalContext.env,
-      ctx: globalContext.ctx,
-    };
+  // The 'cloudflare' property is injected by the OpenNext adapter
+  if (
+    typeof globalThis === 'object' &&
+    globalThis !== null &&
+    'cloudflare' in globalThis
+  ) {
+    const cf = (globalThis as { cloudflare?: { env?: CloudflareEnv; ctx?: ExecutionContext } }).cloudflare;
+    if (cf?.env && cf?.ctx) {
+      return {
+        env: cf.env,
+        ctx: cf.ctx,
+      };
+    }
   }
   return null;
 }

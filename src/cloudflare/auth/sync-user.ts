@@ -76,11 +76,21 @@ export async function syncUserToD1(
       }
     }
     
+    // Validate that we have an email - required for user creation
+    if (!firebaseUser.email) {
+      return {
+        success: false,
+        userId: '',
+        isNewUser: false,
+        error: 'Email is required for user creation. Phone-only authentication is not supported.',
+      };
+    }
+    
     // Create new user in D1
     await createUser(db, {
       id: firebaseUser.uid, // Use Firebase UID as D1 user ID for consistency
       firebase_uid: firebaseUser.uid,
-      email: firebaseUser.email || `${firebaseUser.uid}@noemail.local`,
+      email: firebaseUser.email,
       role,
       name: firebaseUser.displayName || undefined,
       phone: firebaseUser.phoneNumber || undefined,

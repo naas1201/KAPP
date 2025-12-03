@@ -11,6 +11,22 @@ import type { R2Bucket, CloudflareContext } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
+ * Default allowed file types for uploads
+ */
+export const DEFAULT_ALLOWED_FILE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+] as const;
+
+/**
+ * Default maximum file size in MB
+ */
+export const DEFAULT_MAX_FILE_SIZE_MB = 10;
+
+/**
  * Get the R2 bucket instance from the Cloudflare context
  */
 export function getStorage(context: CloudflareContext): R2Bucket {
@@ -290,7 +306,7 @@ export async function listAppointmentFiles(
  */
 export function isAllowedFileType(
   file: File,
-  allowedTypes: string[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+  allowedTypes: readonly string[] = DEFAULT_ALLOWED_FILE_TYPES
 ): boolean {
   return allowedTypes.includes(file.type);
 }
@@ -300,7 +316,7 @@ export function isAllowedFileType(
  */
 export function isAllowedFileSize(
   file: File,
-  maxSizeMB = 10
+  maxSizeMB = DEFAULT_MAX_FILE_SIZE_MB
 ): boolean {
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
   return file.size <= maxSizeBytes;
@@ -312,13 +328,13 @@ export function isAllowedFileSize(
 export function validateFile(
   file: File,
   options: {
-    allowedTypes?: string[];
+    allowedTypes?: readonly string[];
     maxSizeMB?: number;
   } = {}
 ): { valid: boolean; error?: string } {
   const {
-    allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'],
-    maxSizeMB = 10,
+    allowedTypes = DEFAULT_ALLOWED_FILE_TYPES,
+    maxSizeMB = DEFAULT_MAX_FILE_SIZE_MB,
   } = options;
   
   if (!isAllowedFileType(file, allowedTypes)) {
