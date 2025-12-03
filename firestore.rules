@@ -177,11 +177,19 @@ service cloud.firestore {
     }
 
     /**
-     * @description Publicly readable collection of all appointments (Doctors Only)
+     * @description Publicly readable collection of all appointments (Doctors/Admin for read, patients for create)
+     * This is a denormalized view of patient appointments for doctor/admin convenience.
+     * Patients can create their own appointments, doctors/admins can update them.
      */
      match /appointments/{appointmentId} {
        allow read: if isDoctor() || isAdmin();
-       allow write: if false; 
+       // Patients can create appointments (patientId must match their UID)
+       allow create: if isSignedIn() 
+         && request.resource.data.patientId == request.auth.uid
+         && isValidDocumentSize();
+       // Doctors and admins can update (for approving/rejecting)
+       allow update: if isDoctor() || isAdmin();
+       allow delete: if isAdmin();
      }
 
      /**
