@@ -228,6 +228,17 @@ service cloud.firestore {
     }
 
     /**
+     * @description Stores patient medical information (allergies, conditions, etc.)
+     * Document ID is the patient's UID.
+     */
+    match /medicalInfo/{patientId} {
+      // Patients can read and write their own medical info
+      allow read, write: if isOwner(patientId);
+      // Staff can read patient medical info for authorized patients
+      allow read: if isStaff() && (isAuthorizedDoctorForPatient(patientId) || isAdmin());
+    }
+
+    /**
      * @description Stores leads from contact forms.
      */
     match /leads/{leadId} {
