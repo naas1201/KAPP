@@ -1,4 +1,39 @@
-Latest deployment failed; 2025-12-04T05:14:40.027Z	Initializing build environment...
+# Cloudflare Deployment Log
+
+## Status: ❌ FAILED
+
+## Error Summary
+
+**Error Code:** 10042  
+**Error Message:** `KV namespace 'YOUR_KV_NAMESPACE_ID' is not valid.`  
+**Root Cause:** The `wrangler.toml` file contains a placeholder value `YOUR_KV_NAMESPACE_ID` for the KV namespace binding instead of a real KV namespace ID.
+
+## Required Fix
+
+1. **Create KV Namespace in Cloudflare Dashboard:**
+   - Go to [Cloudflare Dashboard](https://dash.cloudflare.com)
+   - Navigate to **Workers & Pages** → **KV**
+   - Click **Create a namespace**
+   - Name it: `kapp-cache`
+   - Click **Create**
+
+2. **Copy the Namespace ID:**
+   - Click on the newly created `kapp-cache` namespace
+   - Copy the **Namespace ID** (looks like: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+
+3. **Update `wrangler.toml`:**
+   - Open `wrangler.toml` in the repository
+   - Find line 70 with `id = "YOUR_KV_NAMESPACE_ID"`
+   - Replace `YOUR_KV_NAMESPACE_ID` with your actual namespace ID
+
+4. **Redeploy:**
+   - Commit and push the changes, or
+   - Retry the deployment from Cloudflare Dashboard
+
+## Full Deployment Log
+
+```
+2025-12-04T05:14:40.027Z	Initializing build environment...
 2025-12-04T05:14:41.181Z	Success: Finished initializing build environment
 2025-12-04T05:14:41.451Z	Cloning repository...
 2025-12-04T05:14:42.713Z	Detected the following tools from environment: pnpm@10.11.1, npm@10.9.2, nodejs@22.16.0
@@ -331,3 +366,4 @@ Latest deployment failed; 2025-12-04T05:14:40.027Z	Initializing build environmen
 2025-12-04T05:16:58.703Z	Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
 2025-12-04T05:16:58.724Z	🪵  Logs were written to "/opt/buildhome/.config/.wrangler/logs/wrangler-2025-12-04_05-16-51_271.log"
 2025-12-04T05:16:58.820Z	Failed: error occurred while running deploy command
+```
