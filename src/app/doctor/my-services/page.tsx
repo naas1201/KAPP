@@ -329,12 +329,12 @@ export default function MyServicesPage() {
                   <Stethoscope className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                   <h3 className="font-semibold text-lg mb-2">No Clinic Services Available</h3>
                   <p className="text-sm max-w-md mx-auto mb-4">
-                    The clinic hasn't added any procedures yet. Please ask your administrator to add treatments 
-                    via the Admin Panel &gt; Procedures page, or run the seed script.
+                    The clinic hasn't added any procedures yet. Please contact your clinic administrator 
+                    to set up services in the Admin Panel, under the Procedures page.
                   </p>
-                  <div className="text-xs bg-muted p-3 rounded max-w-sm mx-auto font-mono">
-                    npm run seed:firestore
-                  </div>
+                  <p className="text-xs text-muted-foreground/70">
+                    In the meantime, you can add custom services below using the "My Custom Services" tab.
+                  </p>
                 </div>
               ) : (
                 allTreatments?.map((treatment) => {

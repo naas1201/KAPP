@@ -657,8 +657,12 @@ export default function DoctorDashboard() {
               {isLoadingConsultationRequests && renderSkeleton()}
               {!isLoadingConsultationRequests && (!consultationRequests || consultationRequests.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    No consultation requests at the moment.
+                  <TableCell colSpan={4} className="h-32">
+                    <div className="text-center py-4 text-muted-foreground">
+                      <Stethoscope className="h-10 w-10 mx-auto mb-3 text-green-600" />
+                      <p className="font-medium text-green-600">All Caught Up!</p>
+                      <p className="text-sm">No pending consultation requests. New requests will appear here.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
@@ -718,8 +722,12 @@ export default function DoctorDashboard() {
               {isLoading && renderSkeleton()}
               {!isLoading && enrichedAppointments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    No appointments yet. Manage patient appointments from here when they book.
+                  <TableCell colSpan={5} className="h-32">
+                    <div className="text-center py-4 text-muted-foreground">
+                      <CalendarCheck className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                      <p className="font-medium">No Appointments Yet</p>
+                      <p className="text-sm">Appointments will appear here when patients book consultations with you.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

@@ -1008,9 +1008,13 @@ export default function BookingPage() {
                               Loading services...
                             </div>
                           ) : (
-                            <div className="text-muted-foreground py-4">
-                              <p>No services available at this time.</p>
-                              <p className="text-sm mt-2">Please contact the clinic for assistance.</p>
+                            <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                              <BriefcaseMedical className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                              <p className="font-medium">No services available at this time.</p>
+                              <p className="text-sm mt-2">Our clinic is setting up services. Please check back soon or contact us directly.</p>
+                              <Button variant="outline" className="mt-4" asChild>
+                                <Link href="/#contact">Contact Us</Link>
+                              </Button>
                             </div>
                           )}
                           <FormMessage />
@@ -1064,8 +1068,13 @@ export default function BookingPage() {
                                         Loading doctors...
                                       </div>
                                     ) : (
-                                      <div className="text-muted-foreground py-4">
-                                        No doctors available for this service at this time. Please try again later.
+                                      <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                                        <User className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                                        <p className="font-medium">No doctors available for this service</p>
+                                        <p className="text-sm mt-2">Please select a different service or check back later.</p>
+                                        <Button variant="outline" className="mt-4" onClick={prev}>
+                                          <ArrowLeft className="w-4 h-4 mr-2" /> Select Different Service
+                                        </Button>
                                       </div>
                                     )}
                                     <FormMessage />

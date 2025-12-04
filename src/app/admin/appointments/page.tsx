@@ -332,8 +332,14 @@ export default function AdminAppointmentsPage() {
       <TableBody>
         {appointmentList.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-              No appointments found.
+            <TableCell colSpan={6} className="h-48">
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                <h3 className="font-semibold text-lg mb-2">No Appointments</h3>
+                <p className="text-sm max-w-md mx-auto">
+                  Appointments will appear here when patients book consultations with your doctors.
+                </p>
+              </div>
             </TableCell>
           </TableRow>
         ) : (

@@ -30,6 +30,7 @@ import { collection, query, orderBy } from 'firebase/firestore';
 import { format, isPast, isFuture, isToday } from 'date-fns';
 import { 
   Calendar, 
+  CalendarPlus,
   Clock, 
   CheckCircle,
   XCircle,
@@ -112,8 +113,24 @@ export default function PatientAppointmentsPage() {
       <TableBody>
         {appointmentList.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={showActions ? 4 : 3} className="text-center text-muted-foreground py-8">
-              No appointments found.
+            <TableCell colSpan={showActions ? 4 : 3} className="h-48">
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                <h3 className="font-semibold text-lg mb-2">No Appointments Yet</h3>
+                <p className="text-sm max-w-md mx-auto mb-4">
+                  {showActions 
+                    ? "You don't have any upcoming appointments. Book your first consultation today!"
+                    : "Your appointment history will appear here after your visits."}
+                </p>
+                {showActions && (
+                  <Button asChild>
+                    <Link href="/booking">
+                      <CalendarPlus className="w-4 h-4 mr-2" />
+                      Book Appointment
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </TableCell>
           </TableRow>
         ) : (
