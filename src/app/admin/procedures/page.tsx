@@ -172,6 +172,22 @@ export default function ProceduresPage() {
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                 </TableRow>
               ))}
+              {!isLoading && (!treatments || treatments.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-48">
+                    <div className="text-center py-8 text-muted-foreground">
+                      <PlusCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                      <h3 className="font-semibold text-lg mb-2">No Procedures Yet</h3>
+                      <p className="text-sm max-w-md mx-auto mb-4">
+                        Get started by adding your first clinic procedure. These will be available for doctors to configure as their services.
+                      </p>
+                      <Button onClick={() => handleOpenModal()}>
+                        <PlusCircle className="w-4 h-4 mr-2" /> Add Your First Procedure
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
               {treatments?.map((treatment) => (
                 <TableRow key={treatment.id}>
                   <TableCell className="font-medium">{treatment.name}</TableCell>

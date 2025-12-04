@@ -227,8 +227,14 @@ export default function ReportsPage() {
               {isLoading && renderSkeleton()}
               {!isLoading && (!reports || reports.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No reports filed yet.
+                  <TableCell colSpan={6} className="h-48">
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500/50" />
+                      <h3 className="font-semibold text-lg mb-2 text-green-600">All Clear!</h3>
+                      <p className="text-sm max-w-md mx-auto">
+                        No reports have been filed. Reports from doctors about patient concerns will appear here.
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
