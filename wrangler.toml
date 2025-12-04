@@ -66,6 +66,18 @@ binding = "AI"
 [vars]
 ENVIRONMENT = "production"
 
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyBKWX4YCrQtFbYdB1XfdqOW3ymVI9fdMoI"
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = "studio-8822072999-a4137.firebaseapp.com"
+NEXT_PUBLIC_FIREBASE_PROJECT_ID = "studio-8822072999-a4137"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = "studio-8822072999-a4137.firebasestorage.app"
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "644784261357"
+NEXT_PUBLIC_FIREBASE_APP_ID = "1:644784261357:web:80e04a3ce959e1ca53e4e4"
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID = "G-PMBWB5N37T"
+
+# Cloudflare Configuration
+CLOUDFLARE_ACCOUNT_ID = "6ef54b6c3c948c59efd63fa96eab0bc8"
+
 # =============================================================================
 # LOCAL DEVELOPMENT (wrangler dev)
 # =============================================================================
