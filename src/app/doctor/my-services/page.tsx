@@ -330,7 +330,7 @@ export default function MyServicesPage() {
                   <h3 className="font-semibold text-lg mb-2">No Clinic Services Available</h3>
                   <p className="text-sm max-w-md mx-auto mb-4">
                     The clinic hasn't added any procedures yet. Please contact your clinic administrator 
-                    to set up services in the Admin Panel → Procedures page.
+                    to set up services in the Admin Panel, under the Procedures page.
                   </p>
                   <p className="text-xs text-muted-foreground/70">
                     In the meantime, you can add custom services below using the "My Custom Services" tab.
