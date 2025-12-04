@@ -4,8 +4,10 @@
  * This module provides utilities for Cloudflare Workers deployment:
  * - D1 Database client for SQL operations
  * - R2 Storage utilities for file uploads
+ * - KV Namespace for caching and rate limiting
  * - Workers AI integration for AI features
  * - Firebase Auth sync for user management
+ * - Structured logging
  * 
  * @see https://developers.cloudflare.com/workers/
  */
@@ -20,6 +22,11 @@ export type {
   R2Bucket,
   R2Object,
   R2ObjectBody,
+  KVNamespace,
+  KVGetOptions,
+  KVPutOptions,
+  KVListOptions,
+  KVListResult,
   Ai,
   AiTextGenerationResponse,
   ExecutionContext,
@@ -31,6 +38,7 @@ export {
   getD1,
   getR2,
   getAI,
+  getKV,
 } from './types';
 
 // Database exports
@@ -118,6 +126,65 @@ export type {
   TextGenerationOptions,
   FAQ,
 } from './ai';
+
+// KV exports
+export {
+  getKV as getKVNamespace,
+  createSession,
+  getSession,
+  deleteSession,
+  extendSession,
+  checkRateLimit,
+  resetRateLimit,
+  getRateLimitHeaders,
+  getFeatureFlag,
+  isFeatureEnabled,
+  setFeatureFlag,
+  listFeatureFlags,
+  cacheSet,
+  cacheGet,
+  cacheDelete,
+  cacheGetOrSet,
+  trackEvent,
+  getRecentEvents,
+  kv,
+} from './kv';
+
+export type {
+  Session,
+  SessionOptions,
+  RateLimitConfig,
+  RateLimitResult,
+  FeatureFlag,
+  CachedResponse,
+  AnalyticsEvent,
+} from './kv';
+
+// Logging exports
+export {
+  logger,
+  debug,
+  info,
+  warn,
+  error,
+  configureLogger,
+  initLoggerFromEnv,
+  setRequestContext,
+  clearRequestContext,
+  generateRequestId,
+  logRequestStart,
+  logRequestEnd,
+  createChildLogger,
+  startTimer,
+  logOperation,
+  logAsync,
+} from './logging';
+
+export type {
+  LogLevel,
+  LogEntry,
+  LoggerConfig,
+} from './logging';
 
 // Auth sync exports
 export {

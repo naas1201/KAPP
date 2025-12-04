@@ -3,15 +3,18 @@
 # KAPP Medical Booking Application - Cloudflare Workers Configuration
 # 
 # This file configures the deployment to Cloudflare Workers using OpenNext adapter.
+# Optimized to leverage all FREE TIER features available on Cloudflare.
 # 
 # SETUP INSTRUCTIONS:
 # 1. Create a D1 database named "kapp-db" in Cloudflare Dashboard
 # 2. Copy the database_id from the dashboard and paste it below
 # 3. Create an R2 bucket named "kapp-files" in Cloudflare Dashboard
-# 4. Set environment variables in Cloudflare Dashboard:
+# 4. Create a KV namespace named "kapp-cache" for session/cache data
+# 5. Set environment variables in Cloudflare Dashboard:
 #    - See docs/CLOUDFLARE_BINDINGS_SETUP.md for full list
 #
 # For detailed setup instructions, see: docs/CLOUDFLARE_BINDINGS_SETUP.md
+# For free tier optimization guide, see: docs/CLOUDFLARE_FREE_TIER_OPTIMIZATION.md
 
 name = "kapp-medical"
 compatibility_date = "2024-12-01"
@@ -27,6 +30,7 @@ assets = { directory = ".open-next/assets", binding = "ASSETS" }
 # Create the database first in Cloudflare Dashboard:
 # Dashboard → Workers & Pages → D1 SQL Database → Create
 # Then copy the database_id here
+# Free tier: 5GB storage, 5M reads/day, 100K writes/day
 
 [[d1_databases]]
 binding = "DB"
@@ -42,19 +46,55 @@ database_id = "311f7365-7531-4451-bf8f-672c21c66f03"
 # =============================================================================
 # Create the bucket first in Cloudflare Dashboard:
 # Dashboard → R2 Object Storage → Create bucket
+# Free tier: 10GB storage, 10M Class A ops/month, 10M Class B ops/month
 
 [[r2_buckets]]
 binding = "STORAGE"
 bucket_name = "kapp-files"
 
 # =============================================================================
+# KV NAMESPACE BINDING (NEW - FREE TIER)
+# =============================================================================
+# Workers KV for fast key-value storage
+# Perfect for: session data, rate limiting, feature flags, caching
+# Free tier: 100,000 reads/day, 1,000 writes/day, 1GB storage
+#
+# Create in Cloudflare Dashboard:
+# Dashboard → Workers & Pages → KV → Create namespace
+# Then add the namespace ID below
+
+[[kv_namespaces]]
+binding = "KV"
+# Replace with your KV namespace ID from Cloudflare Dashboard
+# Get this from: Dashboard → Workers & Pages → KV → Click your namespace → Copy ID
+id = "YOUR_KV_NAMESPACE_ID"
+# Preview namespace for local development (optional)
+# preview_id = "YOUR_KV_PREVIEW_NAMESPACE_ID"
+
+# =============================================================================
 # WORKERS AI BINDING
 # =============================================================================
 # Enables AI features using Cloudflare Workers AI
-# Free tier: 10,000 neurons/day
+# Free tier: 10,000 neurons/day (approximately 100-500 requests depending on model)
 
 [ai]
 binding = "AI"
+
+# =============================================================================
+# OBSERVABILITY & LOGGING (FREE TIER)
+# =============================================================================
+# Cloudflare provides built-in observability features on free tier:
+# - Workers Logs (real-time via dashboard, 72 hours retention)
+# - Workers Trace Events (available in Cloudflare dashboard)
+# - Basic Analytics (in dashboard)
+#
+# Note: Advanced features like Logpush require paid plans, but console.log()
+# output is available in real-time via:
+# Dashboard → Workers & Pages → Your Worker → Logs → Start stream
+
+# Enable observability (automatically enabled, this is informational)
+[observability]
+enabled = true
 
 # =============================================================================
 # ENVIRONMENT VARIABLES
@@ -65,6 +105,15 @@ binding = "AI"
 
 [vars]
 ENVIRONMENT = "production"
+
+# Application Configuration
+LOG_LEVEL = "info"
+ENABLE_ANALYTICS = "true"
+ENABLE_RATE_LIMITING = "true"
+
+# Rate Limiting Configuration (requests per minute)
+RATE_LIMIT_REQUESTS = "60"
+RATE_LIMIT_WINDOW_SECONDS = "60"
 
 # Firebase Configuration
 NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyBKWX4YCrQtFbYdB1XfdqOW3ymVI9fdMoI"
@@ -89,6 +138,38 @@ port = 8787
 local_protocol = "http"
 
 # =============================================================================
+# FREE TIER LIMITS SUMMARY (as of December 2024)
+# =============================================================================
+# 
+# Workers:
+#   - 100,000 requests/day
+#   - 10ms CPU time per request
+#   - Up to 128MB memory
+#
+# D1 Database:
+#   - 5GB storage
+#   - 5 million reads/day
+#   - 100,000 writes/day
+#
+# R2 Storage:
+#   - 10GB storage
+#   - 10 million Class A ops/month (PUT, POST, LIST)
+#   - 10 million Class B ops/month (GET, HEAD)
+#   - Zero egress fees!
+#
+# Workers KV:
+#   - 1GB storage
+#   - 100,000 reads/day
+#   - 1,000 writes/day
+#
+# Workers AI:
+#   - 10,000 neurons/day
+#   - Access to all models
+#
+# Firebase Auth (kept):
+#   - 50,000 MAU free
+#
+# =============================================================================
 # NOTES
 # =============================================================================
 # 
@@ -108,3 +189,20 @@ local_protocol = "http"
 #   - NEXT_PUBLIC_FIREBASE_PROJECT_ID
 #   - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 #   - CLOUDFLARE_ACCOUNT_ID
+#
+# =============================================================================
+# FUTURE ENHANCEMENTS (Requires Setup)
+# =============================================================================
+#
+# Durable Objects (for real-time features like video calls):
+#   - Available on paid plan or with special free tier access
+#   - Would enable: real-time chat, video call signaling, presence
+#   - See: docs/CLOUDFLARE_VIDEO_CHAT_GUIDE.md for implementation plan
+#
+# Queues (for background jobs):
+#   - Available on paid plan
+#   - Would enable: email notifications, appointment reminders
+#
+# Cloudflare Calls (for video/audio):
+#   - Available on paid plan (free tier with limits may be available)
+#   - Would enable: native WebRTC with TURN servers

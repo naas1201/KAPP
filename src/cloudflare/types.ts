@@ -2,7 +2,9 @@
  * Cloudflare Workers Type Definitions
  * 
  * These types define the environment bindings available in Cloudflare Workers.
- * They are used for D1 database, R2 storage, and Workers AI integration.
+ * They are used for D1 database, R2 storage, KV, and Workers AI integration.
+ * 
+ * @see https://developers.cloudflare.com/workers/runtime-apis/
  */
 
 /**
@@ -16,11 +18,29 @@ export interface CloudflareEnv {
   /** R2 Object Storage binding for file uploads */
   STORAGE: R2Bucket;
   
+  /** Workers KV binding for caching and session management */
+  KV: KVNamespace;
+  
   /** Workers AI binding for AI-powered features */
   AI: Ai;
   
   /** Environment name (production, development, etc.) */
   ENVIRONMENT?: string;
+  
+  /** Log level for structured logging */
+  LOG_LEVEL?: 'debug' | 'info' | 'warn' | 'error';
+  
+  /** Enable analytics tracking */
+  ENABLE_ANALYTICS?: string;
+  
+  /** Enable rate limiting */
+  ENABLE_RATE_LIMITING?: string;
+  
+  /** Rate limit: requests allowed */
+  RATE_LIMIT_REQUESTS?: string;
+  
+  /** Rate limit: window in seconds */
+  RATE_LIMIT_WINDOW_SECONDS?: string;
 }
 
 /**
@@ -179,6 +199,56 @@ export interface R2UploadedPart {
 }
 
 /**
+ * Workers KV Namespace interface
+ * @see https://developers.cloudflare.com/kv/
+ */
+export interface KVNamespace {
+  get(key: string, options?: KVGetOptions): Promise<string | null>;
+  get(key: string, type: 'text'): Promise<string | null>;
+  get(key: string, type: 'json'): Promise<unknown | null>;
+  get(key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>;
+  get(key: string, type: 'stream'): Promise<ReadableStream | null>;
+  getWithMetadata<T = unknown>(key: string, options?: KVGetOptions): Promise<KVGetWithMetadataResult<T>>;
+  put(key: string, value: string | ReadableStream | ArrayBuffer, options?: KVPutOptions): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(options?: KVListOptions): Promise<KVListResult>;
+}
+
+export interface KVGetOptions {
+  type?: 'text' | 'json' | 'arrayBuffer' | 'stream';
+  cacheTtl?: number;
+}
+
+export interface KVPutOptions {
+  expiration?: number;
+  expirationTtl?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface KVListOptions {
+  prefix?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface KVListResult {
+  keys: KVListKey[];
+  list_complete: boolean;
+  cursor?: string;
+}
+
+export interface KVListKey {
+  name: string;
+  expiration?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface KVGetWithMetadataResult<T> {
+  value: string | null;
+  metadata: T | null;
+}
+
+/**
  * Workers AI interface
  * @see https://developers.cloudflare.com/workers-ai/
  */
@@ -281,4 +351,11 @@ export function getR2(context: CloudflareContext | null): R2Bucket | null {
  */
 export function getAI(context: CloudflareContext | null): Ai | null {
   return context?.env.AI ?? null;
+}
+
+/**
+ * Get KV Namespace from context
+ */
+export function getKV(context: CloudflareContext | null): KVNamespace | null {
+  return context?.env.KV ?? null;
 }
