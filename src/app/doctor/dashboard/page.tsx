@@ -659,7 +659,7 @@ export default function DoctorDashboard() {
                 <TableRow>
                   <TableCell colSpan={4} className="h-32">
                     <div className="text-center py-4 text-muted-foreground">
-                      <Stethoscope className="h-10 w-10 mx-auto mb-3 text-green-600/50" />
+                      <Stethoscope className="h-10 w-10 mx-auto mb-3 text-green-600" />
                       <p className="font-medium text-green-600">All Caught Up!</p>
                       <p className="text-sm">No pending consultation requests. New requests will appear here.</p>
                     </div>

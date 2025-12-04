@@ -30,6 +30,7 @@ import { collection, query, orderBy } from 'firebase/firestore';
 import { format, isPast, isFuture, isToday } from 'date-fns';
 import { 
   Calendar, 
+  CalendarPlus,
   Clock, 
   CheckCircle,
   XCircle,
@@ -124,7 +125,7 @@ export default function PatientAppointmentsPage() {
                 {showActions && (
                   <Button asChild>
                     <Link href="/booking">
-                      <Calendar className="w-4 h-4 mr-2" />
+                      <CalendarPlus className="w-4 h-4 mr-2" />
                       Book Appointment
                     </Link>
                   </Button>
