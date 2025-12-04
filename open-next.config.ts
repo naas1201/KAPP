@@ -15,31 +15,33 @@ const config: OpenNextConfig = {
     override: {
       // Use Cloudflare-compatible Node.js wrapper
       wrapper: "cloudflare-node",
-      
       // Use edge converter for request/response handling
       converter: "edge",
-      
-      // Optional: Enable ISR (Incremental Static Regeneration) with KV
-      // Uncomment if you want to use KV for caching
-      // incrementalCache: "cloudflare-kv",
-      // tagCache: "cloudflare-kv",
+      // Use fetch for external requests
+      proxyExternalRequest: "fetch",
+      // Use dummy cache implementations (no ISR caching)
+      incrementalCache: "dummy",
+      tagCache: "dummy",
+      // Use direct queue implementation
+      queue: "direct",
     },
   },
   
+  // External packages that should not be bundled
+  edgeExternals: ["node:crypto"],
+  
   // Middleware configuration
   middleware: {
-    // Run middleware as external worker (recommended)
     external: true,
+    override: {
+      wrapper: "cloudflare-edge",
+      converter: "edge",
+      proxyExternalRequest: "fetch",
+      incrementalCache: "dummy",
+      tagCache: "dummy",
+      queue: "direct",
+    },
   },
-  
-  // Build output configuration
-  // buildOutputPath: ".open-next", // Default output directory
-  
-  // Optional: Configure image optimization
-  // dangerous: {
-  //   disableIncrementalCache: true,
-  //   disableTagCache: true,
-  // },
 };
 
 export default config;

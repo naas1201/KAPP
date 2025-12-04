@@ -2,6 +2,8 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Required for OpenNext/Cloudflare deployment
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: false,
   },
