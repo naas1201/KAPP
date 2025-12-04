@@ -60,7 +60,7 @@ Add these variables:
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `your-project.appspot.com` | Firebase Console → Project Settings |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Your sender ID | Firebase Console → Project Settings |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Your app ID | Firebase Console → Project Settings |
-| `CLOUDFLARE_ACCOUNT_ID` | `6ef54b6c3c948c59efd63fa96eab0bc8` | Dashboard URL or sidebar |
+| `CLOUDFLARE_ACCOUNT_ID` | Your account ID | Dashboard URL or sidebar |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_test_...` or `pk_live_...` | Stripe Dashboard → API keys |
 | `STRIPE_SECRET_KEY` | `sk_test_...` or `sk_live_...` | Stripe Dashboard (Encrypt this!) |
 

@@ -58,13 +58,15 @@ database_name = "kapp-db"
 database_id = "YOUR_ACTUAL_DATABASE_ID_HERE"
 ```
 
-**Example with real ID:**
+**Example with a real ID format:**
 ```toml
 [[d1_databases]]
 binding = "DB"
 database_name = "kapp-db"
-database_id = "311f7365-7531-4451-bf8f-672c21c66f03"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # ← Paste your ID from dashboard here
 ```
+
+> **Note**: The database ID is a UUID format like `12345678-1234-1234-1234-123456789012`. Copy the exact ID from your Cloudflare D1 dashboard.
 
 ---
 
@@ -162,7 +164,7 @@ Add these variables:
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `kapp-medical.appspot.com` | Firebase Console → Same location → storageBucket | No |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `123456789012` | Firebase Console → Same location → messagingSenderId | No |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:123456789012:web:abc123` | Firebase Console → Same location → appId | No |
-| `CLOUDFLARE_ACCOUNT_ID` | `6ef54b6c3c948c59efd63fa96eab0bc8` | Cloudflare Dashboard URL or right sidebar | No |
+| `CLOUDFLARE_ACCOUNT_ID` | `your_account_id_here` | Cloudflare Dashboard URL or right sidebar | No |
 
 ### 4.3 Stripe Variables (For Payments)
 
@@ -325,6 +327,7 @@ Here's what your complete wrangler.toml should look like:
 #:schema node_modules/wrangler/config-schema.json
 
 name = "kapp-medical"
+# Update compatibility_date periodically - see: https://developers.cloudflare.com/workers/configuration/compatibility-dates/
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -336,7 +339,7 @@ assets = { directory = ".open-next/assets", binding = "ASSETS" }
 [[d1_databases]]
 binding = "DB"
 database_name = "kapp-db"
-database_id = "311f7365-7531-4451-bf8f-672c21c66f03"  # ← Your actual ID here
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # ← Replace with your actual database ID
 
 # R2 Bucket for file storage
 [[r2_buckets]]

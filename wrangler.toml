@@ -33,7 +33,8 @@ binding = "DB"
 database_name = "kapp-db"
 # D1 Database ID from Cloudflare Dashboard
 # Get this from: Dashboard → Workers & Pages → D1 → Click your database → Copy "Database ID"
-# If this ID doesn't match your database, update it with your actual database ID
+# NOTE: This ID is specific to this Cloudflare account. If forking this repository,
+# you must replace this ID with your own database ID from your Cloudflare dashboard.
 database_id = "311f7365-7531-4451-bf8f-672c21c66f03"
 
 # =============================================================================
