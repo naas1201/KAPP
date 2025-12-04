@@ -9,9 +9,9 @@
 # 2. Copy the database_id from the dashboard and paste it below
 # 3. Create an R2 bucket named "kapp-files" in Cloudflare Dashboard
 # 4. Set environment variables in Cloudflare Dashboard:
-#    - See docs/CLOUDFLARE_DEPLOYMENT_SETUP.md for full list
+#    - See docs/CLOUDFLARE_BINDINGS_SETUP.md for full list
 #
-# For detailed setup instructions, see: docs/CLOUDFLARE_DEPLOYMENT_SETUP.md
+# For detailed setup instructions, see: docs/CLOUDFLARE_BINDINGS_SETUP.md
 
 name = "kapp-medical"
 compatibility_date = "2024-12-01"
@@ -31,10 +31,11 @@ assets = { directory = ".open-next/assets", binding = "ASSETS" }
 [[d1_databases]]
 binding = "DB"
 database_name = "kapp-db"
-# REQUIRED: Replace with your D1 database ID from Cloudflare Dashboard
-# This field cannot be empty - get the ID from:
-# Dashboard → Workers & Pages → D1 → Click your database → Copy "Database ID"
-database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+# D1 Database ID from Cloudflare Dashboard
+# Get this from: Dashboard → Workers & Pages → D1 → Click your database → Copy "Database ID"
+# NOTE: This ID is specific to this Cloudflare account. If forking this repository,
+# you must replace this ID with your own database ID from your Cloudflare dashboard.
+database_id = "311f7365-7531-4451-bf8f-672c21c66f03"
 
 # =============================================================================
 # R2 BUCKET BINDING

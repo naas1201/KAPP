@@ -437,6 +437,15 @@ After successful deployment:
 | `migrations/schema.sql` | D1 database schema |
 | `src/cloudflare/` | Cloudflare-specific utilities |
 | `env.example` | Environment variables template |
+| `docs/CLOUDFLARE_BINDINGS_SETUP.md` | Detailed bindings setup guide |
+| `latestcfdeploymentlog.md` | Deployment log analysis |
+
+---
+
+## Related Documentation
+
+- **[Bindings Setup Guide](./CLOUDFLARE_BINDINGS_SETUP.md)** - Detailed guide for configuring all Worker bindings
+- **[Deployment Log Analysis](../latestcfdeploymentlog.md)** - Analysis of recent deployment with fix instructions
 
 ---
 
