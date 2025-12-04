@@ -67,7 +67,7 @@ bucket_name = "kapp-files"
 binding = "KV"
 # Replace with your KV namespace ID from Cloudflare Dashboard
 # Get this from: Dashboard → Workers & Pages → KV → Click your namespace → Copy ID
-id = "YOUR_KV_NAMESPACE_ID"
+id = "7ac23848c6744d31ad74a5ce8e3785ec"
 # Preview namespace for local development (optional)
 # preview_id = "YOUR_KV_PREVIEW_NAMESPACE_ID"
 
