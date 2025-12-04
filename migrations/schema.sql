@@ -22,16 +22,16 @@
 -- Users table (integrates with Firebase Auth)
 -- The id field uses Firebase UID for consistency
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,                    -- Firebase UID
-    firebase_uid TEXT UNIQUE,               -- Firebase UID (explicit reference)
+    id TEXT PRIMARY KEY,
+    firebase_uid TEXT UNIQUE,
     email TEXT UNIQUE NOT NULL,
-    email_lower TEXT NOT NULL,              -- Lowercase email for case-insensitive lookup
+    email_lower TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'patient' CHECK(role IN ('patient', 'doctor', 'admin')),
     name TEXT,
     phone TEXT,
     avatar_url TEXT,
-    staff_id TEXT,                          -- For staff members
-    access_code TEXT,                       -- Staff access code
+    staff_id TEXT,
+    access_code TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -43,7 +43,6 @@ CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users(email_lower);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_staff_id ON users(staff_id);
 
--- Pending Staff (for staff invites before they sign up)
 CREATE TABLE IF NOT EXISTS pending_staff (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -57,7 +56,6 @@ CREATE TABLE IF NOT EXISTS pending_staff (
 
 CREATE INDEX IF NOT EXISTS idx_pending_staff_email ON pending_staff(email);
 
--- Staff Credentials (for verified staff members)
 CREATE TABLE IF NOT EXISTS staff_credentials (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -68,10 +66,6 @@ CREATE TABLE IF NOT EXISTS staff_credentials (
     verified_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
--- =============================================================================
--- PATIENTS
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS patients (
     id TEXT PRIMARY KEY,
@@ -94,14 +88,13 @@ CREATE TABLE IF NOT EXISTS patients (
 CREATE INDEX IF NOT EXISTS idx_patients_user ON patients(user_id);
 CREATE INDEX IF NOT EXISTS idx_patients_name ON patients(last_name, first_name);
 
--- Medical Information
 CREATE TABLE IF NOT EXISTS medical_info (
     id TEXT PRIMARY KEY,
     patient_id TEXT UNIQUE REFERENCES patients(id) ON DELETE CASCADE,
     blood_type TEXT CHECK(blood_type IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'unknown')),
-    allergies TEXT,                         -- JSON array or comma-separated
-    current_medications TEXT,               -- JSON array or comma-separated
-    medical_conditions TEXT,                -- JSON array or comma-separated
+    allergies TEXT,
+    current_medications TEXT,
+    medical_conditions TEXT,
     previous_surgeries TEXT,
     family_history TEXT,
     notes TEXT,
@@ -109,10 +102,6 @@ CREATE TABLE IF NOT EXISTS medical_info (
 );
 
 CREATE INDEX IF NOT EXISTS idx_medical_info_patient ON medical_info(patient_id);
-
--- =============================================================================
--- DOCTORS
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS doctors (
     id TEXT PRIMARY KEY,
@@ -123,7 +112,7 @@ CREATE TABLE IF NOT EXISTS doctors (
     license_number TEXT,
     phone TEXT,
     bio TEXT,
-    education TEXT,                         -- JSON array or text
+    education TEXT,
     experience_years INTEGER,
     consultation_fee DECIMAL(10,2),
     is_available BOOLEAN DEFAULT TRUE,
@@ -135,10 +124,6 @@ CREATE TABLE IF NOT EXISTS doctors (
 CREATE INDEX IF NOT EXISTS idx_doctors_user ON doctors(user_id);
 CREATE INDEX IF NOT EXISTS idx_doctors_specialization ON doctors(specialization);
 CREATE INDEX IF NOT EXISTS idx_doctors_available ON doctors(is_available);
-
--- =============================================================================
--- TREATMENTS & SERVICES
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS treatments (
     id TEXT PRIMARY KEY,
@@ -159,13 +144,12 @@ CREATE TABLE IF NOT EXISTS treatments (
 CREATE INDEX IF NOT EXISTS idx_treatments_category ON treatments(category);
 CREATE INDEX IF NOT EXISTS idx_treatments_active ON treatments(is_active);
 
--- Doctor Services (which treatments each doctor offers)
 CREATE TABLE IF NOT EXISTS doctor_services (
     id TEXT PRIMARY KEY,
     doctor_id TEXT NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
     treatment_id TEXT NOT NULL REFERENCES treatments(id) ON DELETE CASCADE,
-    custom_price DECIMAL(10,2),             -- Override default treatment price
-    custom_duration INTEGER,                -- Override default duration
+    custom_price DECIMAL(10,2),
+    custom_duration INTEGER,
     is_enabled BOOLEAN DEFAULT TRUE,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -175,40 +159,31 @@ CREATE TABLE IF NOT EXISTS doctor_services (
 CREATE INDEX IF NOT EXISTS idx_doctor_services_doctor ON doctor_services(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_doctor_services_treatment ON doctor_services(treatment_id);
 
--- =============================================================================
--- APPOINTMENTS
--- =============================================================================
-
 CREATE TABLE IF NOT EXISTS appointments (
     id TEXT PRIMARY KEY,
     patient_id TEXT NOT NULL REFERENCES patients(id),
     doctor_id TEXT REFERENCES doctors(id),
     treatment_id TEXT REFERENCES treatments(id),
     
-    -- Scheduling
     date_time DATETIME NOT NULL,
     end_time DATETIME,
     duration_minutes INTEGER,
     
-    -- Status tracking
     status TEXT NOT NULL DEFAULT 'pending' 
         CHECK(status IN ('pending', 'approved', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show', 'rejected')),
     
-    -- Notes
-    patient_notes TEXT,                     -- Notes from patient during booking
-    doctor_notes TEXT,                      -- Private notes from doctor
+    patient_notes TEXT,
+    doctor_notes TEXT,
     cancellation_reason TEXT,
     
-    -- Payment
     price DECIMAL(10,2),
     discount_amount DECIMAL(10,2) DEFAULT 0,
     final_price DECIMAL(10,2),
     payment_status TEXT DEFAULT 'unpaid' 
         CHECK(payment_status IN ('unpaid', 'pending', 'paid', 'refunded', 'failed')),
     payment_method TEXT,
-    payment_id TEXT,                        -- Stripe payment ID
+    payment_id TEXT,
     
-    -- Metadata
     booked_as_guest BOOLEAN DEFAULT FALSE,
     guest_email TEXT,
     guest_phone TEXT,
@@ -226,11 +201,6 @@ CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments(status);
 CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(date_time);
 CREATE INDEX IF NOT EXISTS idx_appointments_payment ON appointments(payment_status);
 
--- =============================================================================
--- TREATMENT RECORDS & PRESCRIPTIONS
--- =============================================================================
-
--- Treatment Records (consultation notes)
 CREATE TABLE IF NOT EXISTS treatment_records (
     id TEXT PRIMARY KEY,
     appointment_id TEXT REFERENCES appointments(id),
@@ -253,7 +223,6 @@ CREATE INDEX IF NOT EXISTS idx_treatment_records_patient ON treatment_records(pa
 CREATE INDEX IF NOT EXISTS idx_treatment_records_doctor ON treatment_records(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_treatment_records_appointment ON treatment_records(appointment_id);
 
--- Prescriptions
 CREATE TABLE IF NOT EXISTS prescriptions (
     id TEXT PRIMARY KEY,
     treatment_record_id TEXT REFERENCES treatment_records(id),
@@ -281,26 +250,18 @@ CREATE INDEX IF NOT EXISTS idx_prescriptions_patient ON prescriptions(patient_id
 CREATE INDEX IF NOT EXISTS idx_prescriptions_doctor ON prescriptions(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_prescriptions_number ON prescriptions(prescription_number);
 
--- =============================================================================
--- AUTHORIZED PATIENTS (Doctor-Patient Relationships)
--- =============================================================================
-
 CREATE TABLE IF NOT EXISTS authorized_patients (
     id TEXT PRIMARY KEY,
     doctor_id TEXT NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
     patient_id TEXT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     authorized_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    authorized_by TEXT,                     -- Who authorized (admin, doctor, system)
+    authorized_by TEXT,
     notes TEXT,
     UNIQUE(doctor_id, patient_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_authorized_patients_doctor ON authorized_patients(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_authorized_patients_patient ON authorized_patients(patient_id);
-
--- =============================================================================
--- MESSAGING & CHAT
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS chat_rooms (
     id TEXT PRIMARY KEY,
@@ -339,10 +300,6 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages(room_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);
 
--- =============================================================================
--- RATINGS & REVIEWS
--- =============================================================================
-
 CREATE TABLE IF NOT EXISTS ratings (
     id TEXT PRIMARY KEY,
     patient_id TEXT NOT NULL REFERENCES patients(id),
@@ -360,25 +317,18 @@ CREATE INDEX IF NOT EXISTS idx_ratings_doctor ON ratings(doctor_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_patient ON ratings(patient_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_appointment ON ratings(appointment_id);
 
--- =============================================================================
--- FILES & DOCUMENTS
--- =============================================================================
-
 CREATE TABLE IF NOT EXISTS files (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     
-    -- Storage info
-    path TEXT NOT NULL,                     -- R2 object path
+    path TEXT NOT NULL,
     original_name TEXT NOT NULL,
     mime_type TEXT NOT NULL,
-    size INTEGER NOT NULL,                  -- Size in bytes
+    size INTEGER NOT NULL,
     
-    -- Association
-    entity_type TEXT,                       -- 'appointment', 'patient', 'prescription', etc.
+    entity_type TEXT,
     entity_id TEXT,
     
-    -- Metadata
     description TEXT,
     is_public BOOLEAN DEFAULT FALSE,
     
@@ -388,11 +338,6 @@ CREATE TABLE IF NOT EXISTS files (
 CREATE INDEX IF NOT EXISTS idx_files_user ON files(user_id);
 CREATE INDEX IF NOT EXISTS idx_files_entity ON files(entity_type, entity_id);
 
--- =============================================================================
--- ADMIN & SYSTEM
--- =============================================================================
-
--- Announcements
 CREATE TABLE IF NOT EXISTS announcements (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -411,7 +356,6 @@ CREATE TABLE IF NOT EXISTS announcements (
 CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active);
 CREATE INDEX IF NOT EXISTS idx_announcements_dates ON announcements(start_date, end_date);
 
--- FAQs
 CREATE TABLE IF NOT EXISTS faqs (
     id TEXT PRIMARY KEY,
     question TEXT NOT NULL,
@@ -428,7 +372,6 @@ CREATE TABLE IF NOT EXISTS faqs (
 CREATE INDEX IF NOT EXISTS idx_faqs_category ON faqs(category);
 CREATE INDEX IF NOT EXISTS idx_faqs_treatment ON faqs(treatment_id);
 
--- Discount Codes
 CREATE TABLE IF NOT EXISTS discount_codes (
     id TEXT PRIMARY KEY,
     code TEXT UNIQUE NOT NULL,
@@ -442,7 +385,7 @@ CREATE TABLE IF NOT EXISTS discount_codes (
     valid_from DATETIME,
     valid_until DATETIME,
     is_active BOOLEAN DEFAULT TRUE,
-    applicable_treatments TEXT,             -- JSON array of treatment IDs, null = all
+    applicable_treatments TEXT,
     created_by TEXT REFERENCES users(id),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -450,25 +393,23 @@ CREATE TABLE IF NOT EXISTS discount_codes (
 CREATE INDEX IF NOT EXISTS idx_discount_codes_code ON discount_codes(code);
 CREATE INDEX IF NOT EXISTS idx_discount_codes_active ON discount_codes(is_active);
 
--- Feature Flags
 CREATE TABLE IF NOT EXISTS feature_flags (
     id TEXT PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
     description TEXT,
     is_enabled BOOLEAN DEFAULT FALSE,
-    config TEXT,                            -- JSON configuration
+    config TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Leads (contact form submissions)
 CREATE TABLE IF NOT EXISTS leads (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
     phone TEXT,
     message TEXT,
-    source TEXT,                            -- 'website', 'referral', etc.
+    source TEXT,
     status TEXT DEFAULT 'new' CHECK(status IN ('new', 'contacted', 'converted', 'closed', 'spam')),
     assigned_to TEXT REFERENCES users(id),
     notes TEXT,
@@ -479,12 +420,11 @@ CREATE TABLE IF NOT EXISTS leads (
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email);
 
--- Reports (user reports)
 CREATE TABLE IF NOT EXISTS reports (
     id TEXT PRIMARY KEY,
     reporter_id TEXT NOT NULL REFERENCES users(id),
     reported_user_id TEXT REFERENCES users(id),
-    reported_entity_type TEXT,              -- 'user', 'review', 'message', etc.
+    reported_entity_type TEXT,
     reported_entity_id TEXT,
     reason TEXT NOT NULL,
     description TEXT,
@@ -498,21 +438,17 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id);
 
--- =============================================================================
--- AUDIT LOGS
--- =============================================================================
-
 CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
     user_id TEXT REFERENCES users(id),
-    action TEXT NOT NULL,                   -- 'create', 'update', 'delete', 'login', etc.
-    entity_type TEXT NOT NULL,              -- 'user', 'appointment', 'prescription', etc.
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
     entity_id TEXT,
-    old_values TEXT,                        -- JSON of old values
-    new_values TEXT,                        -- JSON of new values
+    old_values TEXT,
+    new_values TEXT,
     ip_address TEXT,
     user_agent TEXT,
-    metadata TEXT,                          -- Additional JSON data
+    metadata TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
