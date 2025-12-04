@@ -300,15 +300,23 @@ Use this checklist to ensure everything is configured:
   - [ ] Binding configured (usually auto-done)
 
 - [ ] **Environment Variables**
-  - [ ] NEXT_PUBLIC_FIREBASE_API_KEY
+  - [ ] NEXT_PUBLIC_FIREBASE_API_KEY = AIzaSyBKWX4YCrQtFbYdB1XfdqOW3ymVI9fdMoI
   - [ ] NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
   - [ ] NEXT_PUBLIC_FIREBASE_PROJECT_ID
   - [ ] NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
   - [ ] NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
   - [ ] NEXT_PUBLIC_FIREBASE_APP_ID
-  - [ ] CLOUDFLARE_ACCOUNT_ID
+  - [ ] CLOUDFLARE_ACCOUNT_ID = 6ef54b6c3c948c59efd63fa96eab0bc8
   - [ ] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (if using Stripe)
   - [ ] STRIPE_SECRET_KEY (if using Stripe, encrypted)
+     
+        NOTE: all infor here:   apiKey: "AIzaSyBKWX4YCrQtFbYdB1XfdqOW3ymVI9fdMoI",
+  authDomain: "studio-8822072999-a4137.firebaseapp.com",
+  projectId: "studio-8822072999-a4137",
+  storageBucket: "studio-8822072999-a4137.firebasestorage.app",
+  messagingSenderId: "644784261357",
+  appId: "1:644784261357:web:80e04a3ce959e1ca53e4e4",
+  measurementId: "G-PMBWB5N37T"
 
 - [ ] **Firebase**
   - [ ] Cloudflare domain added to authorized domains
