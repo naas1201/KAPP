@@ -108,6 +108,7 @@ const formSchema = z.object({
     'Please select a date that is not in the past.'
   ),
   time: z.string().min(1, 'Please select a time.'),
+  fullName: z.string().min(2, 'Please enter your full name.'),
   phoneNumber: z.string().min(10, 'Please enter a valid Philippine phone number.').regex(
     /^(\+63|0)?9\d{9}$/,
     'Please enter a valid Philippine mobile number (e.g., +639123456789 or 09123456789).'
@@ -418,6 +419,7 @@ export default function BookingPage() {
       service: '',
       doctorId: '',
       time: '',
+      fullName: user?.displayName || '',
       phoneNumber: patientData?.phone || '',
       medicalCondition: '',
       paymentMethod: 'gcash'
@@ -450,6 +452,11 @@ export default function BookingPage() {
     const selectedService = availableServices.find(s => s.id === data.service);
     const serviceName = selectedService?.name;
     
+    // Parse patient name from full name
+    const nameParts = data.fullName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
     if (!serviceName) {
       toast({
         variant: 'destructive',
@@ -467,6 +474,8 @@ export default function BookingPage() {
       const appointmentData: any = {
         bookingId,
         patientId,
+        patientName: data.fullName, // Store patient name directly in appointment
+        patientEmail: user.email || '',
         doctorId: data.doctorId,
         serviceType: serviceName,
         dateTime: dateTime.toISOString(),
@@ -511,8 +520,11 @@ export default function BookingPage() {
         }, { merge: true });
         
         const patientRef = doc(firestore, 'patients', patientId);
-        // Use setDoc with merge to create patient document if it doesn't exist
+        // Use setDoc with merge to create/update patient document with name info
         setDocumentNonBlocking(patientRef, {
+          firstName,
+          lastName,
+          phone: data.phoneNumber,
           appointmentCount: increment(1),
           email: user.email || '',
           updatedAt: serverTimestamp()
@@ -568,6 +580,11 @@ export default function BookingPage() {
     const selectedService = availableServices.find(s => s.id === data.service);
     const serviceName = selectedService?.name;
     
+    // Parse patient name from full name
+    const nameParts = data.fullName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
     if (!serviceName) {
       toast({
         variant: 'destructive',
@@ -585,6 +602,8 @@ export default function BookingPage() {
       const appointmentData: any = {
         bookingId,
         patientId,
+        patientName: data.fullName, // Store patient name directly in appointment
+        patientEmail: user.email || '',
         doctorId: data.doctorId,
         serviceType: serviceName,
         dateTime: dateTime.toISOString(),
@@ -628,8 +647,11 @@ export default function BookingPage() {
         }, { merge: true });
         
         const patientRef = doc(firestore, 'patients', patientId);
-        // Use setDoc with merge to create patient document if it doesn't exist
+        // Use setDoc with merge to create/update patient document with name info
         setDocumentNonBlocking(patientRef, {
+          firstName,
+          lastName,
+          phone: data.phoneNumber,
           appointmentCount: increment(1),
           email: user.email || '',
           updatedAt: serverTimestamp()
@@ -783,7 +805,7 @@ export default function BookingPage() {
         : currentStep === 1
         ? ['doctorId']
         : currentStep === 2
-        ? ['date', 'time', 'phoneNumber']
+        ? ['date', 'time', 'fullName', 'phoneNumber']
         : ['paymentMethod'];
 
     const output = await form.trigger(fields as any, {
@@ -1139,6 +1161,28 @@ export default function BookingPage() {
                               ))
                             )}
                           </RadioGroup>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    {/* Full Name */}
+                    <FormField
+                      control={form.control}
+                      name="fullName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-lg font-semibold" data-testid="booking-fullname-label">Full Name</FormLabel>
+                          <FormControl>
+                            <Input 
+                              data-testid="booking-fullname"
+                              placeholder="Juan Dela Cruz" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            Your name as it will appear on the appointment
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

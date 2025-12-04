@@ -25,9 +25,9 @@ import {
   useFirestore,
   useMemoFirebase,
 } from '@/firebase/hooks';
-import { updateDocumentNonBlocking, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, doc, collectionGroup, serverTimestamp, orderBy, limit, increment } from 'firebase/firestore';
-import { format, formatDistanceToNow, isAfter, isBefore, addHours } from 'date-fns';
+import { updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc, collectionGroup, serverTimestamp, orderBy, increment, setDoc } from 'firebase/firestore';
+import { format, formatDistanceToNow, isAfter, isBefore } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Video, Users, Stethoscope, Hourglass, Star, Quote, Clock, CalendarCheck, ChevronRight, MessageSquare, CalendarClock } from 'lucide-react';
@@ -192,22 +192,23 @@ export default function DoctorDashboard() {
       }
 
       // mark appointment as confirmed in patient subcollection (if exists)
+      // Use setDoc with await to ensure the write completes
       const patientAppointmentRef = doc(firestore, 'patients', apt.patientId, 'appointments', apt.id);
-      setDocumentNonBlocking(patientAppointmentRef, updateData, { merge: true });
+      await setDoc(patientAppointmentRef, updateData, { merge: true });
 
       // also set a top-level appointment record for doctor's convenience
       const topLevelRef = doc(firestore, 'appointments', apt.id);
-      setDocumentNonBlocking(topLevelRef, { ...apt, ...updateData }, { merge: true });
+      await setDoc(topLevelRef, { ...apt, ...updateData, id: apt.id }, { merge: true });
 
       // add patient to doctor's patient list
       const doctorPatientRef = doc(firestore, 'doctors', user.uid, 'patients', apt.patientId);
-      setDocumentNonBlocking(doctorPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doctorPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
       
       // add patient to doctor's authorized patients for access control
       const authorizedPatientRef = doc(firestore, 'doctors', user.uid, 'authorizedPatients', apt.patientId);
-      setDocumentNonBlocking(authorizedPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
+      await setDoc(authorizedPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
 
-      // Update gamification data
+      // Update gamification data (non-blocking is fine for this)
       const doctorRef = doc(firestore, 'doctors', user.uid);
       updateDocumentNonBlocking(doctorRef, {
         'gamification.appointmentsApproved': increment(1),
@@ -218,8 +219,8 @@ export default function DoctorDashboard() {
       setApprovalDialogOpen(false);
       setSelectedRequest(null);
     } catch (err) {
-      console.error(err);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to approve appointment.' });
+      console.error('Error approving appointment:', err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to approve appointment. Please try again.' });
     }
   };
 
@@ -241,16 +242,16 @@ export default function DoctorDashboard() {
       }
 
       const patientAppointmentRef = doc(firestore, 'patients', apt.patientId, 'appointments', apt.id);
-      setDocumentNonBlocking(patientAppointmentRef, updateData, { merge: true });
+      await setDoc(patientAppointmentRef, updateData, { merge: true });
       const topLevelRef = doc(firestore, 'appointments', apt.id);
-      setDocumentNonBlocking(topLevelRef, { ...apt, ...updateData }, { merge: true });
+      await setDoc(topLevelRef, { ...apt, ...updateData, id: apt.id }, { merge: true });
 
       toast({ title: 'Appointment Declined', description: 'The patient has been notified.' });
       setRejectionDialogOpen(false);
       setSelectedRequest(null);
     } catch (err) {
-      console.error(err);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to decline appointment.' });
+      console.error('Error rejecting appointment:', err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to decline appointment. Please try again.' });
     }
   };
 
@@ -299,18 +300,18 @@ export default function DoctorDashboard() {
 
       // Update patient appointment
       const patientAppointmentRef = doc(firestore, 'patients', apt.patientId, 'appointments', apt.id);
-      setDocumentNonBlocking(patientAppointmentRef, updateData, { merge: true });
+      await setDoc(patientAppointmentRef, updateData, { merge: true });
 
       // Update top-level appointment
       const topLevelRef = doc(firestore, 'appointments', apt.id);
-      setDocumentNonBlocking(topLevelRef, { ...apt, ...updateData }, { merge: true });
+      await setDoc(topLevelRef, { ...apt, ...updateData, id: apt.id }, { merge: true });
 
       // Add patient to doctor's lists
       const doctorPatientRef = doc(firestore, 'doctors', user.uid, 'patients', apt.patientId);
-      setDocumentNonBlocking(doctorPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doctorPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
       
       const authorizedPatientRef = doc(firestore, 'doctors', user.uid, 'authorizedPatients', apt.patientId);
-      setDocumentNonBlocking(authorizedPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
+      await setDoc(authorizedPatientRef, { patientId: apt.patientId, addedAt: serverTimestamp() }, { merge: true });
 
       toast({ 
         title: 'Appointment Rescheduled', 
@@ -321,8 +322,8 @@ export default function DoctorDashboard() {
       setRescheduleTime('');
       setRescheduleNote('');
     } catch (err) {
-      console.error(err);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to reschedule appointment.' });
+      console.error('Error rescheduling appointment:', err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to reschedule appointment. Please try again.' });
     }
   };
 
@@ -330,13 +331,15 @@ export default function DoctorDashboard() {
     if (!appointments || !patients) return [];
     return appointments.map((apt: any) => {
       const patient = patients.find((p: any) => p.id === apt.patientId);
+      // Use patient data from patients collection if available, otherwise use data stored in appointment
+      const patientName = patient
+        ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim()
+        : (apt.patientName || 'Unknown Patient');
       return {
         ...apt,
-        patientName: patient
-          ? `${patient.firstName} ${patient.lastName}`
-          : 'Unknown Patient',
-        patientEmail: patient ? patient.email : '',
-        patientPhone: patient?.phone || '',
+        patientName: patientName || 'Unknown Patient',
+        patientEmail: patient?.email || apt.patientEmail || '',
+        patientPhone: patient?.phone || apt.phoneNumber || '',
         patientData: patient,
       };
     });

@@ -140,7 +140,8 @@ service cloud.firestore {
     match /patients/{patientId} {
       allow get: if canAccessPatientData(patientId);
       allow update: if canAccessPatientData(patientId) && isValidDocumentSize();
-      allow list: if isAdmin();
+      // Allow doctors and admins to list all patients for convenience in small clinic setup
+      allow list: if isStaff();
       allow create: if isOwner(patientId) 
         && isValidDocumentSize()
         && isValidStringLength(request.resource.data.firstName, 100)
