@@ -12,6 +12,7 @@ This guide helps you fix deployment errors by properly configuring all required 
 |-------------|------|---------------|--------|-------|
 | `DB` | D1 Database | `kapp-db` | ⚠️ Requires setup | Must create and get ID |
 | `STORAGE` | R2 Bucket | `kapp-files` | ✅ Auto-provisioned | Usually auto-created |
+| `KV` | KV Namespace | `kapp-cache` | ⚠️ Requires setup | For caching & sessions |
 | `AI` | Workers AI | - | ✅ Auto-enabled | No setup needed |
 | `ASSETS` | Static Assets | - | ✅ Auto-configured | Handled by build |
 | `ENVIRONMENT` | Env Variable | - | ✅ In wrangler.toml | Value: "production" |
@@ -299,6 +300,12 @@ Use this checklist to ensure everything is configured:
   - [ ] Bucket `kapp-files` exists
   - [ ] Binding configured (usually auto-done)
 
+- [ ] **KV Namespace** (NEW)
+  - [ ] Namespace `kapp-cache` created in Dashboard
+  - [ ] Namespace ID copied
+  - [ ] wrangler.toml updated with KV namespace ID
+  - [ ] Used for: caching, sessions, rate limiting, feature flags
+
 - [ ] **Environment Variables**
   - [ ] NEXT_PUBLIC_FIREBASE_API_KEY = AIzaSyBKWX4YCrQtFbYdB1XfdqOW3ymVI9fdMoI
   - [ ] NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
@@ -324,6 +331,51 @@ Use this checklist to ensure everything is configured:
 - [ ] **Final Steps**
   - [ ] Changes committed and pushed
   - [ ] Deployment successful
+
+---
+
+## 🆕 Step 6: Create KV Namespace (Optional but Recommended)
+
+Workers KV provides fast key-value storage for caching, sessions, and feature flags.
+
+### 6.1 Create the KV Namespace
+
+1. Go to **Workers & Pages** in the left sidebar
+2. Click **KV** tab
+3. Click **Create a namespace**
+4. Enter name: `kapp-cache`
+5. Click **Create**
+
+### 6.2 Get the Namespace ID
+
+1. Click on your `kapp-cache` namespace
+2. Copy the **Namespace ID** shown
+
+### 6.3 Update wrangler.toml
+
+Replace the placeholder in `wrangler.toml`:
+
+```toml
+[[kv_namespaces]]
+binding = "KV"
+id = "YOUR_KV_NAMESPACE_ID"  # ← Replace with actual ID
+```
+
+### 6.4 What KV is Used For
+
+| Feature | Description |
+|---------|-------------|
+| **Session Management** | Store user sessions with TTL |
+| **Rate Limiting** | Protect API from abuse |
+| **Feature Flags** | Toggle features dynamically |
+| **Response Caching** | Cache frequently accessed data |
+| **Analytics** | Track events (within limits) |
+
+### 6.5 Free Tier Limits
+
+- 100,000 reads/day
+- 1,000 writes/day
+- 1GB storage
 
 ---
 

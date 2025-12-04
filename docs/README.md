@@ -16,9 +16,12 @@ Welcome to the KAPP Medical Booking Application documentation. This guide will h
 
 ### Deployment
 - [**Cloudflare Deployment**](./CLOUDFLARE_DEPLOYMENT.md) - **Complete deployment guide for Cloudflare Workers**
+- [Cloudflare Bindings Setup](./CLOUDFLARE_BINDINGS_SETUP.md) - Configure D1, R2, KV, and AI bindings
+- [**Cloudflare Free Tier Optimization**](./CLOUDFLARE_FREE_TIER_OPTIMIZATION.md) - **Maximize free tier features**
 
 ### Features & Workflows
 - [Doctor Workflows](./DOCTOR_WORKFLOWS.md) - Complete guide to doctor functionality
+- [**Video Call & Chat Guide**](./CLOUDFLARE_VIDEO_CHAT_GUIDE.md) - **Implementation guide for real-time communication**
 
 ### Testing
 - [E2E Testing Guide](./E2E_TESTING.md) - Playwright end-to-end testing
@@ -202,16 +205,19 @@ See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md) for complete deployme
 
 ```
 docs/
-├── README.md                     # This file - Documentation index
-├── DEVELOPMENT_GUIDE.md          # Developer guide
-├── ADMIN_DOCTOR_SETUP.md         # Staff account setup
-├── DOCTOR_WORKFLOWS.md           # Doctor functionality
-├── FIREBASE_SETUP.md             # Firebase configuration
-├── STRIPE_SETUP.md               # Payment setup
-├── STORAGE_SETUP.md              # File upload setup
-├── E2E_TESTING.md                # Testing guide
-├── API_REFERENCE.md              # Data schema reference
-└── CLOUDFLARE_DEPLOYMENT.md      # Cloudflare deployment guide
+├── README.md                              # This file - Documentation index
+├── DEVELOPMENT_GUIDE.md                   # Developer guide
+├── ADMIN_DOCTOR_SETUP.md                  # Staff account setup
+├── DOCTOR_WORKFLOWS.md                    # Doctor functionality
+├── FIREBASE_SETUP.md                      # Firebase configuration
+├── STRIPE_SETUP.md                        # Payment setup
+├── STORAGE_SETUP.md                       # File upload setup
+├── E2E_TESTING.md                         # Testing guide
+├── API_REFERENCE.md                       # Data schema reference
+├── CLOUDFLARE_DEPLOYMENT.md               # Cloudflare deployment guide
+├── CLOUDFLARE_BINDINGS_SETUP.md           # Cloudflare bindings configuration
+├── CLOUDFLARE_FREE_TIER_OPTIMIZATION.md   # Free tier optimization guide
+└── CLOUDFLARE_VIDEO_CHAT_GUIDE.md         # Video call & chat implementation
 ```
 
 ---
